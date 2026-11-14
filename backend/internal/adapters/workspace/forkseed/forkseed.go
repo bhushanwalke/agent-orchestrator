@@ -197,8 +197,7 @@ func Apply(ctx context.Context, worktree, ref string) error {
 // checkout rather than stray files a later sparse refresh would drop. A full
 // checkout is left alone.
 func widenSparseCone(ctx context.Context, worktree, ref string) error {
-	sparse, err := run(ctx, worktree, nil, "config", "--get", "--bool", "core.sparseCheckout")
-	if err != nil || strings.TrimSpace(sparse) != "true" {
+	if !isSparseCheckout(ctx, worktree) {
 		return nil
 	}
 	listed, err := run(ctx, worktree, nil, "sparse-checkout", "list")
@@ -232,6 +231,13 @@ func widenSparseCone(ctx context.Context, worktree, ref string) error {
 		return fmt.Errorf("forkseed: widen sparse cone: %w", err)
 	}
 	return nil
+}
+
+// isSparseCheckout reports whether worktree has core.sparseCheckout set. An
+// unset key makes git config exit non-zero, which means a full checkout.
+func isSparseCheckout(ctx context.Context, worktree string) bool {
+	out, err := run(ctx, worktree, nil, "config", "--get", "--bool", "core.sparseCheckout")
+	return err == nil && strings.TrimSpace(out) == "true"
 }
 
 // insideCone reports whether dir is a cone directory or below one.
