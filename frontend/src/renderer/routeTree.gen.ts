@@ -22,6 +22,7 @@ import { Route as ShellSessionsSessionIdRouteImport } from './routes/_shell.sess
 import { Route as ShellProjectsProjectIdRouteImport } from './routes/_shell.projects.$projectId'
 import { Route as ShellProjectsProjectIdSettingsRouteImport } from './routes/_shell.projects.$projectId_.settings'
 import { Route as ShellProjectsProjectIdSessionsSessionIdRouteImport } from './routes/_shell.projects.$projectId_.sessions.$sessionId'
+import { Route as ShellProjectsProjectIdPlansPlanIdRouteImport } from './routes/_shell.projects.$projectId_.plans.$planId'
 import { Route as ShellHostHostIdSessionSessionIdRouteImport } from './routes/_shell.host.$hostId.session.$sessionId'
 import { Route as ShellHostHostIdProjectProjectIdRouteImport } from './routes/_shell.host.$hostId.project.$projectId'
 import { Route as ShellHostHostIdProjectProjectIdSessionSessionIdRouteImport } from './routes/_shell.host.$hostId.project.$projectId_.session.$sessionId'
@@ -92,6 +93,12 @@ const ShellProjectsProjectIdSessionsSessionIdRoute =
     path: '/projects/$projectId/sessions/$sessionId',
     getParentRoute: () => ShellRoute,
   } as any)
+const ShellProjectsProjectIdPlansPlanIdRoute =
+  ShellProjectsProjectIdPlansPlanIdRouteImport.update({
+    id: '/projects/$projectId_/plans/$planId',
+    path: '/projects/$projectId/plans/$planId',
+    getParentRoute: () => ShellRoute,
+  } as any)
 const ShellHostHostIdSessionSessionIdRoute =
   ShellHostHostIdSessionSessionIdRouteImport.update({
     id: '/host/$hostId/session/$sessionId',
@@ -125,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/projects/$projectId/settings': typeof ShellProjectsProjectIdSettingsRoute
   '/host/$hostId/project/$projectId': typeof ShellHostHostIdProjectProjectIdRoute
   '/host/$hostId/session/$sessionId': typeof ShellHostHostIdSessionSessionIdRoute
+  '/projects/$projectId/plans/$planId': typeof ShellProjectsProjectIdPlansPlanIdRoute
   '/projects/$projectId/sessions/$sessionId': typeof ShellProjectsProjectIdSessionsSessionIdRoute
   '/host/$hostId/project/$projectId/session/$sessionId': typeof ShellHostHostIdProjectProjectIdSessionSessionIdRoute
 }
@@ -141,6 +149,7 @@ export interface FileRoutesByTo {
   '/projects/$projectId/settings': typeof ShellProjectsProjectIdSettingsRoute
   '/host/$hostId/project/$projectId': typeof ShellHostHostIdProjectProjectIdRoute
   '/host/$hostId/session/$sessionId': typeof ShellHostHostIdSessionSessionIdRoute
+  '/projects/$projectId/plans/$planId': typeof ShellProjectsProjectIdPlansPlanIdRoute
   '/projects/$projectId/sessions/$sessionId': typeof ShellProjectsProjectIdSessionsSessionIdRoute
   '/host/$hostId/project/$projectId/session/$sessionId': typeof ShellHostHostIdProjectProjectIdSessionSessionIdRoute
 }
@@ -160,6 +169,7 @@ export interface FileRoutesById {
   '/_shell/projects/$projectId_/settings': typeof ShellProjectsProjectIdSettingsRoute
   '/_shell/host/$hostId/project/$projectId': typeof ShellHostHostIdProjectProjectIdRoute
   '/_shell/host/$hostId/session/$sessionId': typeof ShellHostHostIdSessionSessionIdRoute
+  '/_shell/projects/$projectId_/plans/$planId': typeof ShellProjectsProjectIdPlansPlanIdRoute
   '/_shell/projects/$projectId_/sessions/$sessionId': typeof ShellProjectsProjectIdSessionsSessionIdRoute
   '/_shell/host/$hostId/project/$projectId_/session/$sessionId': typeof ShellHostHostIdProjectProjectIdSessionSessionIdRoute
 }
@@ -179,6 +189,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/settings'
     | '/host/$hostId/project/$projectId'
     | '/host/$hostId/session/$sessionId'
+    | '/projects/$projectId/plans/$planId'
     | '/projects/$projectId/sessions/$sessionId'
     | '/host/$hostId/project/$projectId/session/$sessionId'
   fileRoutesByTo: FileRoutesByTo
@@ -195,6 +206,7 @@ export interface FileRouteTypes {
     | '/projects/$projectId/settings'
     | '/host/$hostId/project/$projectId'
     | '/host/$hostId/session/$sessionId'
+    | '/projects/$projectId/plans/$planId'
     | '/projects/$projectId/sessions/$sessionId'
     | '/host/$hostId/project/$projectId/session/$sessionId'
   id:
@@ -213,6 +225,7 @@ export interface FileRouteTypes {
     | '/_shell/projects/$projectId_/settings'
     | '/_shell/host/$hostId/project/$projectId'
     | '/_shell/host/$hostId/session/$sessionId'
+    | '/_shell/projects/$projectId_/plans/$planId'
     | '/_shell/projects/$projectId_/sessions/$sessionId'
     | '/_shell/host/$hostId/project/$projectId_/session/$sessionId'
   fileRoutesById: FileRoutesById
@@ -314,6 +327,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShellProjectsProjectIdSessionsSessionIdRouteImport
       parentRoute: typeof ShellRoute
     }
+    '/_shell/projects/$projectId_/plans/$planId': {
+      id: '/_shell/projects/$projectId_/plans/$planId'
+      path: '/projects/$projectId/plans/$planId'
+      fullPath: '/projects/$projectId/plans/$planId'
+      preLoaderRoute: typeof ShellProjectsProjectIdPlansPlanIdRouteImport
+      parentRoute: typeof ShellRoute
+    }
     '/_shell/host/$hostId/session/$sessionId': {
       id: '/_shell/host/$hostId/session/$sessionId'
       path: '/host/$hostId/session/$sessionId'
@@ -364,6 +384,7 @@ interface ShellRouteChildren {
   ShellProjectsProjectIdSettingsRoute: typeof ShellProjectsProjectIdSettingsRoute
   ShellHostHostIdProjectProjectIdRoute: typeof ShellHostHostIdProjectProjectIdRoute
   ShellHostHostIdSessionSessionIdRoute: typeof ShellHostHostIdSessionSessionIdRoute
+  ShellProjectsProjectIdPlansPlanIdRoute: typeof ShellProjectsProjectIdPlansPlanIdRoute
   ShellProjectsProjectIdSessionsSessionIdRoute: typeof ShellProjectsProjectIdSessionsSessionIdRoute
   ShellHostHostIdProjectProjectIdSessionSessionIdRoute: typeof ShellHostHostIdProjectProjectIdSessionSessionIdRoute
 }
@@ -380,6 +401,8 @@ const ShellRouteChildren: ShellRouteChildren = {
   ShellProjectsProjectIdSettingsRoute: ShellProjectsProjectIdSettingsRoute,
   ShellHostHostIdProjectProjectIdRoute: ShellHostHostIdProjectProjectIdRoute,
   ShellHostHostIdSessionSessionIdRoute: ShellHostHostIdSessionSessionIdRoute,
+  ShellProjectsProjectIdPlansPlanIdRoute:
+    ShellProjectsProjectIdPlansPlanIdRoute,
   ShellProjectsProjectIdSessionsSessionIdRoute:
     ShellProjectsProjectIdSessionsSessionIdRoute,
   ShellHostHostIdProjectProjectIdSessionSessionIdRoute:

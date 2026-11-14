@@ -35,6 +35,8 @@ import { useTaskLaunch, type LaunchReplay } from "./TaskComposer";
 import { agentAccountLabel, useAgentAccounts, withoutSameLogins } from "../hooks/useAgentAccounts";
 import type { AccountChoice } from "./chat/AgentSwitchPicker";
 import { Button } from "./ui/button";
+import { Tabs, TabsList, TabsTrigger } from "./ui/tabs";
+import { PlanComposer } from "./plan/PlanComposer";
 import { cn } from "../lib/utils";
 import { MAX_CLOUD_CP_BINARY_BYTES } from "../../shared/cloud-binary";
 
@@ -51,6 +53,11 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 	const queryClient = useQueryClient();
 	// A Cloud task's session starts spinning up as the page opens (not Coder's).
 	const task = useTaskLaunch({ projectId, hostId });
+	// A local repository project can also be planned as a Task by its orchestrator.
+	const planAvailable = !hostId && !report && !task.isCloudProject &&
+		projectId !== STANDALONE_WORKSPACE_ID && projectId !== CLOUD_STANDALONE_WORKSPACE_ID;
+	const [newTaskMode, setNewTaskMode] = useNewTaskMode(projectId);
+	const planMode = planAvailable && newTaskMode === "plan";
 	const hostAccounts = useAgentAccounts(Boolean(task.account), hostId);
 	const providerRows = task.account ? (hostAccounts.data ?? []).filter((row) => row.provider === task.account?.provider) : [];
 	const accountRows = withoutSameLogins(providerRows, task.account?.value ?? providerRows.find((row) => row.default)?.id);
@@ -433,6 +440,9 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 		</div>
 	) : task.modelWarning;
 
+	const projectTray = (
+		<NewChatProjectPicker projectId={projectId} hostId={hostId} disabled={frozen || report} onChange={(project) => void navigate({ to: "/new", search: { project, host: hostId }, replace: true })} />
+	);
 	return (
 		<div className="flex h-full min-h-0 flex-col">
 			{/* No session yet: the shared session frame with no tabs holds the header's
@@ -443,7 +453,17 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 			</div>
 			{/* The placeholder bar above is its drag region; without it (bar-less panel) this keeps the top edge draggable. */}
 			<BareTopbarDragStrip />
-			<ChatWorkspace
+			{planAvailable && !frozen ? (
+				<div className="flex shrink-0 justify-center pt-2">
+					<Tabs value={planMode ? "plan" : "task"} onValueChange={(value) => setNewTaskMode(value === "plan" ? "plan" : "task")}>
+						<TabsList aria-label={t("newTask.plan.modeLabel")}>
+							<TabsTrigger value="task">{t("newTask.plan.modeTask")}</TabsTrigger>
+							<TabsTrigger value="plan">{t("newTask.plan.modePlan")}</TabsTrigger>
+						</TabsList>
+					</Tabs>
+				</div>
+			) : null}
+			{planMode ? <PlanComposer projectId={projectId} tray={projectTray} /> : <ChatWorkspace
 				// A different project is a different worktree: the composer reloads its
 				// draft (text kept, staged files dropped above). So does a draft written
 				// from outside this page.
@@ -474,7 +494,7 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 				skills={skills}
 				composerTray={
 					<>
-						<NewChatProjectPicker projectId={projectId} hostId={hostId} disabled={frozen || report} onChange={(project) => void navigate({ to: "/new", search: { project, host: hostId }, replace: true })} />
+						{projectTray}
 						{hostId ? null : <MobileConnected />}
 					</>
 				}
@@ -513,9 +533,34 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 					</>
 				)}
 				draftNotice={notice}
-			/>
+			/>}
 		</div>
 	);
+}
+
+type NewTaskMode = "task" | "plan";
+
+// The last New Task mode per project, a per-viewer convenience.
+function useNewTaskMode(projectId: string): [NewTaskMode, (mode: NewTaskMode) => void] {
+	const key = `ao.newTask.mode.${projectId}`;
+	const read = (): NewTaskMode => {
+		try {
+			return window.localStorage.getItem(key) === "plan" ? "plan" : "task";
+		} catch {
+			return "task";
+		}
+	};
+	const [mode, setMode] = useState<{ key: string; mode: NewTaskMode }>(() => ({ key, mode: read() }));
+	const current = mode.key === key ? mode.mode : read();
+	const choose = (next: NewTaskMode) => {
+		try {
+			window.localStorage.setItem(key, next);
+		} catch {
+			// Storage can be unavailable; the choice still holds for this page.
+		}
+		setMode({ key, mode: next });
+	};
+	return [current, choose];
 }
 
 /**

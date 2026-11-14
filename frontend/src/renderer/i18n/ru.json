@@ -5061,5 +5061,20 @@
 	"command.sessionMatches_one": "{{count}} совпадение",
 	"command.sessionMatches_few": "{{count}} совпадения",
 	"command.sessionMatches_many": "{{count}} совпадений",
-	"command.sessionMatches_other": "{{count}} совпадения"
+	"command.sessionMatches_other": "{{count}} совпадения",
+	"newTask.plan.modeLabel": "New task type",
+	"newTask.plan.modeTask": "Task",
+	"newTask.plan.modePlan": "Plan",
+	"newTask.plan.heading": "Plan a task with the orchestrator",
+	"newTask.plan.title": "Title",
+	"newTask.plan.titlePlaceholder": "TODO app MVP",
+	"newTask.plan.brief": "Brief",
+	"newTask.plan.briefPlaceholder": "Paste the ticket or describe the work",
+	"newTask.plan.ticket": "Ticket link",
+	"newTask.plan.ticketPlaceholder": "https://github.com/owner/repo/issues/12",
+	"newTask.plan.submit": "Plan with orchestrator",
+	"newTask.plan.submitting": "Starting plan",
+	"newTask.plan.attach": "Add attachment",
+	"newTask.plan.attachUnsupported": "Plans don't take attachments yet",
+	"newTask.plan.failed": "Couldn't start the plan"
 }
