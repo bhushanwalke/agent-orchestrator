@@ -31,14 +31,15 @@ WHERE id = ?;
 -- name: InsertMilestone :exec
 INSERT INTO plan_milestones (
     id, plan_id, key, ordinal, kind, title, description, status, session_id,
-    sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at,
+    retry_base, branch
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: UpdateMilestone :execrows
 UPDATE plan_milestones
 SET key = ?, ordinal = ?, kind = ?, title = ?, description = ?, status = ?,
     session_id = ?, sparse_paths = ?, qa_verdict = ?, qa_note = ?, attempt = ?,
-    updated_at = ?, started_at = ?, finished_at = ?
+    updated_at = ?, started_at = ?, finished_at = ?, retry_base = ?, branch = ?
 WHERE id = ?;
 
 -- name: DeleteMilestone :execrows

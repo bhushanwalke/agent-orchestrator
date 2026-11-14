@@ -38,6 +38,10 @@ type fakeSessions struct {
 	// sendErrFor refuses delivery to one session.
 	sendErrFor map[domain.SessionID]error
 	nextID     int
+	byRequest  map[string]domain.SessionID
+	getCalls   int
+	// sendHook runs at the start of Send, outside the fake's lock.
+	sendHook func(domain.SessionID)
 }
 
 func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.ProjectID) (domain.SessionRecord, error) {
@@ -47,7 +51,13 @@ func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.Pr
 	if f.ensureErr != nil {
 		return domain.SessionRecord{}, f.ensureErr
 	}
-	return domain.SessionRecord{ID: "orch-1", ProjectID: projectID, Kind: domain.KindOrchestrator}, nil
+	rec := domain.SessionRecord{ID: "orch-1", ProjectID: projectID, Kind: domain.KindOrchestrator}
+	if f.sessions != nil {
+		if _, ok := f.sessions[rec.ID]; !ok {
+			f.sessions[rec.ID] = domain.Session{SessionRecord: rec}
+		}
+	}
+	return rec, nil
 }
 
 func (f *fakeSessions) SpawnWorker(_ context.Context, cfg ports.SpawnConfig, _ domain.ProjectRecord) (domain.SessionRecord, error) {
@@ -59,6 +69,10 @@ func (f *fakeSessions) SpawnWorker(_ context.Context, cfg ports.SpawnConfig, _ d
 	}
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	// Like the session manager, a committed request id replays its session.
+	if prior, ok := f.byRequest[cfg.ClientRequestID]; ok && cfg.ClientRequestID != "" {
+		return f.sessions[prior].SessionRecord, nil
+	}
 	f.spawns = append(f.spawns, cfg)
 	if f.spawnErr != nil {
 		return domain.SessionRecord{}, f.spawnErr
@@ -72,6 +86,10 @@ func (f *fakeSessions) SpawnWorker(_ context.Context, cfg ports.SpawnConfig, _ d
 	rec := domain.SessionRecord{ID: id, ProjectID: cfg.ProjectID, Kind: domain.KindWorker, DisplayName: cfg.DisplayName,
 		Metadata: domain.SessionMetadata{Branch: branch}}
 	f.sessions[id] = domain.Session{SessionRecord: rec}
+	if f.byRequest == nil {
+		f.byRequest = map[string]domain.SessionID{}
+	}
+	f.byRequest[cfg.ClientRequestID] = id
 	return rec, nil
 }
 
@@ -92,6 +110,13 @@ func (f *fakeSessions) spawnCount() int {
 
 func (f *fakeSessions) Send(_ context.Context, id domain.SessionID, text string, opts ports.MessageDeliveryOptions) error {
 	f.mu.Lock()
+	hook := f.sendHook
+	f.sendHook = nil
+	f.mu.Unlock()
+	if hook != nil {
+		hook(id)
+	}
+	f.mu.Lock()
 	defer f.mu.Unlock()
 	if f.sendErr != nil {
 		return f.sendErr
@@ -106,6 +131,7 @@ func (f *fakeSessions) Send(_ context.Context, id domain.SessionID, text string,
 func (f *fakeSessions) Get(_ context.Context, id domain.SessionID) (domain.Session, bool, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	f.getCalls++
 	s, ok := f.sessions[id]
 	return s, ok, nil
 }
@@ -546,7 +572,7 @@ func TestRetryMilestoneResetsFailed(t *testing.T) {
 		t.Fatalf("retry: %v", err)
 	}
 	m1 := d.Milestones[0].Milestone
-	if m1.Status != domain.MilestoneStatusReady || m1.Attempt != 0 || d.Phase != domain.PlanPhaseImplementing {
+	if m1.Status != domain.MilestoneStatusReady || m1.AttemptsUsed() != 0 || m1.Attempt != 3 || d.Phase != domain.PlanPhaseImplementing {
 		t.Fatalf("after retry m1 = %+v phase = %s", m1, d.Phase)
 	}
 	if f.sched.ticks != ticks+1 {

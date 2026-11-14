@@ -121,8 +121,10 @@ func (s *Service) qaDoneLocked(ctx context.Context, p domain.Plan, qa *domain.Mi
 		return false, ""
 	}
 	qa.Status = domain.MilestoneStatusFailed
-	if !save(EventMilestoneFailed, "QA finished without a verdict") {
-		return false, ""
-	}
-	return true, fmt.Sprintf("You reported done without recording a QA verdict. Run `ao plan qa-result %s --pass --note \"...\"` or `ao plan qa-result %s --fail --milestone <key> --note \"...\"` for each failing milestone, then `ao report --done` again.", p.ID, p.ID)
+	// The scheduler asks the session for its verdict until the message lands.
+	return save(EventMilestoneFailed, "QA finished without a verdict"), ""
+}
+
+func verdictRequestMessage(id domain.PlanID) string {
+	return fmt.Sprintf("You reported done without recording a QA verdict. Run `ao plan qa-result %s --pass --note \"...\"` or `ao plan qa-result %s --fail --milestone <key> --note \"...\"` for each failing milestone, then `ao report --done` again.", id, id)
 }

@@ -738,7 +738,8 @@ func (s *Service) retryLocked(ctx context.Context, id domain.PlanID, key string)
 		return domain.Plan{}, apierr.Conflict("MILESTONE_NOT_RETRYABLE", "Only a failed milestone, or a blocked qa milestone, of an active plan can be retried", nil)
 	}
 	m.Status = domain.MilestoneStatusReady
-	m.Attempt = 0
+	// A fresh budget without reusing a spawn request id.
+	m.RetryBase = m.Attempt
 	m.UpdatedAt = s.now().UTC()
 	if err := s.store.UpdateMilestone(ctx, m); err != nil {
 		return domain.Plan{}, err

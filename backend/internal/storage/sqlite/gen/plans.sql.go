@@ -49,8 +49,9 @@ func (q *Queries) DeletePlan(ctx context.Context, id domain.PlanID) (int64, erro
 const insertMilestone = `-- name: InsertMilestone :exec
 INSERT INTO plan_milestones (
     id, plan_id, key, ordinal, kind, title, description, status, session_id,
-    sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at,
+    retry_base, branch
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertMilestoneParams struct {
@@ -71,6 +72,8 @@ type InsertMilestoneParams struct {
 	UpdatedAt   time.Time
 	StartedAt   sql.NullTime
 	FinishedAt  sql.NullTime
+	RetryBase   int64
+	Branch      string
 }
 
 func (q *Queries) InsertMilestone(ctx context.Context, arg InsertMilestoneParams) error {
@@ -92,6 +95,8 @@ func (q *Queries) InsertMilestone(ctx context.Context, arg InsertMilestoneParams
 		arg.UpdatedAt,
 		arg.StartedAt,
 		arg.FinishedAt,
+		arg.RetryBase,
+		arg.Branch,
 	)
 	return err
 }
@@ -269,7 +274,7 @@ func (q *Queries) SelectAllPlans(ctx context.Context) ([]Plan, error) {
 }
 
 const selectMilestoneBySession = `-- name: SelectMilestoneBySession :one
-SELECT id, plan_id, "key", ordinal, kind, title, description, status, session_id, sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at FROM plan_milestones
+SELECT id, plan_id, "key", ordinal, kind, title, description, status, session_id, sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at, retry_base, branch FROM plan_milestones
 WHERE session_id = ? AND session_id <> ''
 ORDER BY updated_at DESC, id DESC
 LIMIT 1
@@ -298,6 +303,8 @@ func (q *Queries) SelectMilestoneBySession(ctx context.Context, sessionID domain
 		&i.UpdatedAt,
 		&i.StartedAt,
 		&i.FinishedAt,
+		&i.RetryBase,
+		&i.Branch,
 	)
 	return i, err
 }
@@ -340,7 +347,7 @@ func (q *Queries) SelectMilestoneDepKeysByPlan(ctx context.Context, planID domai
 }
 
 const selectMilestonesByPlan = `-- name: SelectMilestonesByPlan :many
-SELECT id, plan_id, "key", ordinal, kind, title, description, status, session_id, sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at FROM plan_milestones WHERE plan_id = ? ORDER BY ordinal, id
+SELECT id, plan_id, "key", ordinal, kind, title, description, status, session_id, sparse_paths, qa_verdict, qa_note, attempt, created_at, updated_at, started_at, finished_at, retry_base, branch FROM plan_milestones WHERE plan_id = ? ORDER BY ordinal, id
 `
 
 func (q *Queries) SelectMilestonesByPlan(ctx context.Context, planID domain.PlanID) ([]PlanMilestone, error) {
@@ -370,6 +377,8 @@ func (q *Queries) SelectMilestonesByPlan(ctx context.Context, planID domain.Plan
 			&i.UpdatedAt,
 			&i.StartedAt,
 			&i.FinishedAt,
+			&i.RetryBase,
+			&i.Branch,
 		); err != nil {
 			return nil, err
 		}
@@ -541,7 +550,7 @@ const updateMilestone = `-- name: UpdateMilestone :execrows
 UPDATE plan_milestones
 SET key = ?, ordinal = ?, kind = ?, title = ?, description = ?, status = ?,
     session_id = ?, sparse_paths = ?, qa_verdict = ?, qa_note = ?, attempt = ?,
-    updated_at = ?, started_at = ?, finished_at = ?
+    updated_at = ?, started_at = ?, finished_at = ?, retry_base = ?, branch = ?
 WHERE id = ?
 `
 
@@ -560,6 +569,8 @@ type UpdateMilestoneParams struct {
 	UpdatedAt   time.Time
 	StartedAt   sql.NullTime
 	FinishedAt  sql.NullTime
+	RetryBase   int64
+	Branch      string
 	ID          domain.MilestoneID
 }
 
@@ -579,6 +590,8 @@ func (q *Queries) UpdateMilestone(ctx context.Context, arg UpdateMilestoneParams
 		arg.UpdatedAt,
 		arg.StartedAt,
 		arg.FinishedAt,
+		arg.RetryBase,
+		arg.Branch,
 		arg.ID,
 	)
 	if err != nil {

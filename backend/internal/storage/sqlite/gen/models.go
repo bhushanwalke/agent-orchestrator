@@ -672,6 +672,8 @@ type PlanMilestone struct {
 	UpdatedAt   time.Time
 	StartedAt   sql.NullTime
 	FinishedAt  sql.NullTime
+	RetryBase   int64
+	Branch      string
 }
 
 type PlanMilestoneDep struct {

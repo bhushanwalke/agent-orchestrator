@@ -68,6 +68,8 @@ func TestQADoneWithoutVerdictFailsAndAsksForOne(t *testing.T) {
 	if m := milestones(t, f, id)["qa"]; m.Status != domain.MilestoneStatusFailed {
 		t.Fatalf("qa = %s", m.Status)
 	}
+	// The request goes out from the scheduler, never inside the report call.
+	tick(t, f)
 	f.sessions.mu.Lock()
 	last := f.sessions.sent[len(f.sessions.sent)-1]
 	f.sessions.mu.Unlock()
@@ -77,8 +79,8 @@ func TestQADoneWithoutVerdictFailsAndAsksForOne(t *testing.T) {
 	// The QA session is alive, so no second QA starts; it may still answer.
 	spawns := f.sessions.spawnCount()
 	tick(t, f)
-	if f.sessions.spawnCount() != spawns {
-		t.Fatal("a second QA spawned while the first can still answer")
+	if f.sessions.spawnCount() != spawns || len(sentTo(f, qa.SessionID)) != 1 {
+		t.Fatal("a second QA spawned, or the request was repeated, while the first can still answer")
 	}
 	if _, err := f.svc.RecordQAResult(ctx, id, planQAPass(qa.SessionID)); err != nil {
 		t.Fatalf("late verdict refused: %v", err)

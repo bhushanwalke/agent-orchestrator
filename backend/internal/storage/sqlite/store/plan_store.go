@@ -137,6 +137,8 @@ func (s *Store) InsertMilestone(ctx context.Context, m domain.Milestone) error {
 		UpdatedAt:   m.UpdatedAt,
 		StartedAt:   timePtrToNullTime(m.StartedAt),
 		FinishedAt:  timePtrToNullTime(m.FinishedAt),
+		RetryBase:   int64(m.RetryBase),
+		Branch:      m.Branch,
 	})
 	if err != nil {
 		if isSQLiteUnique(err) {
@@ -166,6 +168,8 @@ func (s *Store) UpdateMilestone(ctx context.Context, m domain.Milestone) error {
 		UpdatedAt:   m.UpdatedAt,
 		StartedAt:   timePtrToNullTime(m.StartedAt),
 		FinishedAt:  timePtrToNullTime(m.FinishedAt),
+		RetryBase:   int64(m.RetryBase),
+		Branch:      m.Branch,
 		ID:          m.ID,
 	})
 	if err != nil {
@@ -331,6 +335,8 @@ func milestoneFromGen(row gen.PlanMilestone) domain.Milestone {
 		UpdatedAt:   row.UpdatedAt,
 		StartedAt:   nullTimeToTimePtr(row.StartedAt),
 		FinishedAt:  nullTimeToTimePtr(row.FinishedAt),
+		RetryBase:   int(row.RetryBase),
+		Branch:      row.Branch,
 	}
 }
 

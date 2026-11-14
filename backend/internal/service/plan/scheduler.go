@@ -14,6 +14,10 @@ import (
 // EventPlanDoneNotified records that the orchestrator received <ao-plan-done>.
 const EventPlanDoneNotified = "plan_done_notified"
 
+// EventQAVerdictRequested records that a QA session that reported done
+// without a verdict was asked for one.
+const EventQAVerdictRequested = "qa_verdict_requested"
+
 // Wake asks the plan observer for a tick now instead of at its next interval.
 func (s *Service) Wake() {
 	select {
@@ -75,6 +79,7 @@ type actionKind int
 const (
 	actionSpawn actionKind = iota
 	actionDeliverDefect
+	actionAskVerdict
 )
 
 type action struct {
@@ -86,6 +91,15 @@ func (s *Service) tickPlan(ctx context.Context, id domain.PlanID) error {
 	p, err := s.requirePlan(ctx, id)
 	if err != nil || p.State != domain.PlanStateActive {
 		return err
+	}
+	if p.FinishedAt != nil {
+		// A finished plan only owes the orchestrator its done notice.
+		if p.OrchestratorSessionID == "" {
+			return nil
+		}
+		if notified, err := s.hasEvent(ctx, id, EventPlanDoneNotified); err != nil || notified {
+			return err
+		}
 	}
 	project, ok, err := s.projects.GetProject(ctx, string(p.ProjectID))
 	if err != nil {
@@ -111,6 +125,8 @@ func (s *Service) tickPlan(ctx context.Context, id domain.PlanID) error {
 		switch a.kind {
 		case actionDeliverDefect:
 			s.deliverDefect(ctx, id, a.milestone)
+		case actionAskVerdict:
+			s.askVerdict(ctx, id, a.milestone)
 		case actionSpawn:
 			if err := s.spawnMilestone(ctx, id, project, a.milestone, facts); err != nil {
 				return err
@@ -137,9 +153,10 @@ func (s *Service) sessionFacts(ctx context.Context, ms []domain.Milestone) map[d
 			continue
 		}
 		facts[m.SessionID] = sessionFact{
-			known:  true,
-			found:  found,
-			ended:  found && (sess.IsTerminated || sess.Activity.State == domain.ActivityExited),
+			known: true,
+			found: found,
+			ended: found && (sess.IsTerminated || sess.Activity.State == domain.ActivityExited ||
+				sess.ProvisionState == domain.SessionProvisionFailed),
 			branch: sess.Metadata.Branch,
 		}
 	}
@@ -167,11 +184,26 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 		return nil
 	}
 
+	// Keep each worker's branch on its milestone; it outlives the session row.
+	for i := range ms {
+		m := &ms[i]
+		if b := facts[m.SessionID].branch; m.SessionID != "" && b != "" && b != m.Branch {
+			m.Branch = b
+			m.UpdatedAt = now
+			if err := s.store.UpdateMilestone(ctx, *m); err != nil {
+				return nil, err
+			}
+		}
+	}
 	// Reconcile: a running or blocked milestone whose session ended without a
-	// done report failed.
+	// done report failed. A blocked qa holding a failure no milestone owns
+	// waits for a person instead.
 	for i := range ms {
 		m := &ms[i]
 		if (m.Status != domain.MilestoneStatusRunning && m.Status != domain.MilestoneStatusBlocked) || m.SessionID == "" {
+			continue
+		}
+		if m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusBlocked && m.QAVerdict == domain.QAVerdictFail {
 			continue
 		}
 		if facts[m.SessionID].gone() {
@@ -185,14 +217,18 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 	// nothing still owns it.
 	for i := range ms {
 		m := &ms[i]
-		if m.Status != domain.MilestoneStatusFailed || m.Attempt >= domain.MaxMilestoneAttempts {
+		if m.Status != domain.MilestoneStatusFailed || m.AttemptsUsed() >= domain.MaxMilestoneAttempts {
 			continue
 		}
 		if m.SessionID != "" && !facts[m.SessionID].gone() {
 			continue
 		}
 		m.Status = domain.MilestoneStatusReady
-		if err := write(m, EventMilestoneReady, fmt.Sprintf("retrying (attempt %d of %d)", m.Attempt+1, domain.MaxMilestoneAttempts)); err != nil {
+		if m.Kind == domain.MilestoneKindQA && !allImplementDone(ms) {
+			// QA reruns only after the fixes it asked for.
+			m.Status = domain.MilestoneStatusPending
+		}
+		if err := write(m, EventMilestoneReady, fmt.Sprintf("retrying (attempt %d of %d)", m.AttemptsUsed()+1, domain.MaxMilestoneAttempts)); err != nil {
 			return nil, err
 		}
 	}
@@ -244,11 +280,31 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 		}
 	}
 	var actions []action
-	for _, m := range ms {
+	for i := range ms {
+		m := ms[i]
+		if m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusFailed && m.QAVerdict == domain.QAVerdictNone &&
+			facts[m.SessionID].alive() {
+			asked, err := s.verdictRequested(ctx, id, m)
+			if err != nil {
+				return nil, err
+			}
+			if !asked {
+				actions = append(actions, action{kind: actionAskVerdict, milestone: m})
+			}
+			continue
+		}
 		if m.Status != domain.MilestoneStatusReady {
 			continue
 		}
 		if m.Kind == domain.MilestoneKindQA {
+			if !allImplementDone(ms) {
+				// A retried or re-promoted QA waits for every implement milestone.
+				ms[i].Status = domain.MilestoneStatusPending
+				if err := write(&ms[i], EventMilestoneReady, "waiting for the implement milestones"); err != nil {
+					return nil, err
+				}
+				continue
+			}
 			actions = append(actions, action{kind: actionSpawn, milestone: m})
 			continue
 		}
@@ -269,30 +325,99 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 }
 
 // deliverDefect sends a QA defect to the milestone's live session through the
-// guarded path. A refusal leaves the milestone ready for the next tick.
+// guarded path. The milestone is marked running first so a done report that
+// lands mid-delivery is kept; a refusal puts it back to ready for the next
+// tick.
 func (s *Service) deliverDefect(ctx context.Context, id domain.PlanID, m domain.Milestone) {
 	p, err := s.requirePlan(ctx, id)
 	if err != nil || p.State != domain.PlanStateActive {
 		return
 	}
-	if err := s.sessions.Send(ctx, m.SessionID, defectMessage(p, m), ports.MessageDeliveryOptions{}); err != nil {
-		s.logger.Info("plan defect delivery deferred", "plan", id, "milestone", m.Key, "session", m.SessionID, "error", err)
-		return
-	}
 	s.mu.Lock()
-	defer s.mu.Unlock()
 	cur, ok := s.milestoneByID(ctx, id, m.ID)
 	if !ok || cur.Status != domain.MilestoneStatusReady || cur.SessionID != m.SessionID {
+		s.mu.Unlock()
 		return
 	}
 	cur.Status = domain.MilestoneStatusRunning
 	cur.FinishedAt = nil
 	cur.UpdatedAt = s.now().UTC()
 	if err := s.store.UpdateMilestone(ctx, cur); err != nil {
-		s.logger.Warn("plan defect delivered but milestone not updated", "plan", id, "milestone", m.Key, "error", err)
+		s.mu.Unlock()
+		s.logger.Warn("plan defect not started", "plan", id, "milestone", m.Key, "error", err)
 		return
 	}
-	s.recordEvent(ctx, id, cur.ID, cur.SessionID, EventDefectSent, "")
+	s.mu.Unlock()
+
+	sendErr := s.sessions.Send(ctx, m.SessionID, defectMessage(p, m), ports.MessageDeliveryOptions{})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if sendErr == nil {
+		s.recordEvent(ctx, id, m.ID, m.SessionID, EventDefectSent, "")
+		return
+	}
+	s.logger.Info("plan defect delivery deferred", "plan", id, "milestone", m.Key, "session", m.SessionID, "error", sendErr)
+	cur, ok = s.milestoneByID(ctx, id, m.ID)
+	if !ok || cur.Status != domain.MilestoneStatusRunning || cur.SessionID != m.SessionID {
+		return
+	}
+	cur.Status = domain.MilestoneStatusReady
+	cur.UpdatedAt = s.now().UTC()
+	if err := s.store.UpdateMilestone(ctx, cur); err != nil {
+		s.logger.Warn("plan defect refusal not recorded", "plan", id, "milestone", m.Key, "error", err)
+	}
+}
+
+// askVerdict asks a QA session that reported done without a verdict to record
+// one, until the message lands.
+func (s *Service) askVerdict(ctx context.Context, id domain.PlanID, qa domain.Milestone) {
+	if err := s.sessions.Send(ctx, qa.SessionID, verdictRequestMessage(id), ports.MessageDeliveryOptions{}); err != nil {
+		s.logger.Info("plan qa verdict request deferred", "plan", id, "session", qa.SessionID, "error", err)
+		return
+	}
+	s.recordEvent(ctx, id, qa.ID, qa.SessionID, EventQAVerdictRequested, "")
+}
+
+// verdictRequested reports whether the current QA session was already asked
+// for its verdict.
+func (s *Service) verdictRequested(ctx context.Context, id domain.PlanID, qa domain.Milestone) (bool, error) {
+	asked := false
+	var after int64
+	for {
+		evs, err := s.store.ListPlanEvents(ctx, id, after, MaxEventsPage)
+		if err != nil {
+			return false, err
+		}
+		for _, e := range evs {
+			if e.MilestoneID != qa.ID {
+				continue
+			}
+			switch e.Kind {
+			case EventMilestoneStarted:
+				asked = false
+			case EventQAVerdictRequested:
+				asked = e.SessionID == qa.SessionID
+			}
+		}
+		if len(evs) < MaxEventsPage {
+			return asked, nil
+		}
+		after = evs[len(evs)-1].ID
+	}
+}
+
+func allImplementDone(ms []domain.Milestone) bool {
+	total := 0
+	for _, m := range ms {
+		if m.Kind != domain.MilestoneKindImplement {
+			continue
+		}
+		total++
+		if m.Status != domain.MilestoneStatusDone {
+			return false
+		}
+	}
+	return total > 0
 }
 
 // spawnMilestone starts one worker for a ready milestone. The plan is re-read
@@ -415,12 +540,12 @@ func (s *Service) buildMilestoneSpawn(ctx context.Context, p domain.Plan, projec
 	deps := make([]depInfo, 0, len(m.DependsOn))
 	for _, key := range m.DependsOn {
 		dep := byKey[key]
-		deps = append(deps, depInfo{Key: dep.Key, Title: dep.Title, Branch: facts[dep.SessionID].branch, SessionID: dep.SessionID})
+		deps = append(deps, depInfo{Key: dep.Key, Title: dep.Title, Branch: branchOf(dep, facts), SessionID: dep.SessionID})
 	}
 	cfg.Prompt = implementerPrompt(p, m, deps)
 	if m.QAVerdict == domain.QAVerdictFail && m.SessionID != "" {
 		// The original worker is gone: continue its branch with the findings.
-		cfg.Branch = facts[m.SessionID].branch
+		cfg.Branch = branchOf(m, facts)
 		cfg.Prompt += "\n" + defectMessage(p, m) + "\n"
 	} else if len(deps) == 1 && deps[0].Branch != "" {
 		// Stack on the single dependency so its PR is the base.
@@ -483,7 +608,7 @@ func (s *Service) builtMilestones(ctx context.Context, p domain.Plan, ms []domai
 			continue
 		}
 		out = append(out, builtInfo{
-			Key: m.Key, Title: m.Title, Branch: facts[m.SessionID].branch, SessionID: m.SessionID,
+			Key: m.Key, Title: m.Title, Branch: branchOf(m, facts), SessionID: m.SessionID,
 			PRs: prs[m.SessionID], Note: notes[m.ID],
 		})
 	}
@@ -532,6 +657,11 @@ func (s *Service) finishIfDone(ctx context.Context, id domain.PlanID, facts map[
 	if err != nil || notified || p.OrchestratorSessionID == "" {
 		return err
 	}
+	if orch, found, err := s.sessions.Get(ctx, p.OrchestratorSessionID); err == nil && (!found || orch.IsTerminated) {
+		// Nobody to tell; a new orchestrator sees the plan with ao plan ls.
+		s.recordEvent(ctx, id, "", p.OrchestratorSessionID, EventPlanDoneNotified, "the orchestrator session has ended; not delivered")
+		return nil
+	}
 	built, err := s.builtMilestones(ctx, p, ms, facts)
 	if err != nil {
 		return err
@@ -574,6 +704,15 @@ func (s *Service) hasEvent(ctx context.Context, id domain.PlanID, kind string) (
 		}
 		after = evs[len(evs)-1].ID
 	}
+}
+
+// branchOf is the milestone worker's branch: the live session's, else the one
+// kept on the milestone.
+func branchOf(m domain.Milestone, facts map[domain.SessionID]sessionFact) string {
+	if b := facts[m.SessionID].branch; b != "" {
+		return b
+	}
+	return m.Branch
 }
 
 func contains(list []string, v string) bool {

@@ -124,10 +124,16 @@ type Milestone struct {
 	SessionID   SessionID
 	SparsePaths []string
 	// DependsOn lists the keys of milestones in the same plan this one needs.
-	DependsOn  []string
-	QAVerdict  QAVerdict
-	QANote     string
-	Attempt    int
+	DependsOn []string
+	QAVerdict QAVerdict
+	QANote    string
+	Attempt   int
+	// RetryBase is Attempt when a person last retried the milestone; the
+	// automatic retry budget counts attempts since then.
+	RetryBase int
+	// Branch is the branch the milestone's worker used, kept after its
+	// session row is gone.
+	Branch     string
 	CreatedAt  time.Time
 	UpdatedAt  time.Time
 	StartedAt  *time.Time
@@ -464,7 +470,7 @@ func DerivePlanPhase(plan Plan, ms []Milestone) PlanPhase {
 		}
 	}
 	for _, m := range ms {
-		if m.Kind == MilestoneKindImplement && m.Status == MilestoneStatusFailed && m.Attempt >= MaxMilestoneAttempts {
+		if m.Kind == MilestoneKindImplement && m.Status == MilestoneStatusFailed && m.AttemptsUsed() >= MaxMilestoneAttempts {
 			return PlanPhaseFailed
 		}
 	}
@@ -507,3 +513,6 @@ func DerivePlanKanban(phase PlanPhase, ms []Milestone) (contract.KanbanColumn, c
 	}
 	return contract.KanbanBuilding, contract.DisplayStatus(fmt.Sprintf("%s %d/%d", contract.DisplayImplementing, done, total))
 }
+
+// AttemptsUsed counts spawns since the last human retry.
+func (m Milestone) AttemptsUsed() int { return m.Attempt - m.RetryBase }
