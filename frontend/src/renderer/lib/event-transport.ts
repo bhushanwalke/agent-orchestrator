@@ -4,6 +4,7 @@ import { eventStreamBaseUrl, getApiBaseUrl, hasTrustedApiBaseUrl, subscribeApiBa
 import { setEventsConnectionState } from "./events-connection";
 import { computeSseRetryDelayMs } from "./sse-backoff";
 import { workspaceQueryKey } from "../hooks/useWorkspaceQuery";
+import { planQueryKey, planQueryRoot, plansQueryKey, plansQueryRoot } from "../hooks/usePlans";
 import { sessionScmSummaryQueryKey } from "../hooks/useSessionScmSummary";
 import { conversationQueryKey, conversationQueryRoot, conversationSettled, refreshRemoteConversationOnce } from "../hooks/useConversation";
 import {
@@ -49,6 +50,7 @@ const CDC_EVENT_TYPES = [
 	"pr_review_thread_resolved",
 	"review_run_created",
 	"review_run_updated",
+	"plan_updated",
 ] as const;
 
 /**
@@ -68,6 +70,8 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 			const pendingConversationSessions = new Set<string>();
 			const pendingReviewerConversations = new Set<string>();
 			const pendingReviewSessions = new Set<string>();
+			// Task plans touched by plan_updated: [projectId, planId].
+			const pendingPlans = new Map<string, { projectId: string; planId: string }>();
 			const pendingInterfaceTransitionSessions = new Set<string>();
 			const pendingEditorHandoffSessions = new Set<string>();
 			const pendingModelCatalogScopes = new Map<string, { agentId: string; projectId: string }>();
@@ -282,6 +286,9 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					allConversationsInvalidationPending = false;
 				}
 				if (workspaceInvalidationPending) {
+					// Plan cards and run views show their sessions' live state.
+					invalidate(plansQueryRoot);
+					invalidate(planQueryRoot);
 					invalidate(workspaceQueryKey);
 					invalidate(sessionScmSummaryQueryKey());
 					invalidate(sessionUsageQueryRoot);
@@ -309,6 +316,11 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					invalidate(conversationQueryKey(sessionId));
 				}
 				pendingConversationSessions.clear();
+				for (const { projectId, planId } of pendingPlans.values()) {
+					invalidate(plansQueryKey(projectId));
+					invalidate(planQueryKey(planId));
+				}
+				pendingPlans.clear();
 				for (const sessionId of pendingReviewSessions) {
 					invalidate(sessionReviewsQueryKey(sessionId));
 				}
@@ -387,9 +399,19 @@ export function createEventTransport(queryClient: QueryClient): EventTransport {
 					try {
 						const decoded = JSON.parse(String((event as MessageEvent).data)) as {
 							sessionId?: unknown;
+							projectId?: unknown;
 							type?: unknown;
 							payload?: unknown;
 						};
+						// A task plan, its milestones, or its event log changed. Only plan
+						// views show these; the session list is unaffected.
+						if (decoded.type === "plan_updated") {
+							const planId = (decoded.payload as { id?: unknown } | null | undefined)?.id;
+							if (typeof planId === "string" && typeof decoded.projectId === "string") {
+								pendingPlans.set(planId, { projectId: decoded.projectId, planId });
+								conversationOnly = true;
+							}
+						}
 						// The SSE endpoint sends the complete durable CDC event. Routing
 						// fields such as sessionId live on that envelope, while trigger-built
 						// details such as conversationId live inside its payload. Do not

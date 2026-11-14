@@ -538,6 +538,34 @@ describe("createEventTransport", () => {
 		}
 	});
 
+	it("refreshes plan caches on plan_updated without refetching the session list", () => {
+		vi.useFakeTimers();
+		try {
+			const queryClient = fakeQueryClient();
+			createEventTransport(queryClient).connect();
+			expect(cdcSources()[0].listeners).toContain("plan_updated");
+			vi.mocked(queryClient.invalidateQueries).mockClear();
+			cdcSources()[0].emit(
+				"plan_updated",
+				JSON.stringify({ seq: 7, projectId: "proj-1", type: "plan_updated", payload: { id: "plan_1" }, createdAt: "2026-11-14T09:00:00Z" }),
+			);
+			vi.advanceTimersByTime(200);
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["plans", "proj-1"] }, { cancelRefetch: false });
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["plan", "plan_1"] }, { cancelRefetch: false });
+			expect(queryClient.invalidateQueries).not.toHaveBeenCalledWith({ queryKey: ["workspaces"] }, { cancelRefetch: false });
+
+			// A session change can move a plan's agents, so it refreshes every plan.
+			vi.mocked(queryClient.invalidateQueries).mockClear();
+			cdcSources()[0].emit("pr_updated", JSON.stringify({ seq: 8, projectId: "proj-1", sessionId: "w-1", type: "pr_updated", payload: { id: "pr-1" } }));
+			vi.advanceTimersByTime(200);
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["workspaces"] }, { cancelRefetch: false });
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["plans"] }, { cancelRefetch: false });
+			expect(queryClient.invalidateQueries).toHaveBeenCalledWith({ queryKey: ["plan"] }, { cancelRefetch: false });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("invalidates only the named conversation for conversation CDC", () => {
 		vi.useFakeTimers();
 		try {
