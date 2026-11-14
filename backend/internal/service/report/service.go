@@ -39,7 +39,10 @@ type Service struct {
 	now       func() time.Time
 	newID     func() string
 	onCreated func(domain.ReportRecord)
-	artifacts ArtifactRecorder
+	// planObserver advances task plans from worker reports. It runs after
+	// onCreated and must not block on agent I/O.
+	planObserver func(context.Context, domain.ReportRecord)
+	artifacts    ArtifactRecorder
 }
 
 // Deps configures a Service. Artifacts is optional.
@@ -48,7 +51,10 @@ type Deps struct {
 	Now       func() time.Time
 	NewID     func() string
 	OnCreated func(domain.ReportRecord)
-	Artifacts ArtifactRecorder
+	// PlanObserver is told about every created report so task plans can
+	// advance milestones. Optional.
+	PlanObserver func(context.Context, domain.ReportRecord)
+	Artifacts    ArtifactRecorder
 }
 
 // New constructs a report Service.
@@ -59,7 +65,7 @@ func New(d Deps) *Service {
 	if d.NewID == nil {
 		d.NewID = func() string { return "rpt_" + uuid.NewString() }
 	}
-	return &Service{store: d.Store, now: d.Now, newID: d.NewID, onCreated: d.OnCreated, artifacts: d.Artifacts}
+	return &Service{store: d.Store, now: d.Now, newID: d.NewID, onCreated: d.OnCreated, planObserver: d.PlanObserver, artifacts: d.Artifacts}
 }
 
 // ListProject returns persisted report facts ordered by created_at then id,
@@ -138,6 +144,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domain.ReportR
 	}
 	if s.onCreated != nil {
 		s.onCreated(created)
+	}
+	if s.planObserver != nil {
+		s.planObserver(ctx, created)
 	}
 	// Synchronous on purpose: ao report --done is often the agent's last tool
 	// call, so a goroutine would race the turn's completion and could drop the

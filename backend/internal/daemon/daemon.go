@@ -817,7 +817,7 @@ func Run(buildVersion string) (retErr error) {
 		if reportCoordinator != nil {
 			reportCoordinator.Wake()
 		}
-	}})
+	}, PlanObserver: planSvc.OnReport})
 	reportCoordinator = reportsvc.NewCoordinator(reportsvc.CoordinatorDeps{
 		Store:    store,
 		Delivery: reportSemanticDelivery{chat: chatSvc, sessions: reportSessions, store: store},

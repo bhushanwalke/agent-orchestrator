@@ -134,3 +134,25 @@ func TestCreateShowsEachReportedArtifactAfterTheReportIsStored(t *testing.T) {
 		t.Fatalf("unknown session: err = %v, recorded %q", err, calls)
 	}
 }
+
+// The plan observer sees every created report, after the existing onCreated
+// callback, with the request context.
+func TestCreateNotifiesThePlanObserver(t *testing.T) {
+	st := &fakeStore{ok: true, session: domain.SessionRecord{ID: "ao-7", ProjectID: "ao", Kind: domain.KindWorker}}
+	var order []string
+	var seen domain.ReportRecord
+	s := New(Deps{
+		Store:     st,
+		OnCreated: func(domain.ReportRecord) { order = append(order, "created") },
+		PlanObserver: func(_ context.Context, r domain.ReportRecord) {
+			order = append(order, "plan")
+			seen = r
+		},
+	})
+	if _, err := s.Create(context.Background(), CreateInput{SessionID: "ao-7", State: domain.ReportDone, Note: "built"}); err != nil {
+		t.Fatal(err)
+	}
+	if len(order) != 2 || order[0] != "created" || order[1] != "plan" || seen.SessionID != "ao-7" || seen.State != domain.ReportDone {
+		t.Fatalf("order=%v seen=%+v", order, seen)
+	}
+}

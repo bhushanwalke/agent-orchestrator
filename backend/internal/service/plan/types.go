@@ -42,9 +42,9 @@ type Scheduler interface {
 
 // Deps configures a Service.
 type Deps struct {
-	Store     Store
-	Sessions  Sessions
-	Projects  Projects
+	Store    Store
+	Sessions Sessions
+	Projects Projects
 	// Reports supplies PR links for the QA prompt and done summary. Optional.
 	Reports ReportReader
 	// Scheduler runs after activation and retries. Nil uses the service's
