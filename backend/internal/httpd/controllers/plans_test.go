@@ -143,7 +143,7 @@ func sampleDetail() plansvc.Detail {
 		Summary: plansvc.Summary{
 			Plan: samplePlanDomain(), Phase: domain.PlanPhaseImplementing, Kanban: contract.KanbanBuilding,
 			DisplayStatus: "Implementing 0/1", Counts: plansvc.MilestoneCounts{Total: 2, Running: 1},
-			LiveSessions: []domain.Session{sess},
+			LiveSessions: []domain.Session{sess}, PRs: sess.PRs,
 		},
 		Milestones: []plansvc.MilestoneView{{Milestone: sampleMilestoneDomain(), Session: &sess}},
 		Events: []domain.PlanEvent{
@@ -191,6 +191,9 @@ func TestPlansAPI_ListAndGet(t *testing.T) {
 	}
 	var list controllers.ListPlansResponse
 	mustJSON(t, body, &list)
+	if len(list.Plans) == 1 && (len(list.Plans[0].PRs) != 1 || list.Plans[0].PRs[0].Number != 7) {
+		t.Fatalf("plan PRs = %+v", list.Plans[0].PRs)
+	}
 	if len(list.Plans) != 1 || list.Plans[0].DisplayStatus != "Implementing 0/1" || list.Plans[0].MilestoneCounts.Total != 2 ||
 		len(list.Plans[0].LiveSessions) != 1 || list.Plans[0].LiveSessions[0].Harness != "codex" ||
 		list.Plans[0].LiveSessions[0].KanbanColumn != "building" || list.Plans[0].LiveSessions[0].Status != "working" {

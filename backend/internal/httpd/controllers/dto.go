@@ -4817,6 +4817,7 @@ type PlanSummary struct {
 	DisplayStatus         string               `json:"displayStatus"`
 	MilestoneCounts       PlanMilestoneCounts  `json:"milestoneCounts"`
 	LiveSessions          []PlanSessionSummary `json:"liveSessions"`
+	PRs                   []SessionPRFacts     `json:"prs" description:"Pull requests of every milestone session, de-duplicated, in milestone order."`
 	OrchestratorSessionID string               `json:"orchestratorSessionId"`
 	MaxParallel           int                  `json:"maxParallel"`
 	CreatedAt             time.Time            `json:"createdAt"`

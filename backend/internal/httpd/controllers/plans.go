@@ -441,6 +441,7 @@ func planSummary(s plansvc.Summary) PlanSummary {
 			Failed: s.Counts.Failed, Blocked: s.Counts.Blocked,
 		},
 		LiveSessions:          live,
+		PRs:                   sessionPRFacts(s.PRs),
 		OrchestratorSessionID: string(p.OrchestratorSessionID),
 		MaxParallel:           p.MaxParallel,
 		CreatedAt:             p.CreatedAt,

@@ -928,6 +928,7 @@ func (s *Service) milestoneViews(ctx context.Context, ms []domain.Milestone) []M
 func summarize(p domain.Plan, views []MilestoneView) Summary {
 	ms := make([]domain.Milestone, 0, len(views))
 	sum := Summary{Plan: p, LiveSessions: []domain.Session{}}
+	seenPR := map[string]bool{}
 	for _, v := range views {
 		m := v.Milestone
 		ms = append(ms, m)
@@ -944,6 +945,14 @@ func summarize(p domain.Plan, views []MilestoneView) Summary {
 		}
 		if v.Session != nil && !v.Session.IsTerminated {
 			sum.LiveSessions = append(sum.LiveSessions, *v.Session)
+		}
+		if v.Session != nil {
+			for _, pr := range v.Session.PRs {
+				if !seenPR[pr.URL] {
+					seenPR[pr.URL] = true
+					sum.PRs = append(sum.PRs, pr)
+				}
+			}
 		}
 	}
 	sum.Phase = domain.DerivePlanPhase(p, ms)

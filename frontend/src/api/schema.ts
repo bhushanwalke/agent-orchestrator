@@ -7951,6 +7951,8 @@ export interface components {
             /** @enum {string} */
             phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
             projectId: string;
+            /** @description Pull requests of every milestone session, de-duplicated, in milestone order. */
+            prs: components["schemas"]["SessionPRFacts"][];
             specMarkdown: string;
             /** @enum {string} */
             state: "planning" | "active" | "cancelled";
@@ -7987,6 +7989,8 @@ export interface components {
             /** @enum {string} */
             phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
             projectId: string;
+            /** @description Pull requests of every milestone session, de-duplicated, in milestone order. */
+            prs: components["schemas"]["SessionPRFacts"][];
             /** @enum {string} */
             state: "planning" | "active" | "cancelled";
             ticketRef: string;

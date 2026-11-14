@@ -198,3 +198,18 @@ func TestBlockedQADoesNotRetryItself(t *testing.T) {
 		t.Fatalf("qa = %s spawns %d→%d", qa.Status, spawns, f.sessions.spawnCount())
 	}
 }
+
+func TestSummaryCollectsMilestonePRs(t *testing.T) {
+	f := flowFixture(t, domain.ProjectConfig{})
+	id := activePlan(t, f, 3, msSpec{key: "m1"}, msSpec{key: "m2"})
+	ms := milestones(t, f, id)
+	setSession(f, ms["m1"].SessionID, func(s *domain.Session) { s.PRs = []domain.PRFacts{{URL: "https://x/pull/1", Number: 1}} })
+	setSession(f, ms["m2"].SessionID, func(s *domain.Session) {
+		s.PRs = []domain.PRFacts{{URL: "https://x/pull/2", Number: 2}, {URL: "https://x/pull/1", Number: 1}}
+		s.IsTerminated = true
+	})
+	list, err := f.svc.List(context.Background(), "mer")
+	if err != nil || len(list) != 1 || len(list[0].PRs) != 2 || list[0].PRs[0].Number != 1 || list[0].PRs[1].Number != 2 {
+		t.Fatalf("plan PRs = %+v err=%v", list, err)
+	}
+}

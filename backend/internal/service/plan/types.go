@@ -125,6 +125,9 @@ type Summary struct {
 	// LiveSessions are the non-terminated sessions currently owning a
 	// milestone, in milestone order.
 	LiveSessions []domain.Session
+	// PRs are the pull requests of every milestone session, de-duplicated by
+	// URL, in milestone order.
+	PRs []domain.PRFacts
 }
 
 // MilestoneView is a milestone with its current owning session, if any.

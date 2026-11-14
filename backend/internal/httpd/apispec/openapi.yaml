@@ -23138,6 +23138,12 @@ components:
           type: string
         projectId:
           type: string
+        prs:
+          description: Pull requests of every milestone session, de-duplicated, in
+            milestone order.
+          items:
+            $ref: '#/components/schemas/SessionPRFacts'
+          type: array
         specMarkdown:
           type: string
         state:
@@ -23164,6 +23170,7 @@ components:
       - displayStatus
       - milestoneCounts
       - liveSessions
+      - prs
       - orchestratorSessionId
       - maxParallel
       - createdAt
@@ -23249,6 +23256,12 @@ components:
           type: string
         projectId:
           type: string
+        prs:
+          description: Pull requests of every milestone session, de-duplicated, in
+            milestone order.
+          items:
+            $ref: '#/components/schemas/SessionPRFacts'
+          type: array
         state:
           enum:
           - planning
@@ -23273,6 +23286,7 @@ components:
       - displayStatus
       - milestoneCounts
       - liveSessions
+      - prs
       - orchestratorSessionId
       - maxParallel
       - createdAt
