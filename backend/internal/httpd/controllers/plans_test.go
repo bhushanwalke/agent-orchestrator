@@ -30,6 +30,7 @@ type fakePlanService struct {
 	gotMsIn    plansvc.MilestoneInput
 	gotMsPatch plansvc.MilestonePatch
 	gotQA      plansvc.QAResultInput
+	gotTriage  triageCall
 	gotAfter   int64
 	gotLimit   int
 	plan       domain.Plan

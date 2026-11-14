@@ -644,6 +644,8 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"ControllersPlanPatchRequest":    "PlanPatchRequest",
 	"ControllersMilestoneRequest":    "MilestoneRequest",
 	"ControllersQAResultRequest":     "QAResultRequest",
+	"ControllersPlanTriageRequest":   "PlanTriageRequest",
+	"ControllersPlanTriage":          "PlanTriage",
 	"ControllersPlanSessionSummary":  "PlanSessionSummary",
 	"ControllersPlanMilestoneCounts": "PlanMilestoneCounts",
 	"ControllersPlanSummary":         "PlanSummary",
@@ -4567,6 +4569,14 @@ func planOperations() []operation {
 			reqBody:    controllers.QAResultRequest{},
 			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
 				errs(http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/triage", id: "triagePlan", tag: "plans",
+			summary:    "Decide how an auto Task runs: as a plan, or as one direct worker",
+			pathParams: plan,
+			reqBody:    controllers.PlanTriageRequest{},
+			resps: with(respUnit{http.StatusOK, controllers.PlanEnvelope{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusRequestEntityTooLarge)),
 		},
 		{
 			method: http.MethodGet, path: "/api/v1/plans/{planId}/events", id: "listPlanEvents", tag: "plans",

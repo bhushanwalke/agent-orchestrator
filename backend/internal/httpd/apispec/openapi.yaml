@@ -5656,6 +5656,69 @@ paths:
       summary: Record the QA worker's verdict for a plan
       tags:
       - plans
+  /api/v1/plans/{planId}/triage:
+    post:
+      operationId: triagePlan
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanTriageRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: 'Decide how an auto Task runs: as a plan, or as one direct worker'
+      tags:
+      - plans
   /api/v1/projects:
     get:
       operationId: listProjects
@@ -19375,29 +19438,6 @@ components:
       - isTerminated
       - branch
       type: object
-    ControllersPlanTriage:
-      properties:
-        decidedAt:
-          format: date-time
-          type: string
-        decidedBy:
-          enum:
-          - orchestrator
-          - human
-          type: string
-        decision:
-          enum:
-          - plan
-          - direct
-          type: string
-        reason:
-          type: string
-      required:
-      - decision
-      - reason
-      - decidedBy
-      - decidedAt
-      type: object
     ControllersRemoteHostAccountTokenResponse:
       properties:
         hostId:
@@ -23268,7 +23308,7 @@ components:
         title:
           type: string
         triage:
-          $ref: '#/components/schemas/ControllersPlanTriage'
+          $ref: '#/components/schemas/PlanTriage'
           description: The triage decision of an auto Task, once made.
         updatedAt:
           format: date-time
@@ -23400,7 +23440,7 @@ components:
         title:
           type: string
         triage:
-          $ref: '#/components/schemas/ControllersPlanTriage'
+          $ref: '#/components/schemas/PlanTriage'
           description: The triage decision of an auto Task, once made.
         updatedAt:
           format: date-time
@@ -23422,6 +23462,51 @@ components:
       - maxParallel
       - createdAt
       - updatedAt
+      type: object
+    PlanTriage:
+      properties:
+        decidedAt:
+          format: date-time
+          type: string
+        decidedBy:
+          enum:
+          - orchestrator
+          - human
+          type: string
+        decision:
+          enum:
+          - plan
+          - direct
+          type: string
+        reason:
+          type: string
+      required:
+      - decision
+      - reason
+      - decidedBy
+      - decidedAt
+      type: object
+    PlanTriageRequest:
+      properties:
+        decidedBy:
+          description: Who decided. Defaults to human; ao plan triage sends orchestrator
+            when run inside an AO session.
+          enum:
+          - orchestrator
+          - human
+          type: string
+        decision:
+          description: plan continues as a planned Task; direct hands the Task to
+            one worker.
+          enum:
+          - plan
+          - direct
+          type: string
+        reason:
+          description: One sentence on why, at most 500 bytes.
+          type: string
+      required:
+      - decision
       type: object
     PostPRCommentRequest:
       properties:

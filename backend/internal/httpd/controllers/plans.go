@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
+	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apispec"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/envelope"
 	plansvc "github.com/aoagents/agent-orchestrator/backend/internal/service/plan"
@@ -32,6 +33,7 @@ type PlanService interface {
 	RetryMilestone(ctx context.Context, id domain.PlanID, key string) (plansvc.Detail, error)
 	RecordQAResult(ctx context.Context, id domain.PlanID, in plansvc.QAResultInput) (plansvc.Detail, error)
 	Events(ctx context.Context, id domain.PlanID, after int64, limit int) (plansvc.EventsPage, error)
+	Triage(ctx context.Context, id domain.PlanID, decision domain.TriageDecision, reason string, actor domain.TriageActor) (domain.Plan, error)
 	PlanLookup
 }
 
@@ -63,6 +65,7 @@ func (c *PlansController) Register(r chi.Router) {
 	r.Post("/plans/{planId}/activate", c.activate)
 	r.Post("/plans/{planId}/cancel", c.cancel)
 	r.Post("/plans/{planId}/qa-result", c.qaResult)
+	r.Post("/plans/{planId}/triage", c.triage)
 	r.Get("/plans/{planId}/events", c.events)
 }
 
@@ -81,7 +84,7 @@ func (c *PlansController) create(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := c.Svc.Create(r.Context(), plansvc.CreateInput{
 		ProjectID: domain.ProjectID(projectID), Title: req.Title, Brief: req.Brief,
-		TicketRef: req.TicketRef, MaxParallel: req.MaxParallel,
+		TicketRef: req.TicketRef, MaxParallel: req.MaxParallel, Mode: domain.PlanIntakeMode(req.Mode),
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -291,6 +294,38 @@ func (c *PlansController) qaResult(w http.ResponseWriter, r *http.Request) {
 		SessionID: domain.SessionID(req.SessionID),
 	})
 	writePlanDetail(w, r, d, err)
+}
+
+// triage records how an auto Task runs. decidedBy defaults to human: the app
+// calls this for a person, and `ao plan triage` sends orchestrator from inside
+// an AO session.
+func (c *PlansController) triage(w http.ResponseWriter, r *http.Request) {
+	if c.Svc == nil {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/plans/{planId}/triage")
+		return
+	}
+	var req PlanTriageRequest
+	if !decodePlanBody(w, r, &req) {
+		return
+	}
+	id, ok := planIDParam(w, r)
+	if !ok {
+		return
+	}
+	actor := domain.TriageActorHuman
+	if req.DecidedBy != "" {
+		actor = domain.TriageActor(req.DecidedBy)
+		if !actor.Valid() {
+			envelope.WriteError(w, r, apierr.Invalid("INVALID_TRIAGE_ACTOR", "decidedBy must be orchestrator or human", map[string]any{"field": "decidedBy"}))
+			return
+		}
+	}
+	p, err := c.Svc.Triage(r.Context(), id, domain.TriageDecision(req.Decision), req.Reason, actor)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: newPlanResponse(p)})
 }
 
 func (c *PlansController) events(w http.ResponseWriter, r *http.Request) {

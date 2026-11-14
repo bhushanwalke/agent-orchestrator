@@ -156,6 +156,7 @@ var legacyActorlessUserCLICommands = map[string]struct{}{
 	"ao plan milestone rm":                      {},
 	"ao plan milestone update":                  {},
 	"ao plan qa-result":                         {},
+	"ao plan triage":                            {},
 	"ao plan set-spec":                          {},
 	"ao dev":                                    {},
 	"ao dev import-projects":                    {},

@@ -27,8 +27,18 @@ type planDTO struct {
 	MilestoneCounts       planMilestoneCountDTO `json:"milestoneCounts"`
 	OrchestratorSessionID string                `json:"orchestratorSessionId,omitempty"`
 	MaxParallel           int                   `json:"maxParallel,omitempty"`
+	IntakeMode            string                `json:"intakeMode,omitempty"`
+	DirectSessionID       string                `json:"directSessionId,omitempty"`
+	Triage                *planTriageInfoDTO    `json:"triage,omitempty"`
 	Brief                 string                `json:"brief,omitempty"`
 	SpecMarkdown          string                `json:"specMarkdown,omitempty"`
+}
+
+type planTriageInfoDTO struct {
+	Decision  string `json:"decision"`
+	Reason    string `json:"reason,omitempty"`
+	DecidedBy string `json:"decidedBy"`
+	DecidedAt string `json:"decidedAt"`
 }
 
 type planMilestoneCountDTO struct {
@@ -92,7 +102,17 @@ type planCreateDTO struct {
 	Brief       string `json:"brief"`
 	TicketRef   string `json:"ticketRef,omitempty"`
 	MaxParallel int    `json:"maxParallel,omitempty"`
+	Mode        string `json:"mode,omitempty"`
 }
+
+type planTriageDTO struct {
+	Decision  string `json:"decision"`
+	Reason    string `json:"reason,omitempty"`
+	DecidedBy string `json:"decidedBy"`
+}
+
+// planTriageReasonMaxBytes mirrors the daemon's triage reason limit.
+const planTriageReasonMaxBytes = 500
 
 type planMilestoneRequestDTO struct {
 	Key         *string   `json:"key,omitempty"`
@@ -129,6 +149,7 @@ func newPlanCommand(ctx *commandContext) *cobra.Command {
 	cmd.AddCommand(
 		newPlanCreateCommand(ctx), newPlanListCommand(ctx), newPlanGetCommand(ctx), newPlanSetSpecCommand(ctx),
 		milestone, newPlanActivateCommand(ctx), newPlanCancelCommand(ctx), newPlanQAResultCommand(ctx),
+		newPlanTriageCommand(ctx),
 		newPlanEventsCommand(ctx),
 	)
 	return cmd
@@ -182,7 +203,7 @@ func textOrFile(name, inline, file string, inlineSet, fileSet, required bool) (s
 }
 
 func newPlanCreateCommand(ctx *commandContext) *cobra.Command {
-	var project, title, brief, briefFile, ticket string
+	var project, title, brief, briefFile, ticket, mode string
 	var maxParallel int
 	var jsonOutput bool
 	cmd := &cobra.Command{
@@ -203,12 +224,17 @@ func newPlanCreateCommand(ctx *commandContext) *cobra.Command {
 			if cmd.Flags().Changed("max-parallel") && (maxParallel < 1 || maxParallel > 10) {
 				return usageError{errors.New("--max-parallel must be 1-10")}
 			}
+			switch mode {
+			case "", "plan", "auto":
+			default:
+				return usageError{errors.New("--mode must be plan or auto (a direct Task is `ao spawn`)")}
+			}
 			resolved, err := ctx.resolveSpawnProject(cmd.Context(), project)
 			if err != nil {
 				return err
 			}
 			var response planEnvelopeDTO
-			body := planCreateDTO{Title: title, Brief: text, TicketRef: ticket, MaxParallel: maxParallel}
+			body := planCreateDTO{Title: title, Brief: text, TicketRef: ticket, MaxParallel: maxParallel, Mode: mode}
 			if err := ctx.postJSON(cmd.Context(), "projects/"+url.PathEscape(resolved.ID)+"/plans", body, &response); err != nil {
 				return err
 			}
@@ -219,8 +245,12 @@ func newPlanCreateCommand(ctx *commandContext) *cobra.Command {
 			if orchestrator == "" {
 				orchestrator = "(starting)"
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "created plan %s in project %s; orchestrator %s is planning it\n",
-				response.Plan.ID, response.Plan.ProjectID, orchestrator)
+			doing := "planning it"
+			if response.Plan.State == "triage" {
+				doing = "deciding how to run it"
+			}
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "created plan %s in project %s; orchestrator %s is %s\n",
+				response.Plan.ID, response.Plan.ProjectID, orchestrator, doing)
 			return err
 		},
 	}
@@ -230,6 +260,7 @@ func newPlanCreateCommand(ctx *commandContext) *cobra.Command {
 	cmd.Flags().StringVar(&briefFile, "brief-file", "", "Read the ticket text from a file")
 	cmd.Flags().StringVar(&ticket, "ticket", "", "Ticket link or reference, shown in the app")
 	cmd.Flags().IntVar(&maxParallel, "max-parallel", 0, "Most implementation workers running at once (1-10, default 3)")
+	cmd.Flags().StringVar(&mode, "mode", "", "plan (default) plans the Task; auto lets the orchestrator decide between a plan and one worker")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print JSON")
 	return cmd
 }
@@ -300,6 +331,11 @@ func writePlanDetail(out io.Writer, d planDetailDTO) error {
 		p.ID, p.Title, p.Phase, p.DisplayStatus, p.State, p.MaxParallel, dashIfEmpty(p.OrchestratorSessionID)); err != nil {
 		return err
 	}
+	if line := planTriageLine(p); line != "" {
+		if _, err := fmt.Fprintf(out, "%s\n\n", line); err != nil {
+			return err
+		}
+	}
 	writer := tabwriter.NewWriter(out, 0, 4, 2, ' ', 0)
 	_, _ = fmt.Fprintln(writer, "KEY\tKIND\tSTATUS\tDEPS\tSESSION")
 	for _, m := range d.Milestones {
@@ -336,6 +372,25 @@ func writePlanDetail(out io.Writer, d planDetailDTO) error {
 		}
 	}
 	return nil
+}
+
+// planTriageLine describes an auto Task's triage: waiting, or the decision
+// and, for direct, the worker it went to.
+func planTriageLine(p planDTO) string {
+	if p.IntakeMode != "auto" {
+		return ""
+	}
+	if p.Triage == nil {
+		return "triage: waiting for the orchestrator to decide (ao plan triage " + p.ID + " --plan|--direct)"
+	}
+	line := fmt.Sprintf("triage: %s, decided by %s", p.Triage.Decision, p.Triage.DecidedBy)
+	if p.Triage.Reason != "" {
+		line += ": " + p.Triage.Reason
+	}
+	if p.DirectSessionID != "" {
+		line += "\nworker session: " + p.DirectSessionID
+	}
+	return line
 }
 
 func dashIfEmpty(s string) string {
@@ -668,6 +723,63 @@ func newPlanQAResultCommand(ctx *commandContext) *cobra.Command {
 	cmd.Flags().BoolVar(&fail, "fail", false, "Record a defect against a milestone")
 	cmd.Flags().StringVar(&milestone, "milestone", "", "The milestone whose change caused the defect")
 	cmd.Flags().StringVar(&note, "note", "", "What you verified, or steps to reproduce, expected, actual, and file hints")
+	return cmd
+}
+
+func newPlanTriageCommand(ctx *commandContext) *cobra.Command {
+	var asPlan, direct, jsonOutput bool
+	var reason, by string
+	cmd := &cobra.Command{
+		Use:   "triage [<plan-id>] (--plan | --direct) [--reason <text>]",
+		Short: "Decide how an auto Task runs: as a plan, or as one worker",
+		Long: "--plan turns the Task into an ordinary plan to set a spec for, add milestones to, and activate. --direct " +
+			"spawns one worker with the Task's brief and closes the plan. A Task is decided once.\n\n" +
+			"--by defaults to orchestrator inside an AO session (AO_SESSION_ID set) and human otherwise.\n\n" + planIDHelp,
+		Args: usageArgs(cobra.MaximumNArgs(1)),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if asPlan == direct {
+				return usageError{errors.New("provide exactly one of --plan or --direct")}
+			}
+			if len(strings.TrimSpace(reason)) > planTriageReasonMaxBytes {
+				return usageError{fmt.Errorf("--reason must be at most %d bytes", planTriageReasonMaxBytes)}
+			}
+			if !cmd.Flags().Changed("by") {
+				by = "human"
+				if strings.TrimSpace(os.Getenv("AO_SESSION_ID")) != "" {
+					by = "orchestrator"
+				}
+			}
+			if by != "orchestrator" && by != "human" {
+				return usageError{errors.New("--by must be orchestrator or human")}
+			}
+			id, _, err := planIDArg(args, 0)
+			if err != nil {
+				return err
+			}
+			body := planTriageDTO{Decision: "plan", Reason: strings.TrimSpace(reason), DecidedBy: by}
+			if direct {
+				body.Decision = "direct"
+			}
+			var response planEnvelopeDTO
+			if err := ctx.postJSON(cmd.Context(), planPath(id, "triage"), body, &response); err != nil {
+				return err
+			}
+			if jsonOutput {
+				return writeJSON(cmd.OutOrStdout(), response)
+			}
+			line := fmt.Sprintf("plan %s decided: %s; phase is %s", id, body.Decision, response.Plan.Phase)
+			if response.Plan.DirectSessionID != "" {
+				line += "; worker session " + response.Plan.DirectSessionID
+			}
+			_, err = fmt.Fprintln(cmd.OutOrStdout(), line)
+			return err
+		},
+	}
+	cmd.Flags().BoolVar(&asPlan, "plan", false, "Run the Task as a plan: set a spec, add milestones, activate")
+	cmd.Flags().BoolVar(&direct, "direct", false, "Hand the Task to one worker with its brief")
+	cmd.Flags().StringVar(&reason, "reason", "", "One sentence on why (at most 500 bytes)")
+	cmd.Flags().StringVar(&by, "by", "", "Who decided: orchestrator or human (default: orchestrator inside an AO session)")
+	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print JSON")
 	return cmd
 }
 

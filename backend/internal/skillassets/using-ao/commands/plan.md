@@ -3,7 +3,7 @@
 Plans are what the desktop app calls Tasks: a ticket the project orchestrator turns into milestones. AO then runs one worker per milestone in dependency order, and runs a QA worker once every milestone is done. The orchestrator is the planner. Inside a plan session, `<plan-id>` may be omitted because `AO_PLAN_ID` supplies it.
 
 ```text
-ao plan create --project <id> --title <t> (--brief <text> | --brief-file <path>) [--ticket <ref>] [--max-parallel N] [--json]
+ao plan create --project <id> --title <t> (--brief <text> | --brief-file <path>) [--ticket <ref>] [--max-parallel N] [--mode plan|auto] [--json]
 ao plan ls [--project <id>] [--json]
 ao plan get [<plan-id>] [--json]
 ao plan set-spec [<plan-id>] --file <path>
@@ -14,8 +14,18 @@ ao plan milestone retry [<plan-id>] <key>
 ao plan activate [<plan-id>]
 ao plan cancel [<plan-id>] [--yes]
 ao plan qa-result [<plan-id>] (--pass | --fail --milestone <key>) --note <text>
+ao plan triage [<plan-id>] (--plan | --direct) [--reason <text>] [--by orchestrator|human] [--json]
 ao plan events [<plan-id>] [--after N] [--limit N] [--json]
 ```
+
+## When the orchestrator receives `<ao-plan-triage id="PLAN">`
+
+`ao plan create --mode auto` (the app's **Auto** tab, or an automation set to "Let the orchestrator decide") creates the Task in `triage` and sends the orchestrator `<ao-plan-triage>` instead of a plan request. Decide in that turn:
+
+- **Direct** when the work is one coherent change a careful engineer finishes in a few hours as one PR, touches one area with its own tests, and needs no research or QA pass: `ao plan triage PLAN --direct --reason "<one sentence>"`. AO spawns one worker with the Task's brief, exactly as the Task tab would, and the plan ends in the `direct` phase with the worker's id (`directSessionId`). The worker reports like any other.
+- **Plan** when the work splits into parallel parts, needs investigation first, crosses more than one area, or needs QA over the whole: `ao plan triage PLAN --plan --reason "<one sentence>"`, then continue with the steps below in the same turn.
+
+A Task is decided once: a second `ao plan triage` (or one on a plan that is not in triage) returns 409 `PLAN_NOT_IN_TRIAGE`, whose message names the recorded decision, and spawns nothing. `--reason` is at most 500 bytes. `--by` defaults to `orchestrator` inside an AO session and `human` otherwise. `<ao-plan-triage-reminder>` arrives once if the Task waits 15 minutes; `<ao-plan-triage-failed>` means the direct worker could not start and the Task is still in triage: fix the cause and decide again, or `ao plan cancel PLAN`. A person can decide from the app instead; when they choose plan, you get the ordinary `<ao-plan-request>`.
 
 ## When the orchestrator receives `<ao-plan-request id="PLAN">`
 

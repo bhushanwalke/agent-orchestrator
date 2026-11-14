@@ -2181,6 +2181,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plans/{planId}/triage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Decide how an auto Task runs: as a plan, or as one direct worker */
+        post: operations["triagePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -6551,15 +6568,6 @@ export interface components {
             kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
             status: string;
         };
-        ControllersPlanTriage: {
-            /** Format: date-time */
-            decidedAt: string;
-            /** @enum {string} */
-            decidedBy: "orchestrator" | "human";
-            /** @enum {string} */
-            decision: "plan" | "direct";
-            reason: string;
-        };
         ControllersRemoteHostAccountTokenResponse: {
             hostId: string;
             hostKey: string;
@@ -8004,7 +8012,7 @@ export interface components {
             ticketRef: string;
             title: string;
             /** @description The triage decision of an auto Task, once made. */
-            triage?: components["schemas"]["ControllersPlanTriage"];
+            triage?: components["schemas"]["PlanTriage"];
             /** Format: date-time */
             updatedAt: string;
         };
@@ -8047,9 +8055,32 @@ export interface components {
             ticketRef: string;
             title: string;
             /** @description The triage decision of an auto Task, once made. */
-            triage?: components["schemas"]["ControllersPlanTriage"];
+            triage?: components["schemas"]["PlanTriage"];
             /** Format: date-time */
             updatedAt: string;
+        };
+        PlanTriage: {
+            /** Format: date-time */
+            decidedAt: string;
+            /** @enum {string} */
+            decidedBy: "orchestrator" | "human";
+            /** @enum {string} */
+            decision: "plan" | "direct";
+            reason: string;
+        };
+        PlanTriageRequest: {
+            /**
+             * @description Who decided. Defaults to human; ao plan triage sends orchestrator when run inside an AO session.
+             * @enum {string}
+             */
+            decidedBy?: "orchestrator" | "human";
+            /**
+             * @description plan continues as a planned Task; direct hands the Task to one worker.
+             * @enum {string}
+             */
+            decision: "plan" | "direct";
+            /** @description One sentence on why, at most 500 bytes. */
+            reason?: string;
         };
         PostPRCommentRequest: {
             attachments?: components["schemas"]["PRCommentAttachment"][];
@@ -17417,6 +17448,87 @@ export interface operations {
             };
             /** @description Not Found */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    triagePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanTriageRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
