@@ -160,6 +160,13 @@ describe("PlanRunView", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId: "p1", sessionId: "w-1" } });
 	});
 
+	it("titles the rail sections in sentence case, as the inspector does", () => {
+		renderView();
+		expect(screen.getByRole("button", { name: "Agents", expanded: true })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "Recent events", expanded: true })).toBeInTheDocument();
+		expect(document.querySelector(".eyebrow-label")).toBeNull();
+	});
+
 	it("lists events newest first", () => {
 		renderView();
 		expect(screen.getAllByTestId("plan-event").map((row) => row.textContent)).toEqual([

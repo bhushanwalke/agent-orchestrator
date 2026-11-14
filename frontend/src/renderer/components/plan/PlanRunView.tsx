@@ -154,7 +154,7 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 				</div>
 				<aside
 					aria-label={t("plan.run.rail")}
-					className="flex shrink-0 flex-col gap-6 border-t border-border px-4 py-6 min-[900px]:w-80 min-[900px]:overflow-y-auto min-[900px]:border-t-0 min-[900px]:border-l"
+					className="flex shrink-0 flex-col border-t border-border py-3 min-[900px]:w-80 min-[900px]:overflow-y-auto min-[900px]:border-t-0 min-[900px]:border-l"
 				>
 					<PlanAgentsRail milestones={milestones} onOpenSession={openSession} plan={plan} selectedKey={selectedKey} sessions={sessions} />
 					<PlanEvents events={events} milestones={milestones} />

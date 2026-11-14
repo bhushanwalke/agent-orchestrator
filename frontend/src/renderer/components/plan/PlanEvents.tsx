@@ -1,3 +1,4 @@
+import { InspectorSection } from "@aoagents/product-ui";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { MessageKey } from "../../i18n";
@@ -42,8 +43,7 @@ export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[
 	};
 
 	return (
-		<section aria-labelledby="plan-events-heading" className="flex flex-col gap-2">
-			<h2 className="eyebrow-label" id="plan-events-heading">{t("plan.events.heading")}</h2>
+		<InspectorSection surface={false} title={t("plan.events.heading")}>
 			{events.length === 0 ? (
 				<p className="text-sm text-muted-foreground">{t("plan.events.empty")}</p>
 			) : (
@@ -65,10 +65,10 @@ export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[
 				</ol>
 			)}
 			{!all && events.length > RECENT ? (
-				<Button className="self-start" onClick={() => setAll(true)} size="sm" type="button" variant="quiet">
+				<Button className="-ml-2 self-start" onClick={() => setAll(true)} size="sm" type="button" variant="quiet">
 					{t("plan.events.viewAll")}
 				</Button>
 			) : null}
-		</section>
+		</InspectorSection>
 	);
 }

@@ -1,3 +1,4 @@
+import { InspectorSection } from "@aoagents/product-ui";
 import { useTranslation } from "react-i18next";
 import type { WorkspaceSession } from "../../types/workspace";
 import type { Plan, PlanMilestone } from "../../types/plan";
@@ -32,8 +33,7 @@ export function PlanAgentsRail({
 		});
 
 	return (
-		<section aria-labelledby="plan-agents-heading" className="flex flex-col gap-2">
-			<h2 className="eyebrow-label" id="plan-agents-heading">{t("plan.agents.heading")}</h2>
+		<InspectorSection surface={false} title={t("plan.agents.heading")}>
 			{!orchestrator && agents.length === 0 ? <p className="text-sm text-muted-foreground">{t("plan.agents.empty")}</p> : null}
 			<ul className="flex flex-col gap-3">
 				{orchestrator ? (
@@ -54,6 +54,6 @@ export function PlanAgentsRail({
 					</li>
 				))}
 			</ul>
-		</section>
+		</InspectorSection>
 	);
 }
