@@ -63,3 +63,39 @@ func TestDefectMessageAndPlanSectionsTellWorkersToRetryReports(t *testing.T) {
 		}
 	}
 }
+
+func TestClipNoteEndsAtASentenceThenAWord(t *testing.T) {
+	sentence := "Built the API. " + strings.Repeat("Added routes and handlers. ", 40) + "Verified with 44 passing tests."
+	got := clipNote(sentence, 100)
+	if len(got) > 100 || !strings.HasSuffix(got, ". …") || strings.Contains(got, "Verified") {
+		t.Fatalf("sentence clip = %q (%d bytes)", got, len(got))
+	}
+	words := strings.Repeat("word ", 60)
+	got = clipNote(words, 50)
+	if len(got) > 50 || !strings.HasSuffix(got, "word …") {
+		t.Fatalf("word clip = %q", got)
+	}
+	if clipNote("short. note", 50) != "short. note" {
+		t.Fatal("a short note must be unchanged")
+	}
+}
+
+func TestPromptsAskForTheVerificationFirstInDoneNotes(t *testing.T) {
+	p := samplePromptPlan()
+	rule := "Start your done note with what you verified (tests run, counts), then what you built."
+	impl := implementerPrompt(p, domain.Milestone{Key: "m1", Title: "API"}, nil)
+	qa := qaPrompt(p, nil)
+	section := planPromptSection(p, domain.Milestone{Key: "m1"}, RoleImplementer)
+	for name, text := range map[string]string{"implementer": impl, "qa": qa, "section": section} {
+		if !strings.Contains(text, rule) {
+			t.Fatalf("%s prompt lacks the done-note rule:\n%s", name, text)
+		}
+	}
+	long := "Verified: npm test passes 44/44. " + strings.Repeat("Implemented a thing. ", 60)
+	if got := qaPrompt(p, []builtInfo{{Key: "m1", Title: "API", Note: long}}); !strings.Contains(got, "Verified: npm test passes 44/44.") {
+		t.Fatal("qa prompt dropped the verification")
+	}
+	if PromptNoteMaxBytes != 900 {
+		t.Fatalf("PromptNoteMaxBytes = %d", PromptNoteMaxBytes)
+	}
+}

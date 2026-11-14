@@ -17,6 +17,45 @@ const (
 // QASpecClipBytes bounds the plan document quoted in the QA prompt.
 const QASpecClipBytes = 8000
 
+// PromptNoteMaxBytes bounds a report or QA note as events store it and as
+// the QA prompt and the done summary quote it.
+const PromptNoteMaxBytes = 900
+
+// doneNoteRule asks workers to lead with the verification, which clipping
+// would otherwise drop from the end of a long note.
+const doneNoteRule = "Start your done note with what you verified (tests run, counts), then what you built."
+
+// clipNote shortens a note to at most limit bytes, ending at the last
+// sentence end before the limit, else the last word, and marks the cut.
+func clipNote(note string, limit int) string {
+	if len(note) <= limit {
+		return note
+	}
+	const mark = " …"
+	head := truncateBytes(note, limit-len(mark))
+	if at := lastSentenceEnd(head); at >= len(head)/2 {
+		return head[:at] + mark
+	}
+	if at := strings.LastIndexAny(head, " \n\t"); at > 0 {
+		return strings.TrimRight(head[:at], " \n\t") + mark
+	}
+	return head + mark
+}
+
+// lastSentenceEnd is the index just past the last ". ", "! ", or "? " (or
+// the same before a newline) in s, or -1.
+func lastSentenceEnd(s string) int {
+	for i := len(s) - 2; i >= 0; i-- {
+		switch s[i] {
+		case '.', '!', '?':
+			if s[i+1] == ' ' || s[i+1] == '\n' {
+				return i + 1
+			}
+		}
+	}
+	return -1
+}
+
 // displayNameMaxChars matches the spawn display name limit.
 const displayNameMaxChars = 100
 
@@ -79,7 +118,7 @@ func implementerPrompt(p domain.Plan, m domain.Milestone, deps []depInfo) string
 ## Rules for this milestone
 - Build the project and run the unit and integration tests that cover your change before you report done. Fix failures yourself.
 - Commit on your branch. Open the pull request as the project rules allow (the task was created by the user in the app, so publishing is authorized), and attach it with ` + "`ao report --done --pr-created <url>`" + `.
-- Report progress with ` + "`ao report --checkpoint`" + `, blockers with ` + "`ao report --stuck`" + `, and completion with ` + "`ao report --done --note \"<what you built, how you verified it>\"`" + `. The plan scheduler waits for your done report.
+- Report progress with ` + "`ao report --checkpoint`" + `, blockers with ` + "`ao report --stuck`" + `, and completion with ` + "`ao report --done --note \"<what you verified, then what you built>\"`" + `. The plan scheduler waits for your done report. ` + doneNoteRule + `
 - Do not work on other milestones. If you find the milestone cannot be completed as specified, ` + "`ao report --stuck`" + ` with the reason.
 `)
 	return b.String()
@@ -98,7 +137,7 @@ func qaPrompt(p domain.Plan, built []builtInfo) string {
 		if len(m.PRs) > 0 {
 			prs = strings.Join(m.PRs, ", ")
 		}
-		note := strings.TrimSpace(m.Note)
+		note := clipNote(strings.TrimSpace(m.Note), PromptNoteMaxBytes)
 		if note == "" {
 			note = "(no summary)"
 		}
@@ -120,7 +159,7 @@ func qaPrompt(p domain.Plan, built []builtInfo) string {
    `+"`ao plan qa-result %[2]s --fail --milestone <key> --note \"<steps to reproduce, expected, actual, file hints>\"`"+`
    One command per milestone; put all defects for a milestone in one note.
 4. If everything passes: `+"`ao plan qa-result %[2]s --pass --note \"<what you verified>\"`"+`.
-5. Finish with `+"`ao report --done --note \"<summary>\"`"+`. Do not open pull requests and do not push.
+5. Finish with `+"`ao report --done --note \"<summary>\"`"+`. `+doneNoteRule+` Do not open pull requests and do not push.
 `, spec, p.ID)
 	return b.String()
 }
@@ -141,7 +180,7 @@ Fix them on your current branch, rebuild, rerun the relevant tests, push the fix
 func planDoneMessage(p domain.Plan, built []builtInfo, qaNote string) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<ao-plan-done id=%q>\nQA passed for Task %q (plan %s).\n", string(p.ID), p.Title, p.ID)
-	if note := strings.TrimSpace(qaNote); note != "" {
+	if note := clipNote(strings.TrimSpace(qaNote), PromptNoteMaxBytes); note != "" {
 		fmt.Fprintf(&b, "QA verified: %s\n", note)
 	}
 	b.WriteString("\nMilestones:\n")
@@ -176,12 +215,12 @@ func planPromptSectionBody(p domain.Plan, m domain.Milestone, role string) strin
 		return fmt.Sprintf(`## Plan QA
 You are the QA worker for Task %q (plan %s, milestone %s). AO_PLAN_ID and AO_MILESTONE_KEY are set in your environment.
 - Record every defect with `+"`ao plan qa-result %[2]s --fail --milestone <key> --note \"...\"`"+` (one command per milestone), or the overall pass with `+"`ao plan qa-result %[2]s --pass --note \"...\"`"+`.
-- Then finish with `+"`ao report --done --note \"<summary>\"`"+`. A done report without a recorded verdict does not count as a pass.
+- Then finish with `+"`ao report --done --note \"<summary>\"`"+`. A done report without a recorded verdict does not count as a pass. `+doneNoteRule+`
 - Do not open pull requests and do not push.`, p.Title, p.ID, m.Key)
 	}
 	return fmt.Sprintf(`## Plan milestone
 You implement milestone %s of Task %q (plan %s). AO_PLAN_ID and AO_MILESTONE_KEY are set in your environment.
-- The plan scheduler advances only on your reports: `+"`ao report --checkpoint`"+` for progress, `+"`ao report --stuck`"+` when blocked, and `+"`ao report --done --note \"...\"`"+` when the milestone is built and its tests pass.
+- The plan scheduler advances only on your reports: `+"`ao report --checkpoint`"+` for progress, `+"`ao report --stuck`"+` when blocked, and `+"`ao report --done --note \"...\"`"+` when the milestone is built and its tests pass. `+doneNoteRule+`
 - Commit your milestone's work on the branch you are on when you report done; AO records that branch for dependent milestones and QA. If you create a topic branch, stay on it when you run `+"`ao report --done`"+`.
 - Messages wrapped in <ao-qa-defect> are QA findings for your milestone: fix them on your current branch and report done again.
 - Stay within your milestone; ask the orchestrator with `+"`ao send`"+` when the plan needs changing.`, m.Key, p.Title, p.ID)

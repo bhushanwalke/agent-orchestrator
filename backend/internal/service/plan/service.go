@@ -1065,7 +1065,7 @@ func (s *Service) touchPlan(ctx context.Context, id domain.PlanID) {
 func (s *Service) recordEvent(ctx context.Context, planID domain.PlanID, msID domain.MilestoneID, sessionID domain.SessionID, kind, note string) {
 	if err := s.store.InsertPlanEvent(ctx, domain.PlanEvent{
 		PlanID: planID, MilestoneID: msID, SessionID: sessionID, Kind: kind,
-		Note: truncateBytes(note, 500), CreatedAt: s.now().UTC(),
+		Note: clipNote(note, PromptNoteMaxBytes), CreatedAt: s.now().UTC(),
 	}); err != nil {
 		s.logger.Warn("plan event not recorded", "plan", planID, "kind", kind, "error", err)
 	}
