@@ -359,6 +359,9 @@ func (s *Service) ForkTurn(ctx context.Context, sourceID domain.SessionID, clien
 		KeepDisplayName: true,
 		Async:           domain.NormalizeSessionMode(plan.source.Mode) == domain.SessionModeChat,
 		Fork:            plan.spawnFork(),
+		// A fork keeps its source's sparse cone; seed files outside it widen
+		// the cone as they are copied.
+		SparsePaths: append([]string(nil), plan.source.SparsePaths...),
 	}
 	if s.deps.Accounts != nil {
 		account, err := s.deps.Accounts.SessionAccountID(ctx, plan.source.ID, plan.source.Harness)

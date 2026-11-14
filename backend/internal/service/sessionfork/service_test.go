@@ -494,3 +494,24 @@ func TestForkedFromShowsTheOriginalsCurrentName(t *testing.T) {
 		t.Fatalf("title = %q, want the stored name", opts.ForkedFrom.Title)
 	}
 }
+
+// A fork of a sparse session keeps its cone; seed files outside it widen the
+// cone when they are copied (forkseed).
+func TestForkInheritsTheSourceSparseCone(t *testing.T) {
+	src := source()
+	src.SparsePaths = []string{"backend/internal/cli", "scripts"}
+	s, sp, _ := newService(src)
+	if _, err := s.Fork(context.Background(), "p-1", "req-1"); err != nil {
+		t.Fatal(err)
+	}
+	if got := sp.got[0].SparsePaths; len(got) != 2 || got[0] != "backend/internal/cli" || got[1] != "scripts" {
+		t.Fatalf("fork sparse paths = %#v", got)
+	}
+	full, sp2, _ := newService(source())
+	if _, err := full.Fork(context.Background(), "p-1", "req-2"); err != nil {
+		t.Fatal(err)
+	}
+	if len(sp2.got[0].SparsePaths) != 0 {
+		t.Fatalf("full-checkout source forked sparse: %#v", sp2.got[0].SparsePaths)
+	}
+}
