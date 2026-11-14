@@ -102,7 +102,7 @@ func buildSystemPromptText(cfg systemPromptConfig) string {
 	sections := make([]string, 0, 6)
 	switch cfg.Role {
 	case sessionPromptRoleOrchestrator:
-		sections = append(sections, orchestratorSystemPrompt(cfg.Project))
+		sections = append(sections, orchestratorSystemPrompt(cfg.Project), orchestratorPlanPrompt(cfg.Project))
 		if rules := strings.TrimSpace(cfg.OrchestratorRules); rules != "" {
 			sections = append(sections, "## Project-Specific Orchestrator Rules\n"+rules)
 		}
@@ -528,4 +528,22 @@ func isFullCheckout(ctx context.Context, path string) bool {
 	var exitErr *exec.ExitError
 	// git config exits 1 when the key is unset: a full checkout.
 	return errors.As(err, &exitErr) && exitErr.ExitCode() == 1
+}
+
+// orchestratorPlanPrompt teaches the orchestrator to plan a Task: AO sends it
+// <ao-plan-request> when a person creates one in the app, and runs the
+// milestones it registers.
+func orchestratorPlanPrompt(project promptProject) string {
+	return `## Plans (Tasks)
+
+When you receive a message wrapped in <ao-plan-request id="PLAN">, the human created a Task in the app and you are its planner. Do this, in order:
+
+1. Investigate: read the ticket, inspect the relevant code, tests, and docs. You may read anything; you still must not edit code.
+2. If the ticket is broad, spawn research workers in parallel with ` + "`ao spawn --project " + project.ID + " --name \"Research: <topic>\" --output artifact --prompt \"<question>\"`" + ` and wait for their ` + "`done`" + ` reports before planning. Prefer two to four focused questions over one vague one.
+3. Write the plan as Markdown: goal, approach, the milestone list with what each one changes and how it is verified, risks. Save it with ` + "`ao plan set-spec PLAN --file <path>`" + `.
+4. Register milestones: ` + "`ao plan milestone add PLAN --key m1 --title \"<title>\" --description-file <file> [--depends-on m0,m2] [--sparse src/api,src/shared]`" + `. Keep milestones manageable: each should be one PR a careful engineer finishes in a few hours; split anything larger, merge anything trivial into a neighbour. Declare a dependency only when one milestone needs another's code, and add a dependency before the milestones that need it. List ` + "`--sparse`" + ` directories that the milestone will touch plus the ones it must read or build; when unsure, leave ` + "`--sparse`" + ` off for a full checkout.
+5. Activate with ` + "`ao plan activate PLAN`" + `. AO then spawns implementation workers (in parallel up to the plan's limit), then a QA worker, routes QA failures back to workers, and tells you with <ao-plan-done> when QA passes. Watch progress with ` + "`ao plan get PLAN`" + ` and ` + "`ao plan events PLAN`" + ` and worker reports; intervene with ` + "`ao send`" + ` only when a worker is stuck or the plan needs changing.
+6. When the plan is done, summarise the outcome and PR links for the human.
+
+Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.`
 }

@@ -444,3 +444,29 @@ func TestSparseCheckoutPrompt(t *testing.T) {
 		t.Fatal("full checkout must have no sparse section")
 	}
 }
+
+func TestOrchestratorPromptTeachesPlans(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{Role: sessionPromptRoleOrchestrator, Project: promptProject{ID: "todo", Name: "Todo"}})
+	for _, want := range []string{
+		"## Plans (Tasks)",
+		"When you receive a message wrapped in <ao-plan-request id=\"PLAN\">",
+		"1. Investigate:", "2. If the ticket is broad, spawn research workers in parallel with `ao spawn --project todo --name \"Research: <topic>\" --output artifact --prompt \"<question>\"`",
+		"3. Write the plan as Markdown", "`ao plan set-spec PLAN --file <path>`",
+		"4. Register milestones: `ao plan milestone add PLAN --key m1 --title \"<title>\" --description-file <file> [--depends-on m0,m2] [--sparse src/api,src/shared]`",
+		"5. Activate with `ao plan activate PLAN`", "<ao-plan-done>", "`ao plan get PLAN`", "`ao plan events PLAN`",
+		"6. When the plan is done, summarise the outcome and PR links for the human.",
+		"Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("orchestrator prompt missing %q", want)
+		}
+	}
+	// The existing role text is kept and comes first.
+	if strings.Index(got, "## Orchestrator Agent Role") > strings.Index(got, "## Plans (Tasks)") {
+		t.Fatal("plans section must follow the existing orchestrator text")
+	}
+	worker := buildSystemPromptText(systemPromptConfig{Role: sessionPromptRoleWorker, Project: promptProject{ID: "todo"}})
+	if strings.Contains(worker, "## Plans (Tasks)") {
+		t.Fatal("workers must not get the planner section")
+	}
+}
