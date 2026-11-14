@@ -87,7 +87,7 @@ func (s *Service) onReportLocked(ctx context.Context, rec domain.ReportRecord) (
 			m.FinishedAt = &now
 			return save(EventMilestoneDone, rec.Note), ""
 		}
-		return s.qaDoneLocked(ctx, p, &m, rec, live, save)
+		return s.qaDoneLocked(ctx, p, &m, live, save)
 	}
 	return false, ""
 }
@@ -95,7 +95,7 @@ func (s *Service) onReportLocked(ctx context.Context, rec domain.ReportRecord) (
 // qaDoneLocked handles the QA session's done report. A round that recorded
 // failures waits for the fixes; a round that recorded nothing failed and the
 // session is asked for its verdict.
-func (s *Service) qaDoneLocked(ctx context.Context, p domain.Plan, qa *domain.Milestone, rec domain.ReportRecord, live bool, save func(kind, note string) bool) (bool, string) {
+func (s *Service) qaDoneLocked(ctx context.Context, p domain.Plan, qa *domain.Milestone, live bool, save func(kind, note string) bool) (bool, string) {
 	if !live {
 		return false, ""
 	}
