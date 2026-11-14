@@ -86,3 +86,24 @@ func planEvents(t *testing.T, f fixture, id domain.PlanID, kind string) []string
 	}
 	return out
 }
+
+func TestFailingTurnsBlockCarriesTheProvidersMessage(t *testing.T) {
+	f := flowFixture(t, domain.ProjectConfig{})
+	id := activePlan(t, f, 3, msSpec{key: "m1"}, msSpec{key: "m2"})
+	ms := milestones(t, f, id)
+	limit := "You've hit your usage limit. Upgrade or try again at 7:44 AM."
+	f.turns.thread[ms["m1"].SessionID] = domain.ThreadStatusSystemError
+	f.turns.recent[ms["m1"].SessionID] = []domain.ConversationTurn{failedTurn(limit)}
+	long := strings.Repeat("x", 400)
+	f.turns.recent[ms["m2"].SessionID] = []domain.ConversationTurn{failedTurn(long), failedTurn("older")}
+	tick(t, f)
+	notes := strings.Join(planEvents(t, f, id, "milestone_blocked"), "\n")
+	if !strings.Contains(notes, "agent turns are failing: system_error: "+limit) {
+		t.Fatalf("system_error note lacks the provider message: %q", notes)
+	}
+	for _, n := range planEvents(t, f, id, "milestone_blocked") {
+		if strings.Contains(n, "xxx") && len(n) > len("agent turns are failing: ")+300+len("…") {
+			t.Fatalf("message not clipped to 300: %d bytes", len(n))
+		}
+	}
+}

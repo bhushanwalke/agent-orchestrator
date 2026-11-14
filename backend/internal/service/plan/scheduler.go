@@ -179,11 +179,33 @@ func (s *Service) failingTurns(ctx context.Context, id domain.SessionID) string 
 	if err != nil {
 		return ""
 	}
+	turns, err := s.conversations.RecentConversationTurns(ctx, conv.ID, 2)
+	if err != nil {
+		turns = nil
+	}
+	// The provider's own words (a usage limit and when it resets, say) tell
+	// the orchestrator and the person why.
+	why := func() string {
+		for _, turn := range turns {
+			if turn.State != domain.TurnStateFailed {
+				continue
+			}
+			if msg := strings.TrimSpace(turn.ErrorMessage); msg != "" {
+				return truncateRunes(msg, failingTurnMessageMax)
+			}
+			if turn.FailureCode != "" {
+				return string(turn.FailureCode)
+			}
+		}
+		return ""
+	}
 	if conv.ThreadState != nil && conv.ThreadState.Status == domain.ThreadStatusSystemError {
+		if msg := why(); msg != "" {
+			return string(domain.ThreadStatusSystemError) + ": " + msg
+		}
 		return string(domain.ThreadStatusSystemError)
 	}
-	turns, err := s.conversations.RecentConversationTurns(ctx, conv.ID, 2)
-	if err != nil || len(turns) < 2 {
+	if len(turns) < 2 {
 		return ""
 	}
 	for _, turn := range turns {
@@ -191,10 +213,18 @@ func (s *Service) failingTurns(ctx context.Context, id domain.SessionID) string 
 			return ""
 		}
 	}
-	if msg := strings.TrimSpace(turns[0].ErrorMessage); msg != "" {
-		return msg
+	return why()
+}
+
+// failingTurnMessageMax clips the provider message in a failing-turns block.
+const failingTurnMessageMax = 300
+
+func truncateRunes(s string, limit int) string {
+	runes := []rune(s)
+	if len(runes) <= limit {
+		return s
 	}
-	return string(turns[0].FailureCode)
+	return string(runes[:limit-1]) + "…"
 }
 
 // planActionsLocked reconciles and promotes milestones and picks this tick's
