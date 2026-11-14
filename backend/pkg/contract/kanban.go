@@ -244,6 +244,16 @@ const (
 	DisplayClosed    DisplayStatus = "Closed without merge"
 	// Archive.
 	DisplayTerminated DisplayStatus = "Terminated"
+	// Task plans. A plan card derives its phrase from its milestones; these
+	// are never shown on a session card. "Implementing k/n" is built from
+	// DisplayImplementing with the milestone counts.
+	DisplayPlanning         DisplayStatus = "Planning"
+	DisplayImplementing     DisplayStatus = "Implementing"
+	DisplayFixingQAFindings DisplayStatus = "Fixing QA findings"
+	DisplayTesting          DisplayStatus = "Testing"
+	DisplayQAPassed         DisplayStatus = "QA passed"
+	DisplayNeedsYou         DisplayStatus = "Needs you"
+	DisplayPlanCancelled    DisplayStatus = "Cancelled"
 )
 
 // KanbanPresentation is a session's derived board presentation: the column it
