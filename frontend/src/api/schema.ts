@@ -6642,6 +6642,8 @@ export interface components {
             outputType: "none" | "pr" | "artifact" | "pr_artifact";
             /** Format: date-time */
             pinnedAt?: null | string;
+            planId?: string;
+            planMilestoneId?: string;
             /** Format: int64 */
             previewRevision?: number;
             previewUrl?: string;
@@ -6658,6 +6660,8 @@ export interface components {
             reviewerHarness?: "claude-code" | "codex" | "copilot" | "cursor" | "kilocode" | "opencode" | "opencode-v2" | "kiro" | "pi" | "agy" | "devin" | "droid" | "kimi" | "kimchi" | "muse" | "amp" | "aider" | "grok" | "crush" | "auggie" | "cline" | "autohand";
             /** @enum {string} */
             scmStatus?: "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "commented" | "approved" | "mergeable" | "merged";
+            /** @description Repo-relative directories of the session's cone-mode sparse checkout; omitted for a full checkout. */
+            sparsePaths?: string[];
             staleBinary?: components["schemas"]["SessionStaleBinary"];
             /** @enum {string} */
             status: "working" | "pr_open" | "draft" | "ci_failed" | "review_pending" | "changes_requested" | "commented" | "approved" | "mergeable" | "merged" | "needs_input" | "exited" | "idle" | "terminated" | "no_signal";

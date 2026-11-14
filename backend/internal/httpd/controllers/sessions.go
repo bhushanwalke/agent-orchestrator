@@ -2994,6 +2994,9 @@ func sessionView(r *http.Request, s domain.Session) SessionView {
 	view := SessionView{
 		Session:            s,
 		Branch:             s.Metadata.Branch,
+		SparsePaths:        s.SparsePaths,
+		PlanID:             string(s.PlanID),
+		PlanMilestoneID:    string(s.PlanMilestoneID),
 		TerminalGeneration: terminalGeneration,
 		PreviewURL:         s.Metadata.PreviewURL,
 		PreviewRevision:    s.Metadata.PreviewRevision,

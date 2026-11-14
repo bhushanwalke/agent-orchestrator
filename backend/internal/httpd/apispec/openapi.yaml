@@ -19613,6 +19613,10 @@ components:
           type:
           - "null"
           - string
+        planId:
+          type: string
+        planMilestoneId:
+          type: string
         previewRevision:
           format: int64
           type: integer
@@ -19679,6 +19683,12 @@ components:
           - mergeable
           - merged
           type: string
+        sparsePaths:
+          description: Repo-relative directories of the session's cone-mode sparse
+            checkout; omitted for a full checkout.
+          items:
+            type: string
+          type: array
         staleBinary:
           $ref: '#/components/schemas/SessionStaleBinary'
         status:

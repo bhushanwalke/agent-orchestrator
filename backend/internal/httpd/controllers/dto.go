@@ -577,6 +577,13 @@ type WorkspaceTreeEntry struct {
 type SessionView struct {
 	domain.Session
 	Branch string `json:"branch,omitempty"`
+	// SparsePaths is the cone of a sparse worktree requested at spawn. Empty
+	// is a full checkout.
+	SparsePaths []string `json:"sparsePaths,omitempty" description:"Repo-relative directories of the session's cone-mode sparse checkout; omitted for a full checkout."`
+	// PlanID and PlanMilestoneID link a plan milestone worker to its plan;
+	// both are omitted for every other session.
+	PlanID          string `json:"planId,omitempty"`
+	PlanMilestoneID string `json:"planMilestoneId,omitempty"`
 	// TerminalGeneration is an opaque renderer fence. A restarted controller
 	// may deliberately reuse its terminal handle; clients must still discard the
 	// old attachment when this value changes.

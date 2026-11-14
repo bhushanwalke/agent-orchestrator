@@ -5574,3 +5574,28 @@ func TestSessionsAPI_SpawnPassesSparsePaths(t *testing.T) {
 		t.Fatalf("spawn sparse paths = %#v", got)
 	}
 }
+
+func TestSessionsAPI_GetExposesSparsePathsAndPlan(t *testing.T) {
+	svc := newFakeSessionService()
+	s := svc.sessions["ao-1"]
+	s.SparsePaths = []string{"backend/internal/cli", "scripts"}
+	s.PlanID = "plan_1"
+	s.PlanMilestoneID = "ms_1"
+	svc.sessions["ao-1"] = s
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodGet, "/api/v1/sessions/ao-1", "")
+	if status != http.StatusOK {
+		t.Fatalf("status = %d body=%s", status, body)
+	}
+	var resp struct {
+		Session struct {
+			SparsePaths     []string `json:"sparsePaths"`
+			PlanID          string   `json:"planId"`
+			PlanMilestoneID string   `json:"planMilestoneId"`
+		} `json:"session"`
+	}
+	mustJSON(t, body, &resp)
+	if len(resp.Session.SparsePaths) != 2 || resp.Session.SparsePaths[1] != "scripts" || resp.Session.PlanID != "plan_1" || resp.Session.PlanMilestoneID != "ms_1" {
+		t.Fatalf("session = %+v body=%s", resp.Session, body)
+	}
+}

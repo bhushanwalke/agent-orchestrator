@@ -75,6 +75,11 @@ type sessionDTO struct {
 	// WorkspaceCleanup is the recorded teardown outcome of a terminated
 	// session's workspace, empty when none has been recorded.
 	WorkspaceCleanup string `json:"workspaceCleanup,omitempty"`
+	// SparsePaths is the cone of a sparse worktree; empty is a full checkout.
+	SparsePaths []string `json:"sparsePaths,omitempty"`
+	// PlanID and PlanMilestoneID link a plan milestone worker to its plan.
+	PlanID          string `json:"planId,omitempty"`
+	PlanMilestoneID string `json:"planMilestoneId,omitempty"`
 }
 
 type sessionArtifactDTO struct {
