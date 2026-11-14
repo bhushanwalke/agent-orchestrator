@@ -29,7 +29,8 @@ export function PlanAgentsRail({
 		.sort((a, b) => a.ordinal - b.ordinal)
 		.flatMap((m) => {
 			const session = m.session ? byId.get(m.session.id) : undefined;
-			return session ? [{ milestone: m, session }] : [];
+			// The card names the branch the milestone's work is recorded on.
+			return session ? [{ milestone: m, session: m.branch ? { ...session, branch: m.branch } : session }] : [];
 		});
 
 	return (

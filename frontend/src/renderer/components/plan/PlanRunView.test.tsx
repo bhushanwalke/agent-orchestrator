@@ -167,6 +167,15 @@ describe("PlanRunView", () => {
 		expect(document.querySelector(".eyebrow-label")).toBeNull();
 	});
 
+	it("shows a milestone agent's recorded work branch rather than its session branch", () => {
+		const d = detail();
+		planMock.mockReturnValue({ ...d, milestones: d.milestones.map((m) => (m.key === "m1" ? { ...m, branch: "topic/api-work" } : m)) });
+		renderView();
+		const card = screen.getAllByTestId("plan-agent-card")[1];
+		expect(within(card).getByText("topic/api-work")).toBeInTheDocument();
+		expect(within(card).queryByText("w-1")).toBeNull();
+	});
+
 	it("lists events newest first", () => {
 		renderView();
 		expect(screen.getAllByTestId("plan-event").map((row) => row.textContent)).toEqual([
