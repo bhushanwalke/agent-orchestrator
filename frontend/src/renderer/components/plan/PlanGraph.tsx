@@ -13,6 +13,7 @@ const PAD_Y = 28;
 const RADIUS = 20;
 const LABEL_HEIGHT = 44;
 const TITLE_MAX = 24;
+const LEGEND = ["done", "running", "pending", "blocked", "failed"] as const;
 
 /** One semantic colour per state, the same tones the session dot uses. */
 export const statusTone: Record<MilestoneStatus, string> = {
@@ -90,6 +91,11 @@ export function PlanGraph({
 	const nodeRefs = useRef(new Map<string, SVGGElement>());
 	const now = useNow(milestones.some((m) => m.status === "running"));
 	const statusLabel = (status: MilestoneStatus) => t(`plan.graph.status.${status}`);
+	// The legend lists only the states drawn; a ready node shares the pending glyph.
+	const legend = useMemo(() => {
+		const shown = new Set(milestones.map((m) => (m.status === "ready" ? "pending" : m.status)));
+		return LEGEND.filter((status) => shown.has(status));
+	}, [milestones]);
 
 	const position = new Map(layout.nodes.map((node) => [node.key, { x: node.x + PAD_X, y: node.y + PAD_Y }]));
 	const width = Math.max(0, layout.layers - 1) * 220 + PAD_X * 2;
@@ -215,7 +221,7 @@ export function PlanGraph({
 				</svg>
 			</div>
 			<ul aria-label={t("plan.graph.legend")} className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-				{(["done", "running", "pending", "blocked", "failed"] as const).map((status) => (
+				{legend.map((status) => (
 					<li className="inline-flex items-center gap-1.5" key={status}>
 						<svg aria-hidden="true" className={statusTone[status]} height={18} viewBox="-9 -9 18 18" width={18}>
 							<StatusGlyph status={status} />

@@ -230,6 +230,13 @@ describe("PlanRunView", () => {
 		expect(within(row).getByText("started")).not.toHaveClass("truncate");
 	});
 
+	it("draws a historical start with the neutral dot, not the running arc", () => {
+		renderView();
+		const icon = screen.getAllByTestId("plan-event")[0].querySelector("svg");
+		expect(icon).toHaveClass("text-passive");
+		expect(icon?.querySelector(".animate-spin")).toBeNull();
+	});
+
 	it("labels a kickoff held for a starting orchestrator as neutral waiting", () => {
 		const d = detail();
 		planMock.mockReturnValue({ ...d, events: [{ id: 9, kind: "kickoff_waiting", milestoneKey: "", sessionId: "orch-1", note: "", createdAt: "2026-01-01T00:00:01Z" }, ...d.events] });

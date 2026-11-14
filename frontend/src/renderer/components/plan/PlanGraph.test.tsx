@@ -61,6 +61,18 @@ describe("PlanGraph", () => {
 		expect(screen.getByRole("list", { name: "Milestone states" })).toHaveTextContent(/Done.*Running.*Pending.*Blocked.*Failed/);
 	});
 
+	it("lists only Done in the legend when every milestone is done", () => {
+		render(<Harness milestones={[milestone("m1", "done"), milestone("qa", "done", { dependsOn: ["m1"] })]} />);
+		const legend = screen.getByRole("list", { name: "Milestone states" });
+		expect([...legend.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["Done"]);
+	});
+
+	it("lists the legend states a mixed graph draws, in the fixed order", () => {
+		render(<Harness milestones={[milestone("m1", "failed"), milestone("m2", "done"), milestone("m3", "ready"), milestone("m4", "cancelled")]} />);
+		const legend = screen.getByRole("list", { name: "Milestone states" });
+		expect([...legend.querySelectorAll("li")].map((li) => li.textContent)).toEqual(["Done", "Pending", "Failed"]);
+	});
+
 	it("says what a pending milestone waits for and which agent runs a running one", () => {
 		render(<Harness />);
 		expect(screen.getByText("Waiting for m3")).toBeInTheDocument();

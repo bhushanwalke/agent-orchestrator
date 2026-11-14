@@ -10,9 +10,12 @@ import { StatusGlyph, statusTone } from "./PlanGraph";
 const RECENT = 20;
 const TITLE_SLOT = "\u0000";
 
-/** Events that read as a milestone state take that state's glyph. */
+/**
+ * Events that read as a finished milestone state take that state's glyph. The
+ * list is history, so a start (or any other event) keeps the neutral dot and
+ * never the live running arc.
+ */
 const eventStatus: Record<string, MilestoneStatus> = {
-	milestone_started: "running",
 	milestone_done: "done",
 	qa_passed: "done",
 	plan_done: "done",
