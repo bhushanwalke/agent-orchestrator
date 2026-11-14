@@ -152,6 +152,7 @@ Off by default. Per Task: `maxParallel` (1 to 10, default 3). Limits: 20 milesto
 - `go test -race ./...`: `adapters/agent/codex` `TestAuthStatusFindsNodeForNPMLauncherOutsidePATH` hits its 3 s deadline under `-race`; `adapters/runtime/tmux` `TestRuntimeIntegrationDeliversEnvironmentThroughAFile` leaves its fixed-name tmux session behind even when it passes, so the next run fails with "duplicate session" (`tmux kill-session -t TestRuntimeIntegrationDeliversEn-22d2f074`). Both pre-exist on `main`.
 - `storage/sqlite` takes about 27 minutes under `-race` (over 10 minutes without), beyond `go test`'s default timeout; use `-timeout 40m`.
 - Some pre-existing tmux tests build the runtime without `EnvDir` and can touch `~/.ao/data/runtime-env`.
+- A dev daemon (`npm run build:daemon -- --dev`, or `go run`) lacks the agent-browser binary, so `ao browser` answers `AGENT_BROWSER_NOT_INSTALLED`; QA then falls back to its own headless browser or HTTP checks (as in the first M6 run). The packaged desktop app ships the binary.
 - Codex plan workers need full-access permissions (their sandbox otherwise blocks the `ao report` loopback call); use claude-code workers otherwise.
 - An upgraded or restarted daemon resumes every active Task on boot, including spawning milestones that became ready while it was down.
 
