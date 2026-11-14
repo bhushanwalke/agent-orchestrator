@@ -62,9 +62,13 @@ import { AppMemoryIndicator, toSessionFacts } from "./SessionMemoryPanel";
 import { Button } from "./ui/button";
 import { recordManualWorkerOpen } from "../lib/session-management-telemetry";
 import {
+	BoardPlanCardAdapter,
 	BoardSessionCardAdapter,
+	isBoardPlanItem,
 	sessionsBoardLabels,
+	toBoardPlanPresentation,
 } from "./SessionsBoardAdapters";
+import { usePlansQuery } from "../hooks/usePlans";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -166,18 +170,30 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 	// Who is in each shared cloud session, read without joining any of them.
 	const participantsBySession = useSessionParticipants(activeSessions, !hostId);
 	const { userId: cloudUserId } = useCloudCp(!hostId && activeSessions.some((session) => Boolean(session.cloud)));
-	const boardSessions = activeSessions.map((session) =>
-		session.status === "no_signal" || session.displayStatus === "No signal"
-			? { ...session, kanbanColumn: "building" as const }
-			: session,
-	);
+	// A local repository project's Tasks join the lanes; their agents fold into
+	// the Task's card unless the person asks to see them.
+	const plansEnabled = !hostId && Boolean(projectId) && Boolean(workspace) && workspace?.kind !== CLOUD_PROJECT_KIND &&
+		projectId !== STANDALONE_WORKSPACE_ID && !isScratchpadWorkspace(workspace) && !guest;
+	const plans = usePlansQuery(projectId, plansEnabled).data;
+	const planItems = plansEnabled ? (plans ?? []).filter((plan) => plan.kanbanColumn !== "archive").map(toBoardPlanPresentation) : [];
+	const showPlanSessions = useUiStore((state) => state.showPlanSessions);
+	const setShowPlanSessions = useUiStore((state) => state.setShowPlanSessions);
+	const hasPlanSessions = plansEnabled && activeSessions.some((session) => Boolean(session.planId));
+	const boardSessions = activeSessions
+		.filter((session) => showPlanSessions || !plansEnabled || !session.planId)
+		.map((session) =>
+			session.status === "no_signal" || session.displayStatus === "No signal"
+				? { ...session, kanbanColumn: "building" as const }
+				: session,
+		);
+	const boardItems = [...boardSessions, ...planItems];
 	const boardLabels = sessionsBoardLabels(t);
 	const presentation = useBoardPresentation({
 		projectId,
 		isSuccess: localWorkspaceQuery.isSuccess,
 		isError: localWorkspaceQuery.isError,
 		hasProjects: workspaces.length > 0,
-		hasWorkerSessions: liveSessions.length > 0,
+		hasWorkerSessions: liveSessions.length > 0 || planItems.length > 0,
 	});
 	const showStartup = !hostId && presentation.showStartup;
 	const showWelcome = !hostId && presentation.showWelcome;
@@ -251,10 +267,22 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 		});
 	};
 
+	const planSessionsToggle = hasPlanSessions || planItems.length > 0 ? (
+		<Button
+			type="button"
+			size="sm"
+			variant="quiet"
+			aria-pressed={showPlanSessions}
+			onClick={() => setShowPlanSessions(!showPlanSessions)}
+		>
+			{t("board.plans.showSessions")}
+		</Button>
+	) : null;
 	const actions = projectId && (!hostId || connected) ? (
 		<>
 			<ProjectTerminationFeedback projectId={projectId} hostId={hostId} />
 			{memoryLight}
+			{planSessionsToggle}
 			{guest ? null : <ProjectBoardActions actions={projectActions} placement="header" quiet={showProjectEmpty} cloud={workspace?.kind === CLOUD_PROJECT_KIND} />}
 		</>
 	) : hostOffline ? (
@@ -346,7 +374,13 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 						columns={columns}
 						key={scopeKey}
 						labels={boardLabels}
-						renderSessionCard={(session) => (
+						renderSessionCard={(session) => isBoardPlanItem(session) ? (
+							<BoardPlanCardAdapter
+								item={session}
+								onOpen={() => void navigate({ to: "/projects/$projectId/plans/$planId", params: { projectId: session.planCard.projectId, planId: session.planCard.id } })}
+								onOpenOrchestrator={() => void navigate(sessionNavigateTarget(session.planCard.projectId, session.planCard.orchestratorSessionId))}
+							/>
+						) : (
 							<BoardSessionCardAdapter
 								participants={participantsBySession.get(session.id)}
 								me={cloudUserId}
@@ -359,7 +393,7 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 								session={session}
 							/>
 						)}
-						sessions={boardSessions}
+						sessions={boardItems}
 					/>
 				)}
 			</div>

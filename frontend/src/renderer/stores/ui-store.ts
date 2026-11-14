@@ -212,6 +212,8 @@ export type UiState = {
 	splitPanes: boolean;
 	/** The PR view: a PR's own tab, its comments, stacks and actions. Only takes effect in Developer mode. Default off. */
 	prView: boolean;
+	/** Board: show the agent sessions of a Task as their own cards too. Default off. */
+	showPlanSessions: boolean;
 	/** Developer Mode, macOS only: blur the desktop behind a translucent window. */
 	windowTranslucency: boolean;
 	/** Copy the terminal selection to the clipboard on mouse-up, like native terminals. Default on. */
@@ -299,6 +301,7 @@ export type UiState = {
 	closeSessionImportOffer: () => void;
 	setSplitPanes: (enabled: boolean) => void;
 	setPRView: (enabled: boolean) => void;
+	setShowPlanSessions: (enabled: boolean) => void;
 	setWindowTranslucency: (enabled: boolean) => void;
 	setTerminalCopyOnSelect: (enabled: boolean) => void;
 	setTerminalClickMode: (mode: TerminalClickMode) => void;
@@ -380,6 +383,7 @@ const sideChatsStorageKey = "ao.sideChats";
 const sessionImportOfferClosedStorageKey = "ao.sessionImport.offerClosed";
 const splitPanesStorageKey = "ao.splitPanes";
 const prViewStorageKey = "ao.prView";
+const showPlanSessionsStorageKey = "ao.board.showPlanSessions";
 const terminalCopyOnSelectStorageKey = "ao.terminalCopyOnSelect";
 const terminalClickModeStorageKey = "ao.terminalClickMode";
 const terminalSelectHintShownStorageKey = "ao.terminalSelectHintShown";
@@ -502,6 +506,7 @@ export const useUiStore = create<UiState>((set, get) => ({
 	sessionImportOfferClosed: initialSessionImportOfferClosed(),
 	splitPanes: getLocalStorage()?.getItem(splitPanesStorageKey) === "true",
 	prView: getLocalStorage()?.getItem(prViewStorageKey) === "true",
+	showPlanSessions: getLocalStorage()?.getItem(showPlanSessionsStorageKey) === "true",
 	windowTranslucency: readStoredWindowTranslucency(),
 	terminalCopyOnSelect: initialTerminalCopyOnSelect(),
 	terminalClickMode: initialTerminalClickMode(),
@@ -590,6 +595,10 @@ export const useUiStore = create<UiState>((set, get) => ({
 	setSplitPanes: (splitPanes) => {
 		getLocalStorage()?.setItem(splitPanesStorageKey, String(splitPanes));
 		set({ splitPanes });
+	},
+	setShowPlanSessions: (showPlanSessions) => {
+		getLocalStorage()?.setItem(showPlanSessionsStorageKey, String(showPlanSessions));
+		set({ showPlanSessions });
 	},
 	setPRView: (prView) => {
 		getLocalStorage()?.setItem(prViewStorageKey, String(prView));

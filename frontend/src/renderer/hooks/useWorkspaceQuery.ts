@@ -214,6 +214,8 @@ function toLocalWorkspaceSession(
 		id: session.id,
 		terminalHandleId: session.terminalHandleId,
 		terminalGeneration: session.terminalGeneration,
+		...(session.planId ? { planId: session.planId, planMilestoneId: session.planMilestoneId } : {}),
+		...(session.sparsePaths?.length ? { sparsePaths: session.sparsePaths } : {}),
 		workspaceId,
 		workspaceName,
 		title: session.terminalTitle ?? session.displayName ?? session.issueId ?? session.id,

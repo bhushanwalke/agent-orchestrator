@@ -4826,5 +4826,19 @@
 	"newTask.plan.submitting": "Starting plan",
 	"newTask.plan.attach": "Add attachment",
 	"newTask.plan.attachUnsupported": "Plans don't take attachments yet",
-	"newTask.plan.failed": "Couldn't start the plan"
+	"newTask.plan.failed": "Couldn't start the plan",
+	"board.plans.milestones": "{{done}}/{{total}} milestones",
+	"board.plans.morePrs": "+{{n}} more PRs",
+	"board.plans.updatedAt": "Updated {{time}}",
+	"board.plans.showSessions": "Show agent sessions",
+	"board.plans.openOrchestrator": "Open orchestrator",
+	"board.plans.copyId": "Copy plan id",
+	"board.plans.cancel": "Cancel plan",
+	"board.plans.agents": "Agents running: {{n}}",
+	"board.plans.noAgents": "No agents running",
+	"plan.cancel.title": "Cancel {{title}}?",
+	"plan.cancel.description": "AO stops starting work for this Task. Its agents keep running; archive them from their cards.",
+	"plan.cancel.confirm": "Cancel plan",
+	"plan.cancel.keep": "Keep plan",
+	"plan.cancel.failed": "Couldn't cancel the plan"
 }

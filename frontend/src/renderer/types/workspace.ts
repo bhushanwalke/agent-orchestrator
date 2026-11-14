@@ -131,6 +131,11 @@ export type SessionBranchState = {
 export type SessionStaleBinary = { version: string; since: string; switchFailedAt?: string };
 
 export type WorkspaceSession = {
+	/** The Task (plan) this worker serves; the board folds such sessions into its card. */
+	planId?: string;
+	planMilestoneId?: string;
+	/** Repo-relative directories of a sparse worktree; absent for a full checkout. */
+	sparsePaths?: string[];
 	workspaceCleanup?: "pending" | "removed" | "preserved_dirty" | "failed" | "not_applicable";
 	/** The cleanup was started by a sweep, not an archive: its state raises no app feedback. */
 	workspaceCleanupReportOnly?: boolean;

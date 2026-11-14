@@ -42,7 +42,11 @@ import { ProductExternalLink } from "./ProductExternalLink";
 import { SessionArchiveDialog, type SessionArchiveChoice } from "./SessionArchiveDialog";
 import { ConfirmDialog } from "./ConfirmDialog";
 import { SessionContextMenuItems } from "./SessionContextMenuItems";
-import { ContextMenu, ContextMenuContent, ContextMenuTrigger } from "./ui/context-menu";
+import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "./ui/context-menu";
+import type { PlanSummary } from "../types/plan";
+import { actionMenuDestructiveItemClass } from "./ui/menu-styles";
+import { PlanAvatarStrip } from "./plan/PlanAvatarStrip";
+import { CancelPlanDialog } from "./plan/CancelPlanDialog";
 import { Input } from "./ui/input";
 import { Button } from "./ui/button";
 import { Pressable } from "./ui/pressable";
@@ -929,5 +933,105 @@ function CopyActionButton({
 			</TooltipTrigger>
 			<TooltipContent side="bottom">{buttonLabel}</TooltipContent>
 		</Tooltip>
+	);
+}
+
+/** A Task (plan) item on the board, ordered and laned like a session card. */
+export type BoardPlanItem = BoardSessionPresentation & { planCard: PlanSummary };
+
+const PLAN_LANE_TONES: Record<string, { className: string; indicatorClassName: string; tone: string }> = {
+	building: { className: "text-status-working", indicatorClassName: "bg-status-working", tone: "var(--color-status-working)" },
+	validating: { className: "text-status-validating", indicatorClassName: "bg-status-validating", tone: "var(--color-status-validating)" },
+	needs_review: { className: "text-status-needs-you", indicatorClassName: "bg-status-needs-you", tone: "var(--color-status-needs-you)" },
+	ready: { className: "text-status-ready", indicatorClassName: "bg-status-ready", tone: "var(--color-status-ready)" },
+};
+
+/**
+ * A plan as the board's card presentation. The daemon's phrase is shown
+ * verbatim in its lane's semantic colour; a blocked Task uses the session
+ * card's own attention treatment.
+ */
+export function toBoardPlanPresentation(plan: PlanSummary): BoardPlanItem {
+	const blocked = plan.displayStatus === "Blocked";
+	const tone = PLAN_LANE_TONES[plan.kanbanColumn] ?? PLAN_LANE_TONES.building;
+	return {
+		id: `plan:${plan.id}`,
+		kanbanColumn: plan.kanbanColumn,
+		provider: "",
+		status: blocked ? "needs_input" : "working",
+		displayStatus: blocked ? "Blocked" : plan.displayStatus,
+		statusPresentation: blocked ? undefined : { ...tone, label: plan.displayStatus },
+		plainSurface: true,
+		title: plan.title,
+		updatedAt: plan.updatedAt,
+		planCard: plan,
+	};
+}
+
+export function isBoardPlanItem(item: object): item is BoardPlanItem {
+	return "planCard" in item;
+}
+
+const PLAN_CARD_PRS = 3;
+
+/** A Task's board card: its agents, phase, milestone progress, and PRs. */
+export function BoardPlanCardAdapter({
+	item,
+	onOpen,
+	onOpenOrchestrator,
+}: {
+	item: BoardPlanItem;
+	onOpen: () => void;
+	onOpenOrchestrator?: () => void;
+}) {
+	const { t } = useTranslation();
+	const [cancelOpen, setCancelOpen] = useState(false);
+	const plan = item.planCard;
+	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
+	const prs = plan.prs ?? [];
+	const extraPrs = Math.max(0, prs.length - PLAN_CARD_PRS);
+	const milestones = t("board.plans.milestones", { done: plan.milestoneCounts.done, total: plan.milestoneCounts.total });
+	const progress = extraPrs > 0 ? `${milestones} · ${t("board.plans.morePrs", { n: extraPrs })}` : milestones;
+	const card = (
+		<SessionCardView
+			externalLink={ProductExternalLink}
+			labels={{
+				formatTime: formatTimeCompact,
+				intakeIssue: (id) => t("shell.intakeIssue", { id }),
+				pr: { ...pullRequestLabels(t), progress: undefined },
+				updatedAt: (timestamp: string) => t("board.plans.updatedAt", { time: formatTimeCompact(timestamp) }),
+			}}
+			onOpen={onOpen}
+			prs={prs.slice(0, PLAN_CARD_PRS).map((pr) => ({ number: pr.number, state: pr.state, url: pr.url }))}
+			renderAvatar={() => <PlanAvatarStrip sessions={plan.liveSessions} />}
+			session={item}
+			translate={translate}
+			usage={{ accessibleLabel: progress, compactLabel: progress }}
+		/>
+	);
+	return (
+		<>
+			<ContextMenu>
+				<ContextMenuTrigger asChild>
+					<div data-testid="board-plan-card" data-plan-id={plan.id}>{card}</div>
+				</ContextMenuTrigger>
+				<ContextMenuContent className="min-w-44">
+					{onOpenOrchestrator && plan.orchestratorSessionId ? (
+						<ContextMenuItem onSelect={onOpenOrchestrator}>{t("board.plans.openOrchestrator")}</ContextMenuItem>
+					) : null}
+					<ContextMenuItem onSelect={() => void aoBridge.clipboard.writeText(plan.id)}>
+						<Copy className="size-icon-sm" aria-hidden />
+						{t("board.plans.copyId")}
+					</ContextMenuItem>
+					{plan.state !== "cancelled" && plan.phase !== "done" ? (
+						<>
+							<ContextMenuSeparator />
+							<ContextMenuItem className={actionMenuDestructiveItemClass} onSelect={() => setCancelOpen(true)}>{t("board.plans.cancel")}</ContextMenuItem>
+						</>
+					) : null}
+				</ContextMenuContent>
+			</ContextMenu>
+			<CancelPlanDialog open={cancelOpen} onOpenChange={setCancelOpen} planId={plan.id} projectId={plan.projectId} title={plan.title} />
+		</>
 	);
 }
