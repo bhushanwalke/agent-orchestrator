@@ -106,3 +106,28 @@ func TestAutomationUpdatePurposeAndRejectOriginChange(t *testing.T) {
 		t.Fatalf("update input=%+v", service.updated)
 	}
 }
+
+func TestAutomationTaskModeRoundTripsAndRunsCarryPlanID(t *testing.T) {
+	planID := domain.PlanID("plan_9")
+	service := &fakeAutomationService{items: []domain.Automation{{ID: "automation-1", TaskMode: domain.AutomationTaskAuto,
+		LatestRun: &domain.AutomationRun{ID: "run-1", Status: domain.AutomationRunRunning, PlanID: &planID}}}}
+	router := automationTestRouter(service)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/automations", strings.NewReader(`{"projectId":"demo","displayName":"A","prompt":"p","kind":"worker","rrule":"FREQ=DAILY","timezone":"UTC","taskMode":"auto"}`)))
+	if rec.Code != http.StatusCreated || service.created.TaskMode != domain.AutomationTaskAuto {
+		t.Fatalf("create status=%d task mode=%q body=%s", rec.Code, service.created.TaskMode, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodPatch, "/automations/automation-1", strings.NewReader(`{"taskMode":"plan"}`)))
+	if rec.Code != http.StatusOK || service.updated.TaskMode == nil || *service.updated.TaskMode != domain.AutomationTaskPlan {
+		t.Fatalf("update status=%d input=%+v", rec.Code, service.updated)
+	}
+	var response AutomationEnvelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil || response.Automation.TaskMode != "auto" ||
+		response.Automation.LatestRun == nil || response.Automation.LatestRun.PlanID != "plan_9" {
+		t.Fatalf("response=%s err=%v", rec.Body.String(), err)
+	}
+	if got := automationRunResponse(domain.AutomationRun{ID: "run-1", PlanID: &planID}); got.PlanID != "plan_9" {
+		t.Fatalf("run response plan id = %q", got.PlanID)
+	}
+}

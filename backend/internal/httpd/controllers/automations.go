@@ -52,7 +52,7 @@ func (c *AutomationsController) create(w http.ResponseWriter, r *http.Request) {
 		ProjectID: domain.ProjectID(req.ProjectID), DisplayName: req.DisplayName, Prompt: req.Prompt, TemplateID: req.TemplateID, UseCase: req.UseCase,
 		Kind: domain.SessionKind(req.Kind), Harness: domain.AgentHarness(req.Harness), RRule: req.RRule,
 		Cron: req.Cron, Timezone: req.Timezone, Enabled: req.Enabled,
-		Model: req.Model, Mode: req.Mode, Effort: req.Effort,
+		Model: req.Model, Mode: req.Mode, Effort: req.Effort, TaskMode: domain.AutomationTaskMode(req.TaskMode),
 	})
 	if err != nil {
 		envelope.WriteError(w, r, err)
@@ -128,6 +128,10 @@ func (c *AutomationsController) update(w http.ResponseWriter, r *http.Request) {
 	if req.Kind != nil {
 		value := domain.SessionKind(*req.Kind)
 		input.Kind = &value
+	}
+	if req.TaskMode != nil {
+		value := domain.AutomationTaskMode(*req.TaskMode)
+		input.TaskMode = &value
 	}
 	if req.Harness != nil {
 		value := domain.AgentHarness(*req.Harness)

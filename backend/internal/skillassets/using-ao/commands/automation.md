@@ -34,6 +34,7 @@ ao automation create --project <id> --name <name> --prompt <text> (--rrule <rule
 | `--timezone string` | IANA timezone | Local zone when resolvable |
 | `--kind string` | Session kind | `worker` |
 | `--harness string` | Agent harness; empty uses project default | - |
+| `--task-mode string` | What each run creates: `direct` (one worker session), `plan` (a Task plan), or `auto` (the orchestrator decides between a plan and one worker) | `direct` |
 | `--disabled` | Create disabled | - |
 | `--json` | Print JSON | - |
 
@@ -41,7 +42,10 @@ ao automation create --project <id> --name <name> --prompt <text> (--rrule <rule
 
 ```bash
 ao automation create --project my-app --name "Morning triage" --prompt "Review overnight issues" --cron "0 9 * * *" --timezone America/Los_Angeles
+ao automation create --project my-app --name "Nightly cleanup" --prompt "Fix the flaky tests in CI" --cron "0 2 * * *" --task-mode auto
 ```
+
+With `--task-mode plan` or `auto`, each run creates a Task named `<name> · <run time in the automation's timezone>` with the prompt as its brief, and the run's `planId` points at it. A `plan` run is planned outright; an `auto` run lets the orchestrator choose (see `ao plan triage`). The run completes when the Task's QA passes, fails when the Task fails or is cancelled, and when the orchestrator hands an `auto` Task to one worker the run follows that worker's session like a `direct` run. An orchestrator automation (`--kind orchestrator`) must be `direct` (400 `INVALID_AUTOMATION_TASK_MODE`).
 
 ---
 
@@ -95,6 +99,7 @@ ao automation update <id> [flags]
 | `--timezone string` | IANA timezone |
 | `--kind string` | Session kind |
 | `--harness string` | Agent harness; empty uses project default |
+| `--task-mode string` | `direct`, `plan`, or `auto` |
 | `--enabled bool` | Enable or disable future dispatch |
 | `--json` | Print JSON |
 
@@ -125,4 +130,4 @@ List run history for one automation.
 ao automation runs <id> [--limit <n>] [--cursor <cursor>] [--json]
 ```
 
-`--limit` must be 1–100. When a non-JSON listing prints `next cursor: ...`, pass that value to `--cursor` for the next page.
+The table lists each run's `SESSION` and, for plan and auto runs, its `PLAN`. `--limit` must be 1–100. When a non-JSON listing prints `next cursor: ...`, pass that value to `--cursor` for the next page.

@@ -37,8 +37,10 @@ type Deps struct {
 	// Spawner is the existing daemon session service; automations do not add a
 	// second launch path.
 	Spawner SessionSpawner
-	Clock   func() time.Time
-	NewID   func() string
+	// Plans creates the Task plan of a plan or auto run. Nil fails those runs.
+	Plans PlanCreator
+	Clock func() time.Time
+	NewID func() string
 }
 
 // Service owns automation validation and scheduling behavior.
@@ -46,6 +48,7 @@ type Service struct {
 	store     Store
 	telemetry ports.EventSink
 	spawner   SessionSpawner
+	plans     PlanCreator
 	clock     func() time.Time
 	newID     func() string
 }
@@ -58,7 +61,7 @@ func New(deps Deps) *Service {
 	if deps.NewID == nil {
 		deps.NewID = uuid.NewString
 	}
-	return &Service{store: deps.Store, telemetry: deps.Telemetry, spawner: deps.Spawner, clock: deps.Clock, newID: deps.NewID}
+	return &Service{store: deps.Store, telemetry: deps.Telemetry, spawner: deps.Spawner, plans: deps.Plans, clock: deps.Clock, newID: deps.NewID}
 }
 
 // CreateInput is the validated user intent for one recurring definition.
@@ -73,10 +76,12 @@ type CreateInput struct {
 	Model       string
 	Mode        string
 	Effort      string
-	RRule       string
-	Cron        string
-	Timezone    string
-	Enabled     *bool
+	// TaskMode is what each run creates; empty is direct.
+	TaskMode domain.AutomationTaskMode
+	RRule    string
+	Cron     string
+	Timezone string
+	Enabled  *bool
 }
 
 // UpdateInput distinguishes omitted fields from explicit false/empty values.
@@ -90,6 +95,7 @@ type UpdateInput struct {
 	Model       *string
 	Mode        *string
 	Effort      *string
+	TaskMode    *domain.AutomationTaskMode
 	RRule       *string
 	Cron        *string
 	Timezone    *string
@@ -134,6 +140,12 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domain.Automat
 	if input.Harness != "" && !input.Harness.IsKnown() {
 		return domain.Automation{}, apierr.Invalid("INVALID_AUTOMATION_HARNESS", "Unknown automation harness", nil)
 	}
+	if input.TaskMode == "" {
+		input.TaskMode = domain.AutomationTaskDirect
+	}
+	if err := validateTaskMode(input.Kind, input.TaskMode); err != nil {
+		return domain.Automation{}, err
+	}
 	now := s.clock().UTC()
 	schedule, err := CanonicalizeSchedule(ScheduleInput{
 		RRule: input.RRule, Cron: input.Cron, Timezone: input.Timezone,
@@ -157,6 +169,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domain.Automat
 		Model:       strings.TrimSpace(input.Model),
 		Mode:        strings.TrimSpace(input.Mode),
 		Effort:      strings.TrimSpace(input.Effort),
+		TaskMode:    input.TaskMode,
 		RRuleText:   schedule.RRuleText,
 		Timezone:    schedule.Timezone,
 		Enabled:     enabled,
@@ -276,6 +289,15 @@ func (s *Service) Update(ctx context.Context, id domain.AutomationID, input Upda
 	if input.Effort != nil {
 		rec.Effort = strings.TrimSpace(*input.Effort)
 	}
+	if input.TaskMode != nil {
+		rec.TaskMode = *input.TaskMode
+	}
+	if rec.TaskMode == "" {
+		rec.TaskMode = domain.AutomationTaskDirect
+	}
+	if err := validateTaskMode(rec.Kind, rec.TaskMode); err != nil {
+		return domain.Automation{}, err
+	}
 	now := s.clock().UTC()
 	scheduleChanged := input.RRule != nil || input.Cron != nil || input.Timezone != nil
 	if scheduleChanged {
@@ -350,4 +372,16 @@ func (s *Service) Runs(ctx context.Context, filter domain.AutomationRunFilter) (
 		return domain.AutomationRunPage{}, apierr.Internal("AUTOMATION_RUN_LIST_FAILED", "Failed to list automation runs")
 	}
 	return page, nil
+}
+
+// validateTaskMode accepts a known task mode, and only direct for an
+// orchestrator automation.
+func validateTaskMode(kind domain.SessionKind, mode domain.AutomationTaskMode) error {
+	if !mode.Valid() {
+		return apierr.Invalid("INVALID_AUTOMATION_TASK_MODE", "Task mode must be direct, plan, or auto", map[string]any{"field": "taskMode"})
+	}
+	if kind == domain.KindOrchestrator && mode != domain.AutomationTaskDirect {
+		return apierr.Invalid("INVALID_AUTOMATION_TASK_MODE", "An orchestrator automation runs a session, not a Task plan", map[string]any{"field": "taskMode"})
+	}
+	return nil
 }

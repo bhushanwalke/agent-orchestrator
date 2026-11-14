@@ -24,6 +24,7 @@ type automationDTO struct {
 	Model       string                   `json:"model,omitempty"`
 	Mode        string                   `json:"mode,omitempty"`
 	Effort      string                   `json:"effort,omitempty"`
+	TaskMode    string                   `json:"taskMode,omitempty"`
 	RRule       string                   `json:"rrule"`
 	Timezone    string                   `json:"timezone"`
 	Enabled     bool                     `json:"enabled"`
@@ -35,6 +36,7 @@ type automationRunSummaryDTO struct {
 	ID           string    `json:"id"`
 	Status       string    `json:"status"`
 	SessionID    string    `json:"sessionId,omitempty"`
+	PlanID       string    `json:"planId,omitempty"`
 	ErrorMessage string    `json:"errorMessage,omitempty"`
 	ScheduledFor time.Time `json:"scheduledFor"`
 }
@@ -42,6 +44,7 @@ type automationRunDTO struct {
 	ID           string     `json:"id"`
 	AutomationID string     `json:"automationId"`
 	SessionID    string     `json:"sessionId,omitempty"`
+	PlanID       string     `json:"planId,omitempty"`
 	Status       string     `json:"status"`
 	ErrorMessage string     `json:"errorMessage,omitempty"`
 	ScheduledFor time.Time  `json:"scheduledFor"`
@@ -68,6 +71,7 @@ type automationCreateDTO struct {
 	TemplateID  string `json:"templateId,omitempty"`
 	Kind        string `json:"kind"`
 	Harness     string `json:"harness,omitempty"`
+	TaskMode    string `json:"taskMode,omitempty"`
 	RRule       string `json:"rrule,omitempty"`
 	Cron        string `json:"cron,omitempty"`
 	Timezone    string `json:"timezone"`
@@ -79,10 +83,21 @@ type automationUpdateDTO struct {
 	UseCase     *string `json:"useCase,omitempty"`
 	Kind        *string `json:"kind,omitempty"`
 	Harness     *string `json:"harness,omitempty"`
+	TaskMode    *string `json:"taskMode,omitempty"`
 	RRule       *string `json:"rrule,omitempty"`
 	Cron        *string `json:"cron,omitempty"`
 	Timezone    *string `json:"timezone,omitempty"`
 	Enabled     *bool   `json:"enabled,omitempty"`
+}
+
+const taskModeFlagHelp = "What each run creates: direct (one worker session, the default), plan (a Task plan), or auto (the orchestrator decides); orchestrator automations are direct"
+
+func validateAutomationTaskMode(mode string) error {
+	switch mode {
+	case "", "direct", "plan", "auto":
+		return nil
+	}
+	return usageError{errors.New("--task-mode must be direct, plan, or auto")}
 }
 
 func newAutomationCommand(ctx *commandContext) *cobra.Command {
@@ -92,7 +107,7 @@ func newAutomationCommand(ctx *commandContext) *cobra.Command {
 }
 
 func newAutomationCreateCommand(ctx *commandContext) *cobra.Command {
-	var project, name, prompt, rrule, cron, timezone, kind, harness, templateID, useCase string
+	var project, name, prompt, rrule, cron, timezone, kind, harness, templateID, useCase, taskMode string
 	var disabled, jsonOutput bool
 	cmd := &cobra.Command{Use: "create", Short: "Create a recurring automation", Args: usageArgs(cobra.NoArgs), RunE: func(cmd *cobra.Command, _ []string) error {
 		if strings.TrimSpace(project) == "" || strings.TrimSpace(name) == "" || strings.TrimSpace(prompt) == "" {
@@ -101,6 +116,9 @@ func newAutomationCreateCommand(ctx *commandContext) *cobra.Command {
 		if (strings.TrimSpace(rrule) == "") == (strings.TrimSpace(cron) == "") {
 			return usageError{errors.New("exactly one of --rrule or --cron is required")}
 		}
+		if err := validateAutomationTaskMode(taskMode); err != nil {
+			return err
+		}
 		if timezone == "" {
 			timezone = ctx.deps.Now().Location().String()
 			if timezone == "Local" || timezone == "" {
@@ -108,7 +126,7 @@ func newAutomationCreateCommand(ctx *commandContext) *cobra.Command {
 			}
 		}
 		enabled := !disabled
-		body := automationCreateDTO{TemplateID: templateID, UseCase: useCase, ProjectID: project, DisplayName: name, Prompt: prompt, Kind: kind, Harness: harness, RRule: rrule, Cron: cron, Timezone: timezone, Enabled: &enabled}
+		body := automationCreateDTO{TemplateID: templateID, UseCase: useCase, ProjectID: project, DisplayName: name, Prompt: prompt, Kind: kind, Harness: harness, TaskMode: taskMode, RRule: rrule, Cron: cron, Timezone: timezone, Enabled: &enabled}
 		var response automationEnvelopeDTO
 		if err := ctx.postJSON(cmd.Context(), "automations", body, &response); err != nil {
 			return err
@@ -129,6 +147,7 @@ func newAutomationCreateCommand(ctx *commandContext) *cobra.Command {
 	cmd.Flags().StringVar(&timezone, "timezone", "", "IANA timezone (defaults to local zone when available)")
 	cmd.Flags().StringVar(&kind, "kind", "worker", "Session kind: worker or orchestrator")
 	cmd.Flags().StringVar(&harness, "harness", "", "Agent harness (empty uses project default)")
+	cmd.Flags().StringVar(&taskMode, "task-mode", "", taskModeFlagHelp)
 	cmd.Flags().BoolVar(&disabled, "disabled", false, "Create disabled")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print JSON")
 	return cmd
@@ -206,7 +225,7 @@ func newAutomationGetCommand(ctx *commandContext) *cobra.Command {
 }
 
 func newAutomationUpdateCommand(ctx *commandContext) *cobra.Command {
-	var name, prompt, rrule, cron, timezone, kind, harness, useCase string
+	var name, prompt, rrule, cron, timezone, kind, harness, useCase, taskMode string
 	var enabled, jsonOutput bool
 	cmd := &cobra.Command{Use: "update <id>", Short: "Update an automation", Args: usageArgs(cobra.ExactArgs(1)), RunE: func(cmd *cobra.Command, args []string) error {
 		body := automationUpdateDTO{}
@@ -226,6 +245,12 @@ func newAutomationUpdateCommand(ctx *commandContext) *cobra.Command {
 		stringFlag("timezone", timezone, &body.Timezone)
 		stringFlag("kind", kind, &body.Kind)
 		stringFlag("harness", harness, &body.Harness)
+		stringFlag("task-mode", taskMode, &body.TaskMode)
+		if body.TaskMode != nil {
+			if err := validateAutomationTaskMode(*body.TaskMode); err != nil {
+				return err
+			}
+		}
 		if cmd.Flags().Changed("enabled") {
 			body.Enabled = &enabled
 			changed = true
@@ -254,6 +279,7 @@ func newAutomationUpdateCommand(ctx *commandContext) *cobra.Command {
 	cmd.Flags().StringVar(&timezone, "timezone", "", "IANA timezone")
 	cmd.Flags().StringVar(&kind, "kind", "", "Session kind")
 	cmd.Flags().StringVar(&harness, "harness", "", "Harness; empty uses project default")
+	cmd.Flags().StringVar(&taskMode, "task-mode", "", taskModeFlagHelp)
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "Enable or disable future dispatch")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "Print JSON")
 	return cmd
@@ -305,9 +331,9 @@ func newAutomationRunsCommand(ctx *commandContext) *cobra.Command {
 			return writeJSON(cmd.OutOrStdout(), response)
 		}
 		writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-		_, _ = fmt.Fprintln(writer, "SCHEDULED\tSTATUS\tSESSION\tERROR")
+		_, _ = fmt.Fprintln(writer, "SCHEDULED\tSTATUS\tSESSION\tPLAN\tERROR")
 		for _, run := range response.Runs {
-			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\n", formatAutomationTime(run.ScheduledFor), run.Status, emptyDash(run.SessionID), emptyDash(run.ErrorMessage))
+			_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%s\n", formatAutomationTime(run.ScheduledFor), run.Status, emptyDash(run.SessionID), emptyDash(run.PlanID), emptyDash(run.ErrorMessage))
 		}
 		if response.NextCursor != "" {
 			_, _ = fmt.Fprintf(writer, "next cursor: %s\n", response.NextCursor)

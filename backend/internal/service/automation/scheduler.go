@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
+	plansvc "github.com/aoagents/agent-orchestrator/backend/internal/service/plan"
 )
 
 const (
@@ -26,6 +28,13 @@ type SessionSpawner interface {
 	Kill(context.Context, domain.SessionID) (bool, error)
 }
 
+// PlanCreator is the Task plan boundary of plan and auto runs: it creates a
+// run's plan and reads its phase to finish the run.
+type PlanCreator interface {
+	Create(context.Context, plansvc.CreateInput) (domain.Plan, error)
+	Get(context.Context, domain.PlanID) (plansvc.Detail, error)
+}
+
 // schedulerStore is deliberately separate from CRUD Store so focused CRUD
 // tests and alternate read adapters need not implement daemon-only operations.
 type schedulerStore interface {
@@ -36,6 +45,8 @@ type schedulerStore interface {
 	GetSessionByAutomationRunID(context.Context, domain.AutomationRunID) (domain.SessionRecord, bool, error)
 	GetSession(context.Context, domain.SessionID) (domain.SessionRecord, bool, error)
 	MarkAutomationRunRunning(context.Context, domain.AutomationRunID, domain.SessionID, time.Time) (bool, error)
+	MarkAutomationRunPlan(context.Context, domain.AutomationRunID, domain.PlanID, time.Time) (bool, error)
+	AdoptAutomationRunSession(context.Context, domain.AutomationRunID, domain.SessionID, time.Time) (bool, error)
 	CompleteAutomationRun(context.Context, domain.AutomationRunID, time.Time) (bool, error)
 	FailAutomationRun(context.Context, domain.AutomationRunID, string, time.Time) (bool, error)
 	ReleaseAutomationRun(context.Context, domain.AutomationRunID, string, time.Time) (bool, error)
@@ -139,6 +150,9 @@ func (s *Service) dispatch(ctx context.Context, store schedulerStore, run domain
 		_, markErr := store.FailAutomationRun(context.WithoutCancel(ctx), run.ID, message, now)
 		return errors.Join(err, markErr)
 	}
+	if definition.TaskMode == domain.AutomationTaskPlan || definition.TaskMode == domain.AutomationTaskAuto {
+		return s.dispatchPlan(ctx, store, definition, run, now)
+	}
 	if s.spawner == nil {
 		err := fmt.Errorf("session spawner is unavailable")
 		_, releaseErr := store.ReleaseAutomationRun(context.WithoutCancel(ctx), run.ID, runError(err), now)
@@ -180,6 +194,84 @@ func (s *Service) dispatch(ctx context.Context, store schedulerStore, run domain
 	}
 	_, err = store.MarkAutomationRunRunning(context.WithoutCancel(ctx), run.ID, session.ID, now)
 	return err
+}
+
+// dispatchPlan creates the Task plan of a plan or auto run. The run has no
+// session until a direct triage decision hands it one.
+func (s *Service) dispatchPlan(ctx context.Context, store schedulerStore, definition domain.Automation, run domain.AutomationRun, now time.Time) error {
+	if s.plans == nil {
+		err := fmt.Errorf("plan service is unavailable")
+		_, markErr := store.FailAutomationRun(context.WithoutCancel(ctx), run.ID, runError(err), now)
+		return errors.Join(err, markErr)
+	}
+	mode := domain.PlanIntakePlan
+	if definition.TaskMode == domain.AutomationTaskAuto {
+		mode = domain.PlanIntakeAuto
+	}
+	p, err := s.plans.Create(ctx, plansvc.CreateInput{
+		ProjectID: definition.ProjectID, Title: planRunTitle(definition, run.ScheduledFor), Brief: definition.Prompt, Mode: mode,
+	})
+	if err != nil {
+		var apiError *apierr.Error
+		if errors.As(err, &apiError) && (apiError.Kind == apierr.KindInvalid || apiError.Kind == apierr.KindNotFound) {
+			_, markErr := store.FailAutomationRun(context.WithoutCancel(ctx), run.ID, runError(err), now)
+			return errors.Join(err, markErr)
+		}
+		_, releaseErr := store.ReleaseAutomationRun(context.WithoutCancel(ctx), run.ID, runError(err), now)
+		return errors.Join(err, releaseErr)
+	}
+	_, err = store.MarkAutomationRunPlan(context.WithoutCancel(ctx), run.ID, p.ID, now)
+	return err
+}
+
+// planRunTitle names a run's Task "<automation> · <occurrence>", the time in
+// the automation's timezone, clipping the name so the time always shows.
+func planRunTitle(definition domain.Automation, scheduledFor time.Time) string {
+	at := scheduledFor.UTC()
+	if loc, err := time.LoadLocation(definition.Timezone); err == nil {
+		at = at.In(loc)
+	}
+	suffix := " · " + at.Format("2006-01-02 15:04")
+	name := []rune(strings.TrimSpace(definition.DisplayName))
+	if room := domain.PlanTitleMaxChars - utf8.RuneCountInString(suffix); len(name) > room {
+		name = append(name[:room-1], '…')
+	}
+	return string(name) + suffix
+}
+
+// planRunOutcome finishes a running plan-backed run from its plan's phase: done
+// completes it, failed or cancelled fails it, and direct hands it the worker
+// session, which the session-backed path then follows. It reports the session
+// to follow, if any.
+func (s *Service) planRunOutcome(ctx context.Context, store schedulerStore, run domain.AutomationRun, now time.Time) (*domain.SessionID, error) {
+	if s.plans == nil {
+		return nil, fmt.Errorf("automation run %s: plan service is unavailable", run.ID)
+	}
+	d, err := s.plans.Get(ctx, *run.PlanID)
+	var apiError *apierr.Error
+	if errors.As(err, &apiError) && apiError.Kind == apierr.KindNotFound {
+		_, err = store.FailAutomationRun(ctx, run.ID, "Linked plan is missing", now)
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	switch d.Phase {
+	case domain.PlanPhaseDone:
+		_, err = store.CompleteAutomationRun(ctx, run.ID, now)
+	case domain.PlanPhaseFailed, domain.PlanPhaseCancelled:
+		_, err = store.FailAutomationRun(ctx, run.ID, string(d.Phase), now)
+	case domain.PlanPhaseDirect:
+		if d.Plan.DirectSessionID == "" {
+			return nil, nil
+		}
+		id := d.Plan.DirectSessionID
+		if _, err = store.AdoptAutomationRunSession(ctx, run.ID, id, now); err != nil {
+			return nil, err
+		}
+		return &id, nil
+	}
+	return nil, err
 }
 
 // Reconcile repairs crash-interrupted claims, projects durable completion, and
@@ -241,6 +333,16 @@ func (s *Service) completeAndAdoptActive(ctx context.Context, store schedulerSto
 				}
 			}
 			continue
+		}
+		if run.PlanID != nil && run.SessionID == nil {
+			adopted, err := s.planRunOutcome(ctx, store, run, now)
+			if err != nil {
+				problems = append(problems, err)
+			}
+			if adopted == nil {
+				continue
+			}
+			run.SessionID = adopted
 		}
 		var session domain.SessionRecord
 		var ok bool
