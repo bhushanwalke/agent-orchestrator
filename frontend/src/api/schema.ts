@@ -2156,7 +2156,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset a failed milestone to ready with a fresh attempt budget */
+        /** Retry a failed milestone or a blocked QA, or re-run QA after it passed, with a fresh attempt budget */
         post: operations["retryPlanMilestone"];
         delete?: never;
         options?: never;

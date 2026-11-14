@@ -4542,7 +4542,7 @@ func planOperations() []operation {
 		},
 		{
 			method: http.MethodPost, path: "/api/v1/plans/{planId}/milestones/{key}/retry", id: "retryPlanMilestone", tag: "plans",
-			summary:    "Reset a failed milestone to ready with a fresh attempt budget",
+			summary:    "Retry a failed milestone or a blocked QA, or re-run QA after it passed, with a fresh attempt budget",
 			pathParams: milestone,
 			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
 				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),

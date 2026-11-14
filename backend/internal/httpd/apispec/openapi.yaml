@@ -5589,7 +5589,8 @@ paths:
               schema:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
-      summary: Reset a failed milestone to ready with a fresh attempt budget
+      summary: Retry a failed milestone or a blocked QA, or re-run QA after it passed,
+        with a fresh attempt budget
       tags:
       - plans
   /api/v1/plans/{planId}/qa-result:

@@ -542,7 +542,7 @@ func newPlanMilestoneRemoveCommand(ctx *commandContext) *cobra.Command {
 func newPlanMilestoneRetryCommand(ctx *commandContext) *cobra.Command {
 	return &cobra.Command{
 		Use:   "retry [<plan-id>] <key>",
-		Short: "Reset a failed milestone so AO spawns it again",
+		Short: "Retry a failed milestone, or re-run QA (key qa), with a fresh attempt budget",
 		Long:  planIDHelp,
 		Args:  usageArgs(cobra.RangeArgs(1, 2)),
 		RunE: func(cmd *cobra.Command, args []string) error {
