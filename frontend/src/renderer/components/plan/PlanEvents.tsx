@@ -1,5 +1,5 @@
 import { InspectorSection } from "@aoagents/product-ui";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MessageKey } from "../../i18n";
 import { formatRelativeTime } from "../../lib/usage-format";
@@ -8,6 +8,7 @@ import { Button } from "../ui/button";
 import { StatusGlyph, statusTone } from "./PlanGraph";
 
 const RECENT = 20;
+const TITLE_SLOT = "\u0000";
 
 /** Events that read as a milestone state take that state's glyph. */
 const eventStatus: Record<string, MilestoneStatus> = {
@@ -36,10 +37,24 @@ export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[
 	const shown = all ? events : events.slice(0, RECENT);
 	const now = new Date();
 
-	const describe = (event: PlanEvent): string => {
+	// The phrase is translated around a placeholder title, so the title alone
+	// truncates and the verb stays readable in every word order.
+	const describe = (event: PlanEvent): ReactNode => {
 		const title = titles.get(event.milestoneKey) ?? event.milestoneKey;
-		if (knownKinds.has(event.kind)) return t(`plan.events.kind.${event.kind}` as MessageKey, { title });
-		return t("plan.events.kind.other", { title, kind: event.kind.replaceAll("_", " ") });
+		const phrase = knownKinds.has(event.kind)
+			? t(`plan.events.kind.${event.kind}` as MessageKey, { title: TITLE_SLOT, interpolation: { escapeValue: false } })
+			: t("plan.events.kind.other", { title: TITLE_SLOT, kind: event.kind.replaceAll("_", " "), interpolation: { escapeValue: false } });
+		const at = phrase.indexOf(TITLE_SLOT);
+		if (at < 0 || !title) return <span className="min-w-0 truncate">{phrase.replace(TITLE_SLOT, "").trim()}</span>;
+		const before = phrase.slice(0, at);
+		const after = phrase.slice(at + TITLE_SLOT.length);
+		return (
+			<span className="flex min-w-0 items-baseline whitespace-pre">
+				{before ? <span className="shrink-0">{before}</span> : null}
+				<span className="min-w-0 truncate">{title}</span>
+				{after ? <span className="shrink-0">{after}</span> : null}
+			</span>
+		);
 	};
 
 	return (
@@ -55,7 +70,7 @@ export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[
 								<svg aria-hidden="true" className={`shrink-0 ${statusTone[status]}`} height={16} viewBox="-9 -9 18 18" width={16}>
 									<StatusGlyph status={status} />
 								</svg>
-								<span className="min-w-0 flex-1 truncate">{describe(event)}</span>
+								<span className="flex min-w-0 flex-1">{describe(event)}</span>
 								<time className="shrink-0 text-xs text-muted-foreground" dateTime={event.createdAt}>
 									{formatRelativeTime(event.createdAt, now, i18n.language)}
 								</time>
