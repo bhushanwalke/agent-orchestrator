@@ -459,13 +459,18 @@ type Manager struct {
 	modelCatalog interface {
 		Models(context.Context, string, string, bool) (ports.AgentModelCatalog, error)
 	}
-	lcm                         lifecycleRecorder
-	preview                     PreviewLifecycle
-	browser                     BrowserLifecycle
-	browserCapabilities         BrowserCapabilityIssuer
-	agentBrowserURL             string
-	agentBrowserToken           string
-	agentAccounts               ports.AgentAccountLaunchEnv
+	lcm                 lifecycleRecorder
+	preview             PreviewLifecycle
+	browser             BrowserLifecycle
+	browserCapabilities BrowserCapabilityIssuer
+	agentBrowserURL     string
+	agentBrowserToken   string
+	agentAccounts       ports.AgentAccountLaunchEnv
+	// planEnvs caches each known session's plan identity for its runtime
+	// env (an empty entry is a session that is not a plan's), so building an
+	// env reads the store at most once per session.
+	planEnvMu                   sync.Mutex
+	planEnvs                    map[domain.SessionID]planEnv
 	accountOverrideMu           sync.Mutex
 	accountOverrides            map[domain.SessionID]string
 	attachments                 *attachmentstore.Store
@@ -1311,6 +1316,7 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (result doma
 		}
 	}
 	id := rec.ID
+	m.rememberPlanEnv(id, cfg.PlanContext)
 	if m.agentAccounts != nil || cfg.AgentAccountID != "" {
 		err := ports.ErrAgentAccountUnknown
 		if m.agentAccounts != nil {
@@ -7965,16 +7971,56 @@ func (m *Manager) logRelaunchFailure(operation string, id domain.SessionID, err 
 	}
 }
 
-// addPlanEnv exports a plan milestone worker's plan id and milestone key,
-// read from the stored session so restore exports them too.
+// planEnv is the plan identity a milestone worker's runtime env exports.
+type planEnv struct {
+	planID       domain.PlanID
+	milestoneKey string
+}
+
+// rememberPlanEnv records a spawned session's plan identity (or that it has
+// none) before its runtime env is built.
+func (m *Manager) rememberPlanEnv(id domain.SessionID, plan *ports.PlanSpawnContext) {
+	entry := planEnv{}
+	if plan != nil {
+		entry = planEnv{planID: plan.PlanID, milestoneKey: plan.MilestoneKey}
+	}
+	m.planEnvMu.Lock()
+	defer m.planEnvMu.Unlock()
+	if m.planEnvs == nil {
+		m.planEnvs = map[domain.SessionID]planEnv{}
+	}
+	m.planEnvs[id] = entry
+}
+
+// addPlanEnv exports a plan milestone worker's plan id and milestone key. A
+// session this daemon did not spawn (one restored after a restart) is read
+// from the store once.
 func (m *Manager) addPlanEnv(env map[string]string, id domain.SessionID, caseInsensitive bool) {
-	if m.store == nil || id == "" {
+	if id == "" {
 		return
 	}
-	rec, found, err := m.store.GetSession(context.Background(), id)
-	if err != nil || !found || rec.PlanID == "" {
+	m.planEnvMu.Lock()
+	entry, known := m.planEnvs[id]
+	m.planEnvMu.Unlock()
+	if !known {
+		if m.store == nil {
+			return
+		}
+		rec, found, err := m.store.GetSession(context.Background(), id)
+		if err != nil || !found {
+			return
+		}
+		entry = planEnv{planID: rec.PlanID, milestoneKey: rec.PlanMilestoneKey}
+		m.planEnvMu.Lock()
+		if m.planEnvs == nil {
+			m.planEnvs = map[domain.SessionID]planEnv{}
+		}
+		m.planEnvs[id] = entry
+		m.planEnvMu.Unlock()
+	}
+	if entry.planID == "" {
 		return
 	}
-	setProtectedEnv(env, EnvPlanID, string(rec.PlanID), caseInsensitive)
-	setProtectedEnv(env, EnvMilestoneKey, rec.PlanMilestoneKey, caseInsensitive)
+	setProtectedEnv(env, EnvPlanID, string(entry.planID), caseInsensitive)
+	setProtectedEnv(env, EnvMilestoneKey, entry.milestoneKey, caseInsensitive)
 }
