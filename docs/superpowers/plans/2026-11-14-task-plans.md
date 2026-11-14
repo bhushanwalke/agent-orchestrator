@@ -180,6 +180,8 @@ Deliverable: an activated plan spawns workers in parallel/dependency order, prom
 
 ### Task 3.5: Orchestrator planning prompt and kickoff retry
 
+Note from M1: `Create` already retries a deferred kickoff in the background for 5 minutes (`Service.RetryDeferredKickoff`). The scheduler tick MUST also sweep every `planning` plan without a `kickoff_sent` event and call that method, so a daemon restart or an expired window cannot strand a plan.
+
 **Files:** `session_manager/prompt.go` `orchestratorPlanPrompt()` (spec §6.4) appended in `orchestratorSystemPrompt`; `prompt_test.go`; scheduler retries `kickoff_deferred` plans each tick.
 
 - [ ] Tests: orchestrator prompt contains the six numbered steps and the exact CLI forms; deferred kickoff delivered on a later tick once `Send` succeeds.
@@ -202,6 +204,8 @@ Gates green.
 Deliverable: Plan mode in New Task, plan cards on the board, run view with graph, agent cards, and events; agent cards open the session view.
 
 ### Task 4.1: API hooks and types
+
+Note from M1: `plan_updated` must be added to the frontend event-transport listener list (it is not there yet).
 
 **Files:** Create `frontend/src/renderer/hooks/usePlans.ts` (`usePlansQuery(projectId)`, `usePlanQuery(planId)`, `usePlanMutations()` for cancel/retry/patch), `frontend/src/renderer/types/plan.ts` (mapped from `components['schemas']`), SSE invalidation in the existing events hook for `plan_updated`.
 
