@@ -30,6 +30,9 @@ const (
 	EventPRReviewThreadResolved EventType = "pr_review_thread_resolved"
 	EventReviewRunCreated       EventType = "review_run_created"
 	EventReviewRunUpdated       EventType = "review_run_updated"
+	// EventPlanUpdated is a project-level event for any write to a task plan,
+	// its milestones, or its event log. Payload: {"id": planId}.
+	EventPlanUpdated EventType = "plan_updated"
 )
 
 // Event is one CDC change read from change_log. Seq is the monotonic ordering +

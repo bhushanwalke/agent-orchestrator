@@ -94,8 +94,11 @@ func TestTelemetryIncrementalVacuumUpgrade(t *testing.T) {
 		t.Fatal(err)
 	}
 	after := pages()
-	if reclaimed := before - after; reclaimed <= 0 || reclaimed > 256 {
-		t.Fatalf("reclaimed %d pages, want 1..256", reclaimed)
+	// Truncating the file can also drop the auto-vacuum pointer-map page that
+	// covered the freed range, so page_count may fall by one more than the
+	// freelist pages released. The bound still proves the vacuum is capped.
+	if reclaimed := before - after; reclaimed <= 0 || reclaimed > 257 {
+		t.Fatalf("reclaimed %d pages, want 1..257", reclaimed)
 	}
 	bytesAfter := fileSize()
 	if bytesAfter >= bytesBefore {

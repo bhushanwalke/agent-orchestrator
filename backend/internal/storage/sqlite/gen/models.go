@@ -628,6 +628,57 @@ type PRURLAlias struct {
 	CanonicalURL string
 }
 
+type Plan struct {
+	ID                    domain.PlanID
+	ProjectID             domain.ProjectID
+	Title                 string
+	Brief                 string
+	TicketRef             string
+	SpecMarkdown          string
+	State                 domain.PlanState
+	OrchestratorSessionID domain.SessionID
+	MaxParallel           int64
+	CreatedAt             time.Time
+	UpdatedAt             time.Time
+	ActivatedAt           sql.NullTime
+	FinishedAt            sql.NullTime
+}
+
+type PlanEvent struct {
+	ID          int64
+	PlanID      domain.PlanID
+	MilestoneID domain.MilestoneID
+	SessionID   domain.SessionID
+	Kind        string
+	Note        string
+	CreatedAt   time.Time
+}
+
+type PlanMilestone struct {
+	ID          domain.MilestoneID
+	PlanID      domain.PlanID
+	Key         string
+	Ordinal     int64
+	Kind        domain.MilestoneKind
+	Title       string
+	Description string
+	Status      domain.MilestoneStatus
+	SessionID   domain.SessionID
+	SparsePaths string
+	QaVerdict   domain.QAVerdict
+	QaNote      string
+	Attempt     int64
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
+	StartedAt   sql.NullTime
+	FinishedAt  sql.NullTime
+}
+
+type PlanMilestoneDep struct {
+	MilestoneID domain.MilestoneID
+	DependsOnID domain.MilestoneID
+}
+
 type Project struct {
 	ID            domain.ProjectID
 	Path          string
@@ -798,6 +849,9 @@ type Session struct {
 	TerminatedAt                     sql.NullTime
 	ImportSource                     string
 	DisplayNameExplicit              bool
+	PlanID                           domain.PlanID
+	PlanMilestoneID                  domain.MilestoneID
+	SparsePaths                      string
 }
 
 type SessionAgentAccount struct {

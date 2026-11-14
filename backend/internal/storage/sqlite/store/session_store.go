@@ -1153,6 +1153,8 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		ClientRequestID:           row.ClientRequestID,
 		ClientRequestHash:         row.ClientRequestHash,
 		ClientRequestCommitted:    row.ClientRequestCommitted,
+		PlanID:                    row.PlanID,
+		PlanMilestoneID:           row.PlanMilestoneID,
 		ProjectID:                 projectIDValue(row.ProjectID),
 		AutomationRunID:           row.AutomationRunID,
 		AutomationLaunchCompleted: row.AutomationLaunchCompleted,
@@ -1181,6 +1183,7 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		OutputType:         normalizeSessionOutputType(domain.SessionOutputType(row.SessionOutputType)),
 		Metadata: domain.SessionMetadata{
 			ImportSource:                     unmarshalImportSource(row.ImportSource),
+			SparsePaths:                      unmarshalSparsePaths(row.SparsePaths),
 			Branch:                           row.Branch,
 			WorkspacePath:                    row.WorkspacePath,
 			WorkspaceRepoPath:                row.WorkspaceRepoPath,
@@ -1358,6 +1361,9 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		AutomationLaunchCompleted:        rec.AutomationLaunchCompleted,
 		ClientRequestID:                  rec.ClientRequestID,
 		ClientRequestHash:                rec.ClientRequestHash,
+		PlanID:                           rec.PlanID,
+		PlanMilestoneID:                  rec.PlanMilestoneID,
+		SparsePaths:                      marshalSparsePaths(rec.Metadata.SparsePaths),
 	}
 }
 
