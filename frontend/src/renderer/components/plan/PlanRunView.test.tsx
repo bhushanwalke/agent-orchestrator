@@ -176,11 +176,14 @@ describe("PlanRunView", () => {
 
 	it("lists research workers under the milestone agents in their own Research section", async () => {
 		const research = { id: "r-1", harness: "codex", status: "idle", kanbanColumn: "validating", displayStatus: "Idle", isTerminated: false, branch: "ao/r-1" } as const;
-		const gone = { ...research, id: "r-gone" };
-		planMock.mockReturnValue({ ...detail(), researchSessions: [research, gone] });
+		const killed = { ...research, id: "r-killed", status: "terminated", isTerminated: true } as const;
+		// The workspace list keeps a killed session; the board drops it as archived.
+		sessionsOverride = [...sessions, { ...session("r-killed", "Research: old question"), status: "terminated", isTerminated: true }];
+		planMock.mockReturnValue({ ...detail(), researchSessions: [research, killed] });
 		renderView();
 		expect(screen.getByRole("button", { name: "Research", expanded: true })).toBeInTheDocument();
 		// A killed research worker has left the board, so it leaves the rail too.
+		expect(screen.queryByText("Research: old question")).toBeNull();
 		const cards = screen.getAllByTestId("plan-research-card");
 		expect(cards).toHaveLength(1);
 		expect(screen.getAllByTestId("plan-agent-card")).toHaveLength(2);

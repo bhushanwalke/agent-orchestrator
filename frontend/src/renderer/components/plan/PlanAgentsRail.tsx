@@ -1,5 +1,6 @@
 import { InspectorSection } from "@aoagents/product-ui";
 import { useTranslation } from "react-i18next";
+import { isArchivedSession } from "../../lib/standalone-archive";
 import type { WorkspaceSession } from "../../types/workspace";
 import type { Plan, PlanDetail, PlanMilestone } from "../../types/plan";
 import { BoardSessionCardAdapter } from "../SessionsBoardAdapters";
@@ -36,8 +37,11 @@ export function PlanAgentsRail({
 			// The card names the branch the milestone's work is recorded on.
 			return session ? [{ milestone: m, session: m.branch ? { ...session, branch: m.branch } : session }] : [];
 		});
-	// A killed research worker has left the board, so it leaves the rail too.
-	const researchers = research.flatMap((r) => byId.get(r.id) ?? []);
+	// A killed research worker is archived off the board, so it leaves the rail too.
+	const researchers = research.flatMap((r) => {
+		const session = byId.get(r.id);
+		return session && !r.isTerminated && !isArchivedSession(session) ? [session] : [];
+	});
 
 	return (
 		<>
