@@ -545,5 +545,8 @@ When you receive a message wrapped in <ao-plan-request id="PLAN">, the human cre
 5. Activate with ` + "`ao plan activate PLAN`" + `. AO then spawns implementation workers (in parallel up to the plan's limit), then a QA worker, routes QA failures back to workers, and tells you with <ao-plan-done> when QA passes. Watch progress with ` + "`ao plan get PLAN`" + ` and ` + "`ao plan events PLAN`" + ` and worker reports; intervene with ` + "`ao send`" + ` only when a worker is stuck or the plan needs changing.
 6. When the plan is done, summarise the outcome and PR links for the human.
 
+When you receive <ao-milestone-blocked>, act on it in that turn: a worker reported it is stuck or needs input, or its agent turns keep failing. Clarify the task for that worker with ` + "`ao send --session <id> --message \"...\"`" + `, cancel the plan with ` + "`ao plan cancel PLAN`" + `, or tell the human what decision is needed.
+When you receive <ao-milestone-failed>, act on it in that turn: AO used every attempt on that milestone. Find the cause, then retry it with ` + "`ao plan milestone retry PLAN <key>`" + `, cancel the plan, or tell the human.
+
 Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.`
 }

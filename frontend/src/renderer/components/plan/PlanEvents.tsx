@@ -25,7 +25,7 @@ const knownKinds = new Set([
 	"plan_created", "kickoff_sent", "kickoff_deferred", "spec_set", "milestone_added", "milestone_updated", "milestone_removed",
 	"plan_activated", "milestone_ready", "milestone_started", "milestone_checkpoint", "milestone_blocked", "milestone_done",
 	"milestone_failed", "milestone_branch_unresolved", "qa_verdict_requested", "qa_passed", "qa_failed", "defect_sent",
-	"plan_done", "plan_done_notified", "plan_cancelled", "sparse_disabled",
+	"plan_done", "plan_done_notified", "plan_cancelled", "sparse_disabled", "milestone_blocked_notified", "milestone_failed_notified",
 ]);
 
 /** The Task's latest events, newest first (the daemon's order). */

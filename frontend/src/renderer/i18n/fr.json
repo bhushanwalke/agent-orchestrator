@@ -5043,5 +5043,7 @@
 	"plan.events.kind.other": "{{title}} {{kind}}",
 	"board.plans.milestonesDone": "{{done}} of {{total}} milestones done",
 	"board.plans.milestonesCompact": "{{done}}/{{total}}",
-	"board.plans.morePrsShort": "+{{n}} PRs"
+	"board.plans.morePrsShort": "+{{n}} PRs",
+	"plan.events.kind.milestone_blocked_notified": "Orchestrator told {{title}} is blocked",
+	"plan.events.kind.milestone_failed_notified": "Orchestrator told {{title}} failed"
 }

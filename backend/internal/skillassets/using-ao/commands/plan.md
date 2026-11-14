@@ -24,6 +24,8 @@ ao plan events [<plan-id>] [--after N] [--limit N] [--json]
 3. Register milestones with `ao plan milestone add`. Each one should be a single PR that a careful engineer can finish in a few hours. Declare `--depends-on` only when a milestone needs another milestone's code. Add a dependency's key before the milestone that depends on it. List `--sparse` directories only when you know which directories the milestone touches and builds.
 4. Run `ao plan activate PLAN`. Activation rejects an invalid graph with `PLAN_GRAPH_INVALID`: no implement milestone, a cycle, or a dependency on `qa`. Fix the milestones and activate again. Activation adds the `qa` milestone automatically.
 
+After activation, act in the same turn on `<ao-milestone-blocked>` (a worker is stuck, needs input, or its agent keeps failing: clarify the task with `ao send --session <id> --message "..."`, `ao plan cancel`, or tell the human) and `<ao-milestone-failed>` (a milestone used all 3 attempts: fix the cause and `ao plan milestone retry PLAN <key>`, cancel, or tell the human).
+
 Milestones can be edited only while the plan is `planning`; later edits return `PLAN_NOT_EDITABLE`. Limits:
 
 - 20 milestones per plan.

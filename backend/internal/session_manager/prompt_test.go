@@ -455,6 +455,8 @@ func TestOrchestratorPromptTeachesPlans(t *testing.T) {
 		"4. Register milestones: `ao plan milestone add PLAN --key m1 --title \"<title>\" --description-file <file> [--depends-on m0,m2] [--sparse src/api --sparse src/shared]`",
 		"5. Activate with `ao plan activate PLAN`", "<ao-plan-done>", "`ao plan get PLAN`", "`ao plan events PLAN`",
 		"6. When the plan is done, summarise the outcome and PR links for the human.",
+		"When you receive <ao-milestone-blocked>, act on it in that turn:",
+		"When you receive <ao-milestone-failed>, act on it in that turn:",
 		"Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.",
 	} {
 		if !strings.Contains(got, want) {

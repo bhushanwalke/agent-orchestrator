@@ -268,7 +268,7 @@ func TestSchedulerRetriesEndedWorkersUpToThreeAttempts(t *testing.T) {
 	if d, _ := f.svc.Get(context.Background(), id); d.Phase != domain.PlanPhaseFailed {
 		t.Fatalf("phase = %s", d.Phase)
 	}
-	if kinds := strings.Join(eventKinds(t, f, id), ","); strings.Count(kinds, "milestone_failed") != 3 {
+	if kinds := strings.Join(eventKinds(t, f, id), ","); strings.Count(kinds, "milestone_failed,") != 3 || !strings.HasSuffix(kinds, ",milestone_failed_notified") {
 		t.Fatalf("events = %s", kinds)
 	}
 }

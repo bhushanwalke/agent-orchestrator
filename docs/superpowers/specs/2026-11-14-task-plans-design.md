@@ -238,6 +238,15 @@ The report service already exposes `onCreated(domain.ReportRecord)`. Wire a seco
 - `fail` with `MilestoneKey` of an implement milestone: that milestone gets `qa_verdict=fail`, `qa_note=note`, status `ready` (if its session is alive and not terminated the scheduler **reuses it**: sends `<ao-qa-defect plan="…" milestone="…">{note}</ao-qa-defect>` with the fix instructions from §6.3 and sets status `running` without spawning; if the session is terminated it spawns a fresh worker with `Branch` = the milestone's stored work branch and `BaseBranch` empty, so the fix continues on the same branch). Event `qa_failed`. QA stays `running` so it can record findings against other milestones (a `pass` is refused once the round has failures, `PLAN_QA_HAS_FAILURES`); its `done` report returns it to `pending`, and it is re-promoted once every failed milestone is `done` again (QA attempt++ → a new QA session; the previous QA session is left idle, not killed). Only the current round's QA session may record (`PLAN_QA_NOT_RUNNING` otherwise).
 - `fail` with no key: the QA milestone becomes `blocked` with the note and the orchestrator receives the note (human triage).
 
+### 5.6a Orchestrator notices
+
+A milestone that becomes `blocked` (a `stuck` or `needs_input` report, or failing agent turns, §5.4) or `failed` with no attempts left needs a decision the scheduler cannot make. Each tick delivers every owed notice to the plan's orchestrator through the guarded `Send`, retrying next tick while it is refused:
+
+- `<ao-milestone-blocked plan="…" milestone="…" session="…">{block note}\n\nDecide: clarify the task with `ao send --session <id> --message …`, or `ao plan cancel`, or tell the human.</ao-milestone-blocked>`; event `milestone_blocked_notified`.
+- `<ao-milestone-failed plan="…" milestone="…" session="…">` with the last failure note and the retry command; event `milestone_failed_notified`.
+
+One notice per episode: a notice is owed while the milestone's latest `milestone_blocked` (or exhausting `milestone_failed`) event is newer than its latest matching `*_notified` event. A block that resolves before delivery is still delivered (it is informational), saying the milestone is running again; its event note says so. A terminated orchestrator closes the episode with the note "the orchestrator session has ended; not delivered".
+
 ### 5.7 Cancel
 
 `Cancel(ctx, planID)`: state `cancelled`, every non-terminal milestone `cancelled`, event `plan_cancelled`. Sessions are **not** killed (the user may still want them); the run view offers per-agent archive through the existing card menu.
@@ -346,6 +355,8 @@ When you receive a message wrapped in <ao-plan-request id="PLAN">, the human cre
 5. Activate with `ao plan activate PLAN`. AO then spawns implementation workers (in parallel up to the plan's limit), then a QA worker, routes QA failures back to workers, and tells you with <ao-plan-done> when QA passes. Watch `ao plan get PLAN` and worker reports; intervene with `ao send` only when a worker is stuck or the plan needs changing.
 6. When the plan is done, summarise the outcome and PR links for the human.
 
+When you receive <ao-milestone-blocked>, act on it in that turn: clarify the task for that worker with `ao send`, cancel the plan, or tell the human what decision is needed. When you receive <ao-milestone-failed>, act on it in that turn: find the cause, then retry it with `ao plan milestone retry PLAN <key>`, cancel the plan, or tell the human.
+
 Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.
 ```
 
@@ -436,7 +447,7 @@ Error envelopes follow `apierr` conventions; request ids preserved.
 
 ## 9. Plan event kinds
 
-`plan_created`, `kickoff_sent`, `kickoff_deferred`, `spec_set`, `milestone_added`, `milestone_updated`, `milestone_removed`, `plan_activated`, `milestone_ready`, `milestone_started`, `milestone_checkpoint`, `milestone_blocked`, `milestone_done`, `milestone_failed`, `qa_passed`, `qa_failed`, `defect_sent`, `plan_done`, `plan_cancelled`, `sparse_disabled`.
+`plan_created`, `kickoff_sent`, `kickoff_deferred`, `spec_set`, `milestone_added`, `milestone_updated`, `milestone_removed`, `plan_activated`, `milestone_ready`, `milestone_started`, `milestone_checkpoint`, `milestone_blocked`, `milestone_done`, `milestone_failed`, `qa_passed`, `qa_failed`, `defect_sent`, `plan_done`, `plan_cancelled`, `sparse_disabled`, `milestone_branch_unresolved`, `qa_verdict_requested`, `plan_done_notified`, `milestone_blocked_notified`, `milestone_failed_notified`.
 
 ## 10. CLI (`backend/internal/cli/plan.go`, table-tested like `cue_test.go`)
 

@@ -42,7 +42,7 @@ Workers report through `ao report`:
 
 The plan advances only on `done` reports. When a milestone is done, AO records the branch its work is on: the branch named with `ao report --done --branch <name>`, otherwise the branch checked out in the worker's worktree. Dependent milestones and QA merge that branch. A worker that creates a topic branch should stay on it when it reports done.
 
-A worker whose agent keeps failing (the provider reports a system error, or its last two turns failed) is marked **Blocked** with the reason. Its next checkpoint or done report sets it running again.
+A worker whose agent keeps failing (the provider reports a system error, or its last two turns failed) is marked **Blocked** with the reason. Its next checkpoint or done report sets it running again. Whenever a milestone becomes blocked, or fails with no attempts left, AO tells the orchestrator, which clarifies the task with the worker, cancels the Task, or asks you.
 
 ## Sparse checkouts
 
@@ -95,5 +95,6 @@ A milestone gets up to **3 attempts**: if its session ends without reporting don
 - Local single-repository projects only.
 - At most 20 milestones per Task, and 1 to 10 implementation workers at once.
 - 3 automatic attempts per milestone.
+- The sidebar still lists every worker session of a Task under its project; only the board folds them into the Task card.
 - Restarting or upgrading AO resumes every active Task when the daemon starts, including starting milestones that became ready while it was down.
 - Codex plan workers need full-access permissions, because their sandbox otherwise blocks the `ao report` call back to AO. Use full access for the project's worker, or use Claude Code.

@@ -83,8 +83,8 @@ func (s *Service) onReportLocked(ctx context.Context, rec domain.ReportRecord, w
 		if note == "" {
 			note = string(rec.State)
 		}
-		save(EventMilestoneBlocked, note)
-		return false, ""
+		// The scheduler tells the orchestrator.
+		return save(EventMilestoneBlocked, note), ""
 	case domain.ReportDone:
 		if m.Kind == domain.MilestoneKindImplement {
 			if !live {

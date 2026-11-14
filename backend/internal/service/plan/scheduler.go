@@ -136,6 +136,7 @@ func (s *Service) tickPlan(ctx context.Context, id domain.PlanID) error {
 			}
 		}
 	}
+	s.notifyOrchestrator(ctx, id)
 	return s.finishIfDone(ctx, id, facts)
 }
 
