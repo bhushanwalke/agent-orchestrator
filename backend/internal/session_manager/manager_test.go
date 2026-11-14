@@ -12543,3 +12543,32 @@ func manyDirs(n int) []string {
 	}
 	return out
 }
+
+func TestSpawnWorker_SparseCheckoutSectionFollowsTheSession(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = sparseProject("", true, "scripts")
+	agent := &recordingAgent{}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: &fakeRuntime{}, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: "do it", SparsePaths: []string{"src"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(agent.lastLaunch.SystemPrompt, "## Sparse checkout") ||
+		!strings.Contains(agent.lastLaunch.SystemPrompt, "Present directories: `scripts`, `src`.") {
+		t.Fatalf("sparse worker system prompt:\n%s", agent.lastLaunch.SystemPrompt)
+	}
+	// Restore rebuilds the system prompt from the stored session.
+	restored, err := m.buildSystemPrompt(ctx, rec.Kind, rec.ProjectID, rec.ID, rec.RequestedOutput, false)
+	if err != nil || !strings.Contains(restored, "## Sparse checkout") {
+		t.Fatalf("restored prompt err=%v:\n%s", err, restored)
+	}
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: "do it"}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(agent.lastLaunch.SystemPrompt, "## Sparse checkout") {
+		t.Fatal("full checkout worker got the sparse section")
+	}
+}

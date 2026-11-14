@@ -6462,6 +6462,12 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind
 		if note := m.forkBoundaryPrompt(ctx, sessionID); note != "" {
 			cfg.AdditionalSections = append(cfg.AdditionalSections, note)
 		}
+		// Read from the stored session so restore keeps the section.
+		if rec, found, err := m.store.GetSession(ctx, sessionID); err == nil && found {
+			if section := sparseCheckoutPrompt(rec.SparsePaths); section != "" {
+				cfg.AdditionalSections = append(cfg.AdditionalSections, section)
+			}
+		}
 	}
 	if pointer := strings.TrimSpace(m.aoSkillPointer(chat)); pointer != "" {
 		cfg.AdditionalSections = append(cfg.AdditionalSections, pointer)

@@ -425,3 +425,22 @@ func TestBuildTaskPrompt_StackedTaskNamesItsBase(t *testing.T) {
 		t.Fatalf("empty prompt = %q", got)
 	}
 }
+
+func TestSparseCheckoutPrompt(t *testing.T) {
+	got := sparseCheckoutPrompt([]string{"backend/internal/cli", "scripts"})
+	for _, want := range []string{
+		"## Sparse checkout",
+		"This worktree is a cone-mode sparse checkout.",
+		"Present directories: `backend/internal/cli`, `scripts`.",
+		"Root-level files are always present.",
+		"`git sparse-checkout add <dir>`",
+		"add them rather than working around missing files",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("sparse prompt missing %q:\n%s", want, got)
+		}
+	}
+	if sparseCheckoutPrompt(nil) != "" {
+		t.Fatal("full checkout must have no sparse section")
+	}
+}

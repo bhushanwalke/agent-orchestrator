@@ -490,3 +490,20 @@ func projectValue(value string) string {
 	}
 	return "not configured"
 }
+
+// sparseCheckoutPrompt explains a cone-mode sparse worktree to a worker. It is
+// empty for a full checkout.
+func sparseCheckoutPrompt(paths []string) string {
+	if len(paths) == 0 {
+		return ""
+	}
+	quoted := make([]string, 0, len(paths))
+	for _, p := range paths {
+		quoted = append(quoted, "`"+p+"`")
+	}
+	return "## Sparse checkout\n" +
+		"This worktree is a cone-mode sparse checkout. Present directories: " + strings.Join(quoted, ", ") + ". " +
+		"Root-level files are always present. If you need another directory, run `git sparse-checkout add <dir>` " +
+		"(repeatable) before reading or editing it. Build and test commands may need directories outside the cone; " +
+		"add them rather than working around missing files."
+}
