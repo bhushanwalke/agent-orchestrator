@@ -50,7 +50,11 @@ function session(id: string, title: string): WorkspaceSession {
 	};
 }
 
-const sessions: WorkspaceSession[] = [session("orch-1", "radic orchestrator"), session("w-1", "TODO app · m1: API")];
+const sessions: WorkspaceSession[] = [
+	session("orch-1", "radic orchestrator"),
+	{ ...session("w-1", "TODO app · m1: API"), activity: { state: "active" } as WorkspaceSession["activity"] },
+	{ ...session("w-2", "TODO app · m2: UI"), activity: { state: "idle" } as WorkspaceSession["activity"] },
+];
 
 function milestone(key: string, status: PlanMilestone["status"], overrides: Partial<PlanMilestone> = {}): PlanMilestone {
 	return {
@@ -88,7 +92,10 @@ function detail(overrides: Partial<PlanDetail["plan"]> = {}): PlanDetail {
 			kanbanColumn: "building",
 			displayStatus: "Implementing 0/2",
 			milestoneCounts: { total: 3, done: 0, running: 1, failed: 0, blocked: 0 },
-			liveSessions: [{ id: "w-1", harness: "codex", status: "working", kanbanColumn: "building", displayStatus: "Working", isTerminated: false }],
+			liveSessions: [
+				{ id: "w-1", harness: "codex", status: "working", kanbanColumn: "building", displayStatus: "Working", isTerminated: false },
+				{ id: "w-2", harness: "codex", status: "idle", kanbanColumn: "building", displayStatus: "Idle", isTerminated: false },
+			],
 			prs: [],
 			orchestratorSessionId: "orch-1",
 			maxParallel: 3,
@@ -133,6 +140,14 @@ describe("PlanRunView", () => {
 		expect(screen.getByTestId("plan-phase")).toHaveTextContent("Implementing");
 		expect(screen.getByText(/· 1 agents active$/)).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: /Ticket/ })).toHaveAttribute("href", "https://example.com/T-1");
+	});
+
+	it("counts only agents that are working, so a finished Task reads 0 agents active", () => {
+		planMock.mockReturnValue(
+			detail({ phase: "done", liveSessions: [{ id: "w-2", harness: "codex", status: "idle", kanbanColumn: "ready", displayStatus: "Idle", isTerminated: false }] }),
+		);
+		renderView();
+		expect(screen.getByText(/· 0 agents active$/)).toBeInTheDocument();
 	});
 
 	it("lists the orchestrator first, then each milestone's agent, and opens a session from its card", async () => {

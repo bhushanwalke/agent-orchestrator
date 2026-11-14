@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ChevronDown, ExternalLink } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { isAgentActivityWorking } from "@aoagents/product-ui";
 import { usePlanMutations, usePlanQuery } from "../../hooks/usePlans";
 import { useWorkspaceQuery } from "../../hooks/useWorkspaceQuery";
 import { apiErrorMessage } from "../../lib/api-client";
@@ -74,7 +75,8 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 	}
 
 	const { plan, milestones, events } = detail;
-	const activeAgents = plan.liveSessions.length;
+	// Agents whose turn is running now; an idle worker that finished is not active.
+	const activeAgents = plan.liveSessions.filter((live) => isAgentActivityWorking(sessions.find((session) => session.id === live.id)?.activity)).length;
 	const started = plan.activatedAt ?? plan.createdAt;
 	const canRerunQA = plan.phase === "done" || plan.phase === "fixing";
 	const finished = plan.phase === "cancelled" || plan.phase === "done";
