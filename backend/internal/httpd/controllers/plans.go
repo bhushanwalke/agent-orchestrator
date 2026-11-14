@@ -22,12 +22,12 @@ type PlanService interface {
 	Create(ctx context.Context, in plansvc.CreateInput) (domain.Plan, error)
 	Get(ctx context.Context, id domain.PlanID) (plansvc.Detail, error)
 	List(ctx context.Context, projectID domain.ProjectID) ([]plansvc.Summary, error)
-	Update(ctx context.Context, id domain.PlanID, patch plansvc.PlanPatch) (domain.Plan, error)
+	Update(ctx context.Context, id domain.PlanID, patch plansvc.PlanPatch) (plansvc.Summary, error)
 	AddMilestone(ctx context.Context, id domain.PlanID, in plansvc.MilestoneInput) (domain.Milestone, error)
 	UpdateMilestone(ctx context.Context, id domain.PlanID, key string, patch plansvc.MilestonePatch) (domain.Milestone, error)
 	RemoveMilestone(ctx context.Context, id domain.PlanID, key string) error
 	Activate(ctx context.Context, id domain.PlanID) (plansvc.Detail, error)
-	Cancel(ctx context.Context, id domain.PlanID) (domain.Plan, error)
+	Cancel(ctx context.Context, id domain.PlanID) (plansvc.Summary, error)
 	RetryMilestone(ctx context.Context, id domain.PlanID, key string) (plansvc.Detail, error)
 	RecordQAResult(ctx context.Context, id domain.PlanID, in plansvc.QAResultInput) (plansvc.Detail, error)
 	Events(ctx context.Context, id domain.PlanID, after int64, limit int) (plansvc.EventsPage, error)
@@ -39,7 +39,9 @@ type PlansController struct {
 	Svc PlanService
 }
 
-const planBodyLimit = 128 << 10
+// planBodyLimit fits the largest plan body (a 256 KiB spec) after JSON
+// escaping, which can grow Markdown up to six times (<, >, & become \u003c).
+const planBodyLimit = 2 << 20
 
 // Register mounts the plan REST routes.
 func (c *PlansController) Register(r chi.Router) {
@@ -78,7 +80,7 @@ func (c *PlansController) create(w http.ResponseWriter, r *http.Request) {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusCreated, PlanEnvelope{Plan: planResponseFromPlan(p, nil)})
+	envelope.WriteJSON(w, http.StatusCreated, PlanEnvelope{Plan: newPlanResponse(p)})
 }
 
 func (c *PlansController) list(w http.ResponseWriter, r *http.Request) {
@@ -128,12 +130,12 @@ func (c *PlansController) patch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p, err := c.Svc.Update(r.Context(), id, plansvc.PlanPatch{Title: req.Title, MaxParallel: req.MaxParallel, SpecMarkdown: req.SpecMarkdown})
+	sum, err := c.Svc.Update(r.Context(), id, plansvc.PlanPatch{Title: req.Title, MaxParallel: req.MaxParallel, SpecMarkdown: req.SpecMarkdown})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planResponseFromPlan(p, nil)})
+	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planResponse(sum)})
 }
 
 func (c *PlansController) addMilestone(w http.ResponseWriter, r *http.Request) {
@@ -256,12 +258,12 @@ func (c *PlansController) cancel(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	p, err := c.Svc.Cancel(r.Context(), id)
+	sum, err := c.Svc.Cancel(r.Context(), id)
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
 	}
-	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planResponseFromPlan(p, nil)})
+	envelope.WriteJSON(w, http.StatusOK, PlanEnvelope{Plan: planResponse(sum)})
 }
 
 func (c *PlansController) qaResult(w http.ResponseWriter, r *http.Request) {
@@ -402,16 +404,11 @@ func milestonePatch(w http.ResponseWriter, r *http.Request, req MilestoneRequest
 	return patch, true
 }
 
-// planResponseFromPlan renders a plan whose milestones the caller did not
-// load; the derived fields reflect the plan alone (planning/cancelled are
-// exact, an active plan reads as implementing until re-read).
-func planResponseFromPlan(p domain.Plan, ms []domain.Milestone) PlanResponse {
-	views := make([]plansvc.MilestoneView, 0, len(ms))
-	for _, m := range ms {
-		views = append(views, plansvc.MilestoneView{Milestone: m})
-	}
-	phase := domain.DerivePlanPhase(p, ms)
-	col, display := domain.DerivePlanKanban(phase, ms)
+// newPlanResponse renders a plan that was just created: it has no milestones
+// yet, so deriving from the plan alone is exact.
+func newPlanResponse(p domain.Plan) PlanResponse {
+	phase := domain.DerivePlanPhase(p, nil)
+	col, display := domain.DerivePlanKanban(phase, nil)
 	return planResponse(plansvc.Summary{Plan: p, Phase: phase, Kanban: col, DisplayStatus: display, LiveSessions: []domain.Session{}})
 }
 

@@ -379,7 +379,7 @@ func newPlanSetSpecCommand(ctx *commandContext) *cobra.Command {
 
 type planMilestoneFlags struct {
 	key, kind, title, description, descriptionFile string
-	dependsOn, sparse                             []string
+	dependsOn, sparse                              []string
 }
 
 func bindPlanMilestoneFlags(cmd *cobra.Command, f *planMilestoneFlags, withKey bool) {

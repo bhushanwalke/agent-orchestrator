@@ -315,7 +315,7 @@ func TestMilestoneEditing(t *testing.T) {
 	wantCode(t, f.svc.RemoveMilestone(ctx, p.ID, "m2"), "MILESTONE_NOT_FOUND")
 
 	spec, err := f.svc.SetSpec(ctx, p.ID, "# Plan\n")
-	if err != nil || spec.SpecMarkdown != "# Plan\n" {
+	if err != nil || spec.Plan.SpecMarkdown != "# Plan\n" {
 		t.Fatalf("set spec = %+v err=%v", spec, err)
 	}
 	kinds := strings.Join(eventKinds(t, f, p.ID), ",")
@@ -335,8 +335,11 @@ func TestRemoveMilestoneWithDependentsIsRefused(t *testing.T) {
 func TestTooManyMilestones(t *testing.T) {
 	f := newFixture(t, domain.ProjectKindSingleRepo)
 	p := createPlan(t, f)
-	for i := 0; i < domain.MaxPlanMilestones; i++ {
+	for i := 0; i < domain.MaxPlanMilestones-1; i++ {
 		addMs(t, f, p.ID, fmt.Sprintf("m%d", i))
+	}
+	if _, err := f.svc.AddMilestone(context.Background(), p.ID, plan.MilestoneInput{Key: "qa", Kind: domain.MilestoneKindQA, Title: "QA"}); err != nil {
+		t.Fatalf("qa fills the last slot: %v", err)
 	}
 	_, err := f.svc.AddMilestone(context.Background(), p.ID, plan.MilestoneInput{Key: "extra", Title: "x", Description: "y"})
 	wantCode(t, err, "PLAN_TOO_MANY_MILESTONES")
@@ -416,7 +419,7 @@ func TestActivateAddsQAAndLocksEditing(t *testing.T) {
 	wantCode(t, err, "PLAN_NOT_EDITABLE")
 	mp := 5
 	updated, err := f.svc.Update(ctx, p.ID, plan.PlanPatch{MaxParallel: &mp})
-	if err != nil || updated.MaxParallel != 5 {
+	if err != nil || updated.Plan.MaxParallel != 5 {
 		t.Fatalf("max parallel stays editable: %+v err=%v", updated, err)
 	}
 }
@@ -450,7 +453,7 @@ func TestCancelMarksOpenMilestonesCancelled(t *testing.T) {
 		t.Fatal(err)
 	}
 	cancelled, err := f.svc.Cancel(ctx, p.ID)
-	if err != nil || cancelled.State != domain.PlanStateCancelled {
+	if err != nil || cancelled.Plan.State != domain.PlanStateCancelled {
 		t.Fatalf("cancel = %+v err=%v", cancelled, err)
 	}
 	d, _ := f.svc.Get(ctx, p.ID)
@@ -612,4 +615,125 @@ func TestListAndEvents(t *testing.T) {
 	}
 	_, err = f.svc.Events(ctx, "plan_missing", 0, 10)
 	wantCode(t, err, "PLAN_NOT_FOUND")
+}
+
+func TestQAResultRequiresRunningQA(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	p := createPlan(t, f)
+	addMs(t, f, p.ID, "m1")
+	if _, err := f.svc.Activate(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := f.store.ListMilestones(ctx, p.ID)
+	// QA went back to pending after a fail but still names its old session.
+	ms[0].Status = domain.MilestoneStatusRunning
+	ms[0].QAVerdict = domain.QAVerdictFail
+	ms[1].Status = domain.MilestoneStatusPending
+	ms[1].SessionID = "old-qa"
+	for _, m := range ms {
+		if err := f.store.UpdateMilestone(ctx, m); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_, err := f.svc.RecordQAResult(ctx, p.ID, plan.QAResultInput{Verdict: domain.QAVerdictPass, Note: "ok", SessionID: "old-qa"})
+	wantCode(t, err, "PLAN_QA_NOT_RUNNING")
+	_, err = f.svc.RecordQAResult(ctx, p.ID, plan.QAResultInput{Verdict: domain.QAVerdictFail, MilestoneKey: "m1", Note: "x", SessionID: "old-qa"})
+	wantCode(t, err, "PLAN_QA_NOT_RUNNING")
+	if _, err := f.svc.Cancel(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = f.svc.RecordQAResult(ctx, p.ID, plan.QAResultInput{Verdict: domain.QAVerdictPass, Note: "ok", SessionID: "old-qa"})
+	wantCode(t, err, "PLAN_NOT_ACTIVE")
+}
+
+func TestUpdateAndCancelReturnDerivedSummary(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	p := createPlan(t, f)
+	addMs(t, f, p.ID, "m1")
+	addMs(t, f, p.ID, "m2")
+	if _, err := f.svc.Activate(ctx, p.ID); err != nil {
+		t.Fatal(err)
+	}
+	ms, _ := f.store.ListMilestones(ctx, p.ID)
+	ms[0].Status = domain.MilestoneStatusDone
+	if err := f.store.UpdateMilestone(ctx, ms[0]); err != nil {
+		t.Fatal(err)
+	}
+	mp := 4
+	sum, err := f.svc.Update(ctx, p.ID, plan.PlanPatch{MaxParallel: &mp})
+	if err != nil || sum.Plan.MaxParallel != 4 || sum.Counts.Total != 3 || string(sum.DisplayStatus) != "Implementing 1/2" {
+		t.Fatalf("update summary = %+v err=%v", sum, err)
+	}
+	sum, err = f.svc.Cancel(ctx, p.ID)
+	if err != nil || sum.Phase != domain.PlanPhaseCancelled || sum.Counts.Done != 1 || sum.Counts.Total != 3 {
+		t.Fatalf("cancel summary = %+v err=%v", sum, err)
+	}
+}
+
+type countingSessions struct {
+	*fakeSessions
+	inSend chan struct{}
+	gate   chan struct{}
+}
+
+func (c *countingSessions) Send(ctx context.Context, id domain.SessionID, text string, opts ports.MessageDeliveryOptions) error {
+	c.fakeSessions.mu.Lock()
+	refuse := c.fakeSessions.sendErr != nil
+	c.fakeSessions.mu.Unlock()
+	if !refuse {
+		select {
+		case c.inSend <- struct{}{}:
+		default:
+		}
+		<-c.gate
+	}
+	return c.fakeSessions.Send(ctx, id, text, opts)
+}
+
+func TestConcurrentKickoffRetriesDeliverOnce(t *testing.T) {
+	st := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	if err := st.UpsertProject(ctx, domain.ProjectRecord{ID: "mer", Path: "/tmp/mer", RegisteredAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	sessions := &countingSessions{fakeSessions: &fakeSessions{sendErr: errors.New("starting")}, inSend: make(chan struct{}, 1), gate: make(chan struct{})}
+	svc := plan.New(plan.Deps{Store: st, Sessions: sessions, Projects: st, KickoffRetryInterval: -1})
+	p, err := svc.Create(ctx, plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions.fakeSessions.mu.Lock()
+	sessions.fakeSessions.sendErr = nil
+	sessions.fakeSessions.mu.Unlock()
+	var wg sync.WaitGroup
+	for i := 0; i < 2; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = svc.RetryDeferredKickoff(ctx, p.ID)
+		}()
+	}
+	<-sessions.inSend
+	time.Sleep(50 * time.Millisecond) // let the second retry reach its check
+	close(sessions.gate)
+	wg.Wait()
+	if n := len(sessions.fakeSessions.sent); n != 1 {
+		t.Fatalf("kickoff delivered %d times", n)
+	}
+}
+
+func TestMilestoneCapLeavesRoomForQA(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	p := createPlan(t, f)
+	for i := 0; i < domain.MaxPlanMilestones-1; i++ {
+		addMs(t, f, p.ID, fmt.Sprintf("m%d", i))
+	}
+	_, err := f.svc.AddMilestone(ctx, p.ID, plan.MilestoneInput{Key: "extra", Title: "x", Description: "y"})
+	wantCode(t, err, "PLAN_TOO_MANY_MILESTONES")
+	if _, err := f.svc.Activate(ctx, p.ID); err != nil {
+		t.Fatalf("activate with %d implement milestones: %v", domain.MaxPlanMilestones-1, err)
+	}
 }

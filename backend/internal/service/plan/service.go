@@ -72,6 +72,7 @@ type Service struct {
 	retryTimeout  time.Duration
 	retryMu       sync.Mutex
 	retrying      map[domain.PlanID]bool
+	kickoffMu     sync.Mutex
 }
 
 // New constructs the plan service.
@@ -186,6 +187,10 @@ func (s *Service) deliverKickoff(ctx context.Context, p domain.Plan, project dom
 // that has not landed yet. It reports whether the kickoff is now delivered
 // (or no longer needed because the plan left planning).
 func (s *Service) RetryDeferredKickoff(ctx context.Context, id domain.PlanID) (bool, error) {
+	// Check-then-deliver must be atomic so the background retry and a
+	// scheduler tick cannot both deliver the same kickoff.
+	s.kickoffMu.Lock()
+	defer s.kickoffMu.Unlock()
 	p, err := s.requirePlan(ctx, id)
 	if err != nil {
 		return false, err
@@ -332,7 +337,16 @@ func (s *Service) List(ctx context.Context, projectID domain.ProjectID) ([]Summa
 
 // Update edits a plan. Title and spec change only while planning; the
 // parallel limit stays editable until the plan is cancelled.
-func (s *Service) Update(ctx context.Context, id domain.PlanID, patch PlanPatch) (domain.Plan, error) {
+func (s *Service) Update(ctx context.Context, id domain.PlanID, patch PlanPatch) (Summary, error) {
+	p, err := s.updateLocked(ctx, id, patch)
+	if err != nil {
+		return Summary{}, err
+	}
+	d, err := s.detail(ctx, p)
+	return d.Summary, err
+}
+
+func (s *Service) updateLocked(ctx context.Context, id domain.PlanID, patch PlanPatch) (domain.Plan, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var specChanged bool
@@ -375,7 +389,7 @@ func (s *Service) Update(ctx context.Context, id domain.PlanID, patch PlanPatch)
 }
 
 // SetSpec stores the orchestrator's plan document.
-func (s *Service) SetSpec(ctx context.Context, id domain.PlanID, markdown string) (domain.Plan, error) {
+func (s *Service) SetSpec(ctx context.Context, id domain.PlanID, markdown string) (Summary, error) {
 	return s.Update(ctx, id, PlanPatch{SpecMarkdown: &markdown})
 }
 
@@ -393,15 +407,20 @@ func (s *Service) AddMilestone(ctx context.Context, id domain.PlanID, in Milesto
 	if err != nil {
 		return domain.Milestone{}, err
 	}
-	if len(ms) >= domain.MaxPlanMilestones {
-		return domain.Milestone{}, apierr.Invalid("PLAN_TOO_MANY_MILESTONES",
-			fmt.Sprintf("A plan has at most %d milestones", domain.MaxPlanMilestones), nil)
-	}
-	now := s.now().UTC()
 	kind := in.Kind
 	if kind == "" {
 		kind = domain.MilestoneKindImplement
 	}
+	limit := domain.MaxPlanMilestones
+	if kind != domain.MilestoneKindQA && indexOfKind(ms, domain.MilestoneKindQA) < 0 {
+		// Activation adds the qa milestone, so keep its slot free.
+		limit--
+	}
+	if len(ms) >= limit {
+		return domain.Milestone{}, apierr.Invalid("PLAN_TOO_MANY_MILESTONES",
+			fmt.Sprintf("A plan has at most %d milestones, including the qa milestone", domain.MaxPlanMilestones), nil)
+	}
+	now := s.now().UTC()
 	m := domain.Milestone{
 		ID:          domain.MilestoneID(s.newID("ms_")),
 		PlanID:      p.ID,
@@ -612,7 +631,16 @@ func (s *Service) activateLocked(ctx context.Context, id domain.PlanID) (domain.
 
 // Cancel stops a plan. Open milestones become cancelled; sessions are left
 // running so the person can still use them. Cancelling twice is a no-op.
-func (s *Service) Cancel(ctx context.Context, id domain.PlanID) (domain.Plan, error) {
+func (s *Service) Cancel(ctx context.Context, id domain.PlanID) (Summary, error) {
+	p, err := s.cancelLocked(ctx, id)
+	if err != nil {
+		return Summary{}, err
+	}
+	d, err := s.detail(ctx, p)
+	return d.Summary, err
+}
+
+func (s *Service) cancelLocked(ctx context.Context, id domain.PlanID) (domain.Plan, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	p, err := s.requirePlan(ctx, id)
@@ -731,11 +759,19 @@ func (s *Service) qaResultLocked(ctx context.Context, id domain.PlanID, in QARes
 	if err != nil {
 		return domain.Plan{}, "", err
 	}
+	if p.State != domain.PlanStateActive {
+		return domain.Plan{}, "", apierr.Conflict("PLAN_NOT_ACTIVE", "QA results can only be recorded for an active plan", nil)
+	}
 	qaIdx := indexOfKind(ms, domain.MilestoneKindQA)
-	if p.State != domain.PlanStateActive || qaIdx < 0 || in.SessionID == "" || ms[qaIdx].SessionID != in.SessionID {
+	if qaIdx < 0 || in.SessionID == "" || ms[qaIdx].SessionID != in.SessionID {
 		return domain.Plan{}, "", apierr.Forbidden("PLAN_QA_SESSION_REQUIRED", "Only the plan's QA session can record a QA result")
 	}
 	qa := ms[qaIdx]
+	// A QA session left idle after an earlier round still owns the milestone
+	// id until the next QA spawn; only a running (or blocked) round may record.
+	if qa.Status != domain.MilestoneStatusRunning && qa.Status != domain.MilestoneStatusBlocked {
+		return domain.Plan{}, "", apierr.Conflict("PLAN_QA_NOT_RUNNING", "QA is not running for this plan right now", map[string]any{"qaStatus": string(qa.Status)})
+	}
 	now := s.now().UTC()
 	switch {
 	case in.Verdict == domain.QAVerdictPass:

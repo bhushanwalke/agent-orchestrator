@@ -21,26 +21,30 @@ import (
 )
 
 type fakePlanService struct {
-	calls       []string
-	gotProject  domain.ProjectID
-	gotPlan     domain.PlanID
-	gotKey      string
-	gotCreate   plansvc.CreateInput
-	gotPatch    plansvc.PlanPatch
-	gotMsIn     plansvc.MilestoneInput
-	gotMsPatch  plansvc.MilestonePatch
-	gotQA       plansvc.QAResultInput
-	gotAfter    int64
-	gotLimit    int
-	plan        domain.Plan
-	detail      plansvc.Detail
-	summaries   []plansvc.Summary
-	milestone   domain.Milestone
-	events      plansvc.EventsPage
-	err         error
+	calls      []string
+	gotProject domain.ProjectID
+	gotPlan    domain.PlanID
+	gotKey     string
+	gotCreate  plansvc.CreateInput
+	gotPatch   plansvc.PlanPatch
+	gotMsIn    plansvc.MilestoneInput
+	gotMsPatch plansvc.MilestonePatch
+	gotQA      plansvc.QAResultInput
+	gotAfter   int64
+	gotLimit   int
+	plan       domain.Plan
+	summary    plansvc.Summary
+	detail     plansvc.Detail
+	summaries  []plansvc.Summary
+	milestone  domain.Milestone
+	events     plansvc.EventsPage
+	err        error
 }
 
-func (f *fakePlanService) record(name string, id domain.PlanID) { f.calls = append(f.calls, name); f.gotPlan = id }
+func (f *fakePlanService) record(name string, id domain.PlanID) {
+	f.calls = append(f.calls, name)
+	f.gotPlan = id
+}
 
 func (f *fakePlanService) Create(_ context.Context, in plansvc.CreateInput) (domain.Plan, error) {
 	f.calls = append(f.calls, "create")
@@ -56,10 +60,10 @@ func (f *fakePlanService) List(_ context.Context, projectID domain.ProjectID) ([
 	f.gotProject = projectID
 	return f.summaries, f.err
 }
-func (f *fakePlanService) Update(_ context.Context, id domain.PlanID, p plansvc.PlanPatch) (domain.Plan, error) {
+func (f *fakePlanService) Update(_ context.Context, id domain.PlanID, p plansvc.PlanPatch) (plansvc.Summary, error) {
 	f.record("update", id)
 	f.gotPatch = p
-	return f.plan, f.err
+	return f.summary, f.err
 }
 func (f *fakePlanService) AddMilestone(_ context.Context, id domain.PlanID, in plansvc.MilestoneInput) (domain.Milestone, error) {
 	f.record("addMilestone", id)
@@ -81,9 +85,9 @@ func (f *fakePlanService) Activate(_ context.Context, id domain.PlanID) (plansvc
 	f.record("activate", id)
 	return f.detail, f.err
 }
-func (f *fakePlanService) Cancel(_ context.Context, id domain.PlanID) (domain.Plan, error) {
+func (f *fakePlanService) Cancel(_ context.Context, id domain.PlanID) (plansvc.Summary, error) {
 	f.record("cancel", id)
-	return f.plan, f.err
+	return f.summary, f.err
 }
 func (f *fakePlanService) RetryMilestone(_ context.Context, id domain.PlanID, key string) (plansvc.Detail, error) {
 	f.record("retry", id)
@@ -213,7 +217,7 @@ func TestPlansAPI_ListAndGet(t *testing.T) {
 }
 
 func TestPlansAPI_PatchPlan(t *testing.T) {
-	svc := &fakePlanService{plan: samplePlanDomain()}
+	svc := &fakePlanService{summary: sampleDetail().Summary}
 	srv := newPlanTestServer(t, svc)
 	body, status, _ := doRequest(t, srv, "PATCH", "/api/v1/plans/plan_1", `{"maxParallel":5,"specMarkdown":"# P"}`)
 	if status != http.StatusOK || svc.gotPatch.MaxParallel == nil || *svc.gotPatch.MaxParallel != 5 ||
@@ -258,7 +262,7 @@ func TestPlansAPI_MilestoneRoutes(t *testing.T) {
 }
 
 func TestPlansAPI_ActivateCancelQAResultEvents(t *testing.T) {
-	svc := &fakePlanService{detail: sampleDetail(), plan: samplePlanDomain(), events: plansvc.EventsPage{
+	svc := &fakePlanService{detail: sampleDetail(), summary: sampleDetail().Summary, events: plansvc.EventsPage{
 		Events:        []domain.PlanEvent{{ID: 5, MilestoneID: "ms_1", Kind: "milestone_done", CreatedAt: planTestTime}},
 		NextAfter:     5,
 		MilestoneKeys: map[domain.MilestoneID]string{"ms_1": "m1"},
@@ -345,5 +349,21 @@ func TestPlansAPI_NotImplementedWithoutService(t *testing.T) {
 	_, status, _ := doRequest(t, srv, "GET", "/api/v1/plans/plan_1", "")
 	if status != http.StatusNotImplemented {
 		t.Fatalf("status = %d", status)
+	}
+}
+
+func TestPlansAPI_PatchAcceptsLargeSpec(t *testing.T) {
+	svc := &fakePlanService{summary: sampleDetail().Summary}
+	srv := newPlanTestServer(t, svc)
+	spec := strings.Repeat("<li>a & b</li>\n", 200<<10/16)
+	raw, _ := json.Marshal(map[string]string{"specMarkdown": spec})
+	body, status, _ := doRequest(t, srv, "PATCH", "/api/v1/plans/plan_1", string(raw))
+	if status != http.StatusOK || svc.gotPatch.SpecMarkdown == nil || len(*svc.gotPatch.SpecMarkdown) != len(spec) {
+		t.Fatalf("status=%d body=%.200s", status, body)
+	}
+	var env controllers.PlanEnvelope
+	mustJSON(t, body, &env)
+	if env.Plan.DisplayStatus != "Implementing 0/1" || env.Plan.MilestoneCounts.Total != 2 || len(env.Plan.LiveSessions) != 1 {
+		t.Fatalf("patch response derived fields = %+v", env.Plan.PlanSummary)
 	}
 }

@@ -4738,7 +4738,7 @@ type PlanEventsQuery struct {
 }
 
 // CreatePlanRequest is the body of POST /api/v1/projects/{projectId}/plans.
-// Body limit: 128 KiB.
+// Body limit: 2 MiB.
 type CreatePlanRequest struct {
 	Title       string `json:"title" description:"Task title, 1-100 characters."`
 	Brief       string `json:"brief" description:"The ticket text as pasted, at most 100 KiB."`
