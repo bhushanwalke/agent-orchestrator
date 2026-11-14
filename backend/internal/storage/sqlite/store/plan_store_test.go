@@ -244,7 +244,7 @@ func TestSessionPersistsPlanLinkAndSparsePaths(t *testing.T) {
 	rec := sampleRecord("mer")
 	rec.PlanID = "plan_1"
 	rec.PlanMilestoneID = "ms_1"
-	rec.Metadata.SparsePaths = []string{"a", "c"}
+	rec.SparsePaths = []string{"a", "c"}
 	created, err := s.CreateSession(ctx, rec)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -253,16 +253,16 @@ func TestSessionPersistsPlanLinkAndSparsePaths(t *testing.T) {
 	if err != nil || !ok {
 		t.Fatalf("get: ok=%v err=%v", ok, err)
 	}
-	if got.PlanID != "plan_1" || got.PlanMilestoneID != "ms_1" || !reflect.DeepEqual(got.Metadata.SparsePaths, []string{"a", "c"}) {
-		t.Fatalf("plan link = %q %q %#v", got.PlanID, got.PlanMilestoneID, got.Metadata.SparsePaths)
+	if got.PlanID != "plan_1" || got.PlanMilestoneID != "ms_1" || !reflect.DeepEqual(got.SparsePaths, []string{"a", "c"}) {
+		t.Fatalf("plan link = %q %q %#v", got.PlanID, got.PlanMilestoneID, got.SparsePaths)
 	}
 	all, err := s.ListSessions(ctx, "mer")
-	if err != nil || len(all) != 1 || all[0].PlanID != "plan_1" || len(all[0].Metadata.SparsePaths) != 2 {
+	if err != nil || len(all) != 1 || all[0].PlanID != "plan_1" || len(all[0].SparsePaths) != 2 {
 		t.Fatalf("list = %+v err=%v", all, err)
 	}
 	plain, _ := s.CreateSession(ctx, sampleRecord("mer"))
 	got, _, _ = s.GetSession(ctx, plain.ID)
-	if got.PlanID != "" || len(got.Metadata.SparsePaths) != 0 {
-		t.Fatalf("plain session plan link = %q %#v", got.PlanID, got.Metadata.SparsePaths)
+	if got.PlanID != "" || len(got.SparsePaths) != 0 {
+		t.Fatalf("plain session plan link = %q %#v", got.PlanID, got.SparsePaths)
 	}
 }

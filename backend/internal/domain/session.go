@@ -313,10 +313,6 @@ type SessionMetadata struct {
 	// Permissions pins the resolved launch policy independently of future project defaults.
 	Permissions PermissionMode `json:"permissions,omitempty"`
 
-	// SparsePaths are the repo-relative directories of a cone-mode sparse
-	// checkout requested at spawn. Empty is a full checkout.
-	SparsePaths []string `json:"-"`
-
 	Branch            string `json:"branch,omitempty"`
 	WorkspacePath     string `json:"workspacePath,omitempty"`
 	WorkspaceRepoPath string `json:"workspaceRepoPath,omitempty"`
@@ -432,11 +428,15 @@ type SessionRecord struct {
 	ClientRequestCommitted bool   `json:"-"`
 	// PlanID and PlanMilestoneID link a worker spawned for a task plan
 	// milestone to that plan. Empty for every other session.
-	PlanID          PlanID       `json:"-"`
-	PlanMilestoneID MilestoneID  `json:"-"`
-	IssueID         IssueID      `json:"issueId,omitempty"`
-	Kind            SessionKind  `json:"kind"`
-	Harness         AgentHarness `json:"harness,omitempty"`
+	PlanID          PlanID      `json:"-"`
+	PlanMilestoneID MilestoneID `json:"-"`
+	// SparsePaths are the repo-relative directories of a cone-mode sparse
+	// checkout requested at spawn. Empty is a full checkout. It lives outside
+	// SessionMetadata so that struct stays comparable.
+	SparsePaths []string     `json:"-"`
+	IssueID     IssueID      `json:"issueId,omitempty"`
+	Kind        SessionKind  `json:"kind"`
+	Harness     AgentHarness `json:"harness,omitempty"`
 	// ReviewerHarness is this session's preferred reviewer. Empty delegates to
 	// the project configuration.
 	ReviewerHarness   ReviewerHarness `json:"reviewerHarness,omitempty" enum:"claude-code,codex,copilot,cursor,kilocode,opencode,opencode-v2,kiro,pi,agy,devin,droid,kimi,kimchi,muse,amp,aider,grok,crush,auggie,cline,autohand"`
