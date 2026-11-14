@@ -30,6 +30,14 @@ type fakeSessions struct {
 	sendErr     error
 	sent        []sentMessage
 	sessions    map[domain.SessionID]domain.Session
+	// spawns records every SpawnWorker config; spawnErr fails the next spawns.
+	spawns   []ports.SpawnConfig
+	spawnErr error
+	// spawnHook runs inside SpawnWorker before the session exists.
+	spawnHook func(ports.SpawnConfig)
+	// sendErrFor refuses delivery to one session.
+	sendErrFor map[domain.SessionID]error
+	nextID     int
 }
 
 func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.ProjectID) (domain.SessionRecord, error) {
@@ -42,8 +50,44 @@ func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.Pr
 	return domain.SessionRecord{ID: "orch-1", ProjectID: projectID, Kind: domain.KindOrchestrator}, nil
 }
 
-func (f *fakeSessions) SpawnWorker(context.Context, ports.SpawnConfig, domain.ProjectRecord) (domain.SessionRecord, error) {
-	return domain.SessionRecord{}, errors.New("spawn not expected in M1")
+func (f *fakeSessions) SpawnWorker(_ context.Context, cfg ports.SpawnConfig, _ domain.ProjectRecord) (domain.SessionRecord, error) {
+	f.mu.Lock()
+	hook := f.spawnHook
+	f.mu.Unlock()
+	if hook != nil {
+		hook(cfg)
+	}
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.spawns = append(f.spawns, cfg)
+	if f.spawnErr != nil {
+		return domain.SessionRecord{}, f.spawnErr
+	}
+	f.nextID++
+	id := domain.SessionID(fmt.Sprintf("w-%d", f.nextID))
+	branch := cfg.Branch
+	if branch == "" {
+		branch = "ao/" + string(id) + "/root"
+	}
+	rec := domain.SessionRecord{ID: id, ProjectID: cfg.ProjectID, Kind: domain.KindWorker, DisplayName: cfg.DisplayName,
+		Metadata: domain.SessionMetadata{Branch: branch}}
+	f.sessions[id] = domain.Session{SessionRecord: rec}
+	return rec, nil
+}
+
+// endSession marks a session terminated, as a kill would.
+func (f *fakeSessions) endSession(id domain.SessionID) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	s := f.sessions[id]
+	s.IsTerminated = true
+	f.sessions[id] = s
+}
+
+func (f *fakeSessions) spawnCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.spawns)
 }
 
 func (f *fakeSessions) Send(_ context.Context, id domain.SessionID, text string, opts ports.MessageDeliveryOptions) error {
@@ -51,6 +95,9 @@ func (f *fakeSessions) Send(_ context.Context, id domain.SessionID, text string,
 	defer f.mu.Unlock()
 	if f.sendErr != nil {
 		return f.sendErr
+	}
+	if err := f.sendErrFor[id]; err != nil {
+		return err
 	}
 	f.sent = append(f.sent, sentMessage{ID: id, Text: text, Opts: opts})
 	return nil
@@ -554,7 +601,9 @@ func TestQAResultAuthorizationAndVerdicts(t *testing.T) {
 	if m2 := byKey["m2"]; m2.Status != domain.MilestoneStatusReady || m2.QAVerdict != domain.QAVerdictFail || m2.QANote != "button broken" {
 		t.Fatalf("m2 = %+v", m2)
 	}
-	if qa := byKey["qa"]; qa.Status != domain.MilestoneStatusPending {
+	// QA keeps running to record other findings; its done report sends it
+	// back to pending.
+	if qa := byKey["qa"]; qa.Status != domain.MilestoneStatusRunning || qa.QAVerdict != domain.QAVerdictFail {
 		t.Fatalf("qa = %+v", qa)
 	}
 	if d.Phase != domain.PlanPhaseFixing {

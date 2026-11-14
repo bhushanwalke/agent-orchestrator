@@ -810,6 +810,8 @@ func Run(buildVersion string) (retErr error) {
 	if !ok {
 		return errors.New("wire report delivery: session manager lacks semantic send support")
 	}
+	planSvc, planDone := startPlans(ctx, store, sessionSvc, log)
+	lcStack.planDone = planDone
 	var reportCoordinator *reportsvc.Coordinator
 	reportSvc := reportsvc.New(reportsvc.Deps{Store: store, Artifacts: chatSvc, OnCreated: func(domain.ReportRecord) {
 		if reportCoordinator != nil {
@@ -1271,7 +1273,7 @@ func Run(buildVersion string) (retErr error) {
 		ShellTerminals:     shellTermSvc,
 		PaneTerminals:      shellTermSvc,
 		Cues:               cuesvc.New(cuesvc.Deps{Store: store, Sessions: sessionSvc, Terminals: shellTermSvc}),
-		Plans:              newPlanService(ctx, store, sessionSvc, log),
+		Plans:              planSvc,
 		AgentAuth:          agentAuthSvc,
 		GitHub:             newGitHubStatusService(githubpat.New(cfg.DataDir), prReader),
 		Conversations:      chatSvc,

@@ -7,6 +7,7 @@ import (
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
+	planobserver "github.com/aoagents/agent-orchestrator/backend/internal/observe/plans"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 	plansvc "github.com/aoagents/agent-orchestrator/backend/internal/service/plan"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite"
@@ -61,14 +62,15 @@ func (p planSessions) Get(ctx context.Context, id domain.SessionID) (domain.Sess
 	return sess, true, nil
 }
 
-// newPlanService wires the task plan service. The scheduler is not wired
-// yet, so activation validates and records the plan without spawning.
-func newPlanService(ctx context.Context, store *sqlite.Store, sessions planSessionService, log *slog.Logger) *plansvc.Service {
-	return plansvc.New(plansvc.Deps{
+// startPlans wires the task plan service and starts its scheduler observer.
+func startPlans(ctx context.Context, store *sqlite.Store, sessions planSessionService, log *slog.Logger) (*plansvc.Service, <-chan struct{}) {
+	svc := plansvc.New(plansvc.Deps{
 		Store:       store,
 		Sessions:    planSessions{svc: sessions},
 		Projects:    store,
+		Reports:     store,
 		Logger:      log.With("component", "plans"),
 		BaseContext: ctx,
 	})
+	return svc, planobserver.New(svc, planobserver.Config{Logger: log}).Start(ctx)
 }

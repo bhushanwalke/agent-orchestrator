@@ -73,6 +73,11 @@ type Service struct {
 	retryMu       sync.Mutex
 	retrying      map[domain.PlanID]bool
 	kickoffMu     sync.Mutex
+
+	reports ReportReader
+	// tickMu keeps scheduler passes from overlapping; wake requests one.
+	tickMu sync.Mutex
+	wake   chan struct{}
 }
 
 // New constructs the plan service.
@@ -95,12 +100,16 @@ func New(d Deps) *Service {
 	if d.KickoffRetryTimeout == 0 {
 		d.KickoffRetryTimeout = 5 * time.Minute
 	}
-	return &Service{
-		store: d.Store, sessions: d.Sessions, projects: d.Projects, scheduler: d.Scheduler,
+	s := &Service{
+		store: d.Store, sessions: d.Sessions, projects: d.Projects, scheduler: d.Scheduler, reports: d.Reports,
 		now: d.Now, newID: d.NewID, logger: d.Logger,
 		baseCtx: d.BaseContext, retryInterval: d.KickoffRetryInterval, retryTimeout: d.KickoffRetryTimeout,
-		retrying: map[domain.PlanID]bool{},
+		retrying: map[domain.PlanID]bool{}, wake: make(chan struct{}, 1),
 	}
+	if s.scheduler == nil {
+		s.scheduler = s
+	}
+	return s
 }
 
 // Create records a new plan in the planning state and asks the project
@@ -650,6 +659,7 @@ func (s *Service) Cancel(ctx context.Context, id domain.PlanID) (Summary, error)
 	if err != nil {
 		return Summary{}, err
 	}
+	s.Wake()
 	d, err := s.detail(ctx, p)
 	return d.Summary, err
 }
@@ -723,8 +733,9 @@ func (s *Service) retryLocked(ctx context.Context, id domain.PlanID, key string)
 		return domain.Plan{}, milestoneNotFound()
 	}
 	m := ms[idx]
-	if p.State != domain.PlanStateActive || m.Status != domain.MilestoneStatusFailed {
-		return domain.Plan{}, apierr.Conflict("MILESTONE_NOT_RETRYABLE", "Only a failed milestone of an active plan can be retried", nil)
+	blockedQA := m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusBlocked
+	if p.State != domain.PlanStateActive || (m.Status != domain.MilestoneStatusFailed && !blockedQA) {
+		return domain.Plan{}, apierr.Conflict("MILESTONE_NOT_RETRYABLE", "Only a failed milestone, or a blocked qa milestone, of an active plan can be retried", nil)
 	}
 	m.Status = domain.MilestoneStatusReady
 	m.Attempt = 0
@@ -757,6 +768,7 @@ func (s *Service) RecordQAResult(ctx context.Context, id domain.PlanID, in QARes
 	if err != nil {
 		return Detail{}, err
 	}
+	s.Wake()
 	if forward != "" && p.OrchestratorSessionID != "" {
 		if err := s.sessions.Send(ctx, p.OrchestratorSessionID, forward, ports.MessageDeliveryOptions{}); err != nil {
 			s.logger.Warn("plan qa note not delivered to orchestrator", "plan", p.ID, "error", err)
@@ -783,12 +795,16 @@ func (s *Service) qaResultLocked(ctx context.Context, id domain.PlanID, in QARes
 	}
 	qa := ms[qaIdx]
 	// A QA session left idle after an earlier round still owns the milestone
-	// id until the next QA spawn; only a running (or blocked) round may record.
-	if qa.Status != domain.MilestoneStatusRunning && qa.Status != domain.MilestoneStatusBlocked {
+	// until the next QA spawn; only the current round may record: running,
+	// blocked, or failed for reporting done without a verdict.
+	noVerdict := qa.Status == domain.MilestoneStatusFailed && qa.QAVerdict == domain.QAVerdictNone
+	if qa.Status != domain.MilestoneStatusRunning && qa.Status != domain.MilestoneStatusBlocked && !noVerdict {
 		return domain.Plan{}, "", apierr.Conflict("PLAN_QA_NOT_RUNNING", "QA is not running for this plan right now", map[string]any{"qaStatus": string(qa.Status)})
 	}
 	now := s.now().UTC()
 	switch {
+	case in.Verdict == domain.QAVerdictPass && qa.QAVerdict == domain.QAVerdictFail:
+		return domain.Plan{}, "", apierr.Conflict("PLAN_QA_HAS_FAILURES", "This QA round already recorded failures; it cannot also pass", nil)
 	case in.Verdict == domain.QAVerdictPass:
 		qa.Status = domain.MilestoneStatusDone
 		qa.QAVerdict = domain.QAVerdictPass
@@ -828,7 +844,10 @@ func (s *Service) qaResultLocked(ctx context.Context, id domain.PlanID, in QARes
 	if err := s.store.UpdateMilestone(ctx, target); err != nil {
 		return domain.Plan{}, "", err
 	}
-	qa.Status = domain.MilestoneStatusPending
+	// QA keeps running so it can record its other findings; its done report
+	// sends it back to pending until the fixes are in.
+	qa.Status = domain.MilestoneStatusRunning
+	qa.QAVerdict = domain.QAVerdictFail
 	qa.UpdatedAt = now
 	if err := s.store.UpdateMilestone(ctx, qa); err != nil {
 		return domain.Plan{}, "", err
