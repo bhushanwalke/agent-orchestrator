@@ -241,7 +241,11 @@ describe("SessionsBoard plans", () => {
 		const card = within(working).getByTestId("board-plan-card");
 		expect(within(card).getByText("TODO app MVP")).toBeInTheDocument();
 		expect(within(card).getByText("Implementing 1/3")).toBeInTheDocument();
-		expect(within(card).getAllByText("1/4 milestones").length).toBeGreaterThan(0);
+		// The count is a compact metric so the status phrase keeps its width.
+		const metric = within(card).getByTestId("plan-milestone-metric");
+		expect(metric).toHaveTextContent("1/4");
+		expect(metric).toHaveAttribute("title", "1 of 4 milestones done");
+		expect(within(metric).getByText("1 of 4 milestones done")).toHaveClass("sr-only");
 		expect(within(card).getAllByTestId("plan-agent-avatar")).toHaveLength(2);
 		expect(within(card).getByText("#7")).toBeInTheDocument();
 		expect(within(card).queryByText(/ao\//)).toBeNull();

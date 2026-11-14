@@ -4827,7 +4827,6 @@
 	"newTask.plan.attach": "Add attachment",
 	"newTask.plan.attachUnsupported": "Plans don't take attachments yet",
 	"newTask.plan.failed": "Couldn't start the plan",
-	"board.plans.milestones": "{{done}}/{{total}} milestones",
 	"board.plans.morePrs": "+{{n}} more PRs",
 	"board.plans.updatedAt": "Updated {{time}}",
 	"board.plans.showSessions": "Show agent sessions",
@@ -4902,5 +4901,8 @@
 	"plan.events.kind.plan_done_notified": "Orchestrator told the Task is done",
 	"plan.events.kind.plan_cancelled": "Task cancelled",
 	"plan.events.kind.sparse_disabled": "{{title}} uses a full checkout",
-	"plan.events.kind.other": "{{title}} {{kind}}"
+	"plan.events.kind.other": "{{title}} {{kind}}",
+	"board.plans.milestonesDone": "{{done}} of {{total}} milestones done",
+	"board.plans.milestonesCompact": "{{done}}/{{total}}",
+	"board.plans.morePrsShort": "+{{n}} PRs"
 }

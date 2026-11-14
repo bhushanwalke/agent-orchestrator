@@ -14,6 +14,7 @@ import {
 	type ProductUITranslator,
 } from "@aoagents/product-ui";
 import { Archive, Check, Copy, File, GitBranch, LoaderCircle, RotateCcw, Trash2 } from "@/components/app-icons";
+import { ListChecks } from "lucide-react";
 import type { MessageKey } from "../i18n";
 import { apiClient, apiErrorMessage } from "../lib/api-client";
 import { aoBridge } from "../lib/bridge";
@@ -997,8 +998,13 @@ export function BoardPlanCardAdapter({
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	const prs = plan.prs ?? [];
 	const extraPrs = Math.max(0, prs.length - PLAN_CARD_PRS);
-	const milestones = t("board.plans.milestones", { done: plan.milestoneCounts.done, total: plan.milestoneCounts.total });
+	const counts = { done: plan.milestoneCounts.done, total: plan.milestoneCounts.total };
+	// A compact metric (checklist icon and "k/n", full count in the title) so the
+	// status phrase keeps its width in the footer.
+	const milestones = t("board.plans.milestonesDone", counts);
 	const progress = extraPrs > 0 ? `${milestones} · ${t("board.plans.morePrs", { n: extraPrs })}` : milestones;
+	const compact = t("board.plans.milestonesCompact", counts);
+	const compactProgress = extraPrs > 0 ? `${compact} · ${t("board.plans.morePrsShort", { n: extraPrs })}` : compact;
 	const card = (
 		<SessionCardView
 			externalLink={ProductExternalLink}
@@ -1013,7 +1019,14 @@ export function BoardPlanCardAdapter({
 			renderAvatar={() => <PlanAvatarStrip sessions={plan.liveSessions} />}
 			session={item}
 			translate={translate}
-			usage={{ accessibleLabel: progress, compactLabel: progress }}
+			renderUsage={(usage) => (
+				<span className="inline-flex items-center gap-1 tabular-nums" data-testid="plan-milestone-metric" title={usage.accessibleLabel}>
+					<ListChecks aria-hidden="true" className="size-icon-2xs" />
+					<span className="sr-only">{usage.accessibleLabel}</span>
+					<span aria-hidden="true">{usage.compactLabel}</span>
+				</span>
+			)}
+			usage={{ accessibleLabel: progress, compactLabel: compactProgress }}
 		/>
 	);
 	return (
