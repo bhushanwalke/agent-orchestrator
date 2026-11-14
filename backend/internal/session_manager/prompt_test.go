@@ -456,12 +456,16 @@ func TestOrchestratorPromptTeachesPlans(t *testing.T) {
 		"5. Activate with `ao plan activate PLAN`", "<ao-plan-done>", "`ao plan get PLAN`", "`ao plan events PLAN`",
 		"6. When the plan is done, summarise the outcome and PR links for the human.",
 		"When you receive <ao-milestone-blocked>, act on it in that turn:",
+		"Use `--sparse` when the repository has more than roughly 200 tracked files or is a monorepo, listing the directories the milestone edits plus those it must read or build; for small repositories leave it off.",
 		"When you receive <ao-milestone-failed>, act on it in that turn:",
 		"Never implement milestones yourself. Never activate a plan without at least one implement milestone and a description for each.",
 	} {
 		if !strings.Contains(got, want) {
 			t.Fatalf("orchestrator prompt missing %q", want)
 		}
+	}
+	if strings.Contains(got, "when unsure, leave `--sparse` off") {
+		t.Fatal("the prompt still makes --sparse opt-in")
 	}
 	// --sparse is repeatable and never split on commas.
 	if strings.Contains(got, "--sparse src/api,src/shared") {
