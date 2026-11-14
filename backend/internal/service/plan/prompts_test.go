@@ -99,3 +99,10 @@ func TestPromptsAskForTheVerificationFirstInDoneNotes(t *testing.T) {
 		t.Fatalf("PromptNoteMaxBytes = %d", PromptNoteMaxBytes)
 	}
 }
+
+func TestQAPromptFallsBackWhenTheBrowserIsUnavailable(t *testing.T) {
+	want := "Use `ao preview` and `ao browser` when available; if they report AGENT_BROWSER_NOT_INSTALLED or the Browser panel is unavailable, exercise the UI with your own headless browser or HTTP checks and say which you used."
+	if got := qaPrompt(samplePromptPlan(), nil); !strings.Contains(got, want) {
+		t.Fatalf("qa prompt lacks the browser fallback:\n%s", got)
+	}
+}

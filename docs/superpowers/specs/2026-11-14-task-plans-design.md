@@ -320,7 +320,7 @@ Ticket: {ticketRef}
 
 ## Your job
 1. Merge every milestone branch above into your branch, in the order listed (`git merge <branch>`). Resolve trivial conflicts; if a conflict is substantive, record a fail for the milestone that caused it.
-2. Build the project, run the full test suite, and exercise the feature end to end as a user would (use `ao preview` and `ao browser` for web apps). Compare the behaviour against the ticket and the plan spec:
+2. Build the project, run the full test suite, and exercise the feature end to end as a user would. Use `ao preview` and `ao browser` when available; if they report AGENT_BROWSER_NOT_INSTALLED or the Browser panel is unavailable, exercise the UI with your own headless browser or HTTP checks and say which you used. Compare the behaviour against the ticket and the plan spec:
 {spec_markdown, clipped to 8000 chars}
 3. For each defect, record it against the milestone whose change caused it:
    `ao plan qa-result {planId} --fail --milestone <key> --note "<steps to reproduce, expected, actual, file hints>"`

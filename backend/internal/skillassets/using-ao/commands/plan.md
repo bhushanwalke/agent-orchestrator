@@ -55,7 +55,7 @@ If a worker's session ends without a done report, AO starts a new worker for the
 Only the plan's QA session may run `ao plan qa-result`, and the session id comes from `AO_SESSION_ID`.
 
 1. Merge every milestone branch from your prompt into your branch, in the order listed.
-2. Build, run the full test suite, and exercise the feature against the ticket and the plan spec (`ao preview` and `ao browser` for web apps).
+2. Build, run the full test suite, and exercise the feature against the ticket and the plan spec (`ao preview` and `ao browser` for web apps when available; if they report AGENT_BROWSER_NOT_INSTALLED, use your own headless browser or HTTP checks and say which).
 3. Record one `--fail --milestone <key> --note "<steps, expected, actual, file hints>"` per milestone that has defects, putting all of that milestone's defects in one note. Use `--pass --note "<what you verified>"` when everything works. A round that recorded a failure cannot also pass (`PLAN_QA_HAS_FAILURES`).
 4. Finish with `ao report --done --note "<summary>"`. Do not open pull requests and do not push.
 
