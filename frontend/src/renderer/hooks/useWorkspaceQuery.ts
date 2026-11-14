@@ -106,6 +106,8 @@ export function toWorkspaceSession(
 		id: session.id,
 		terminalHandleId: session.terminalHandleId,
 		terminalGeneration: session.terminalGeneration,
+		...(session.planId ? { planId: session.planId, planMilestoneId: session.planMilestoneId } : {}),
+		...(session.sparsePaths?.length ? { sparsePaths: session.sparsePaths } : {}),
 		workspaceId: project.id,
 		workspaceName: project.name,
 		title: session.terminalTitle ?? session.displayName ?? session.issueId ?? session.id,
