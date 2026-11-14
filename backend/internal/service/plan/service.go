@@ -42,6 +42,12 @@ const (
 	EventPlanDone            = "plan_done"
 	EventPlanCancelled       = "plan_cancelled"
 	EventSparseDisabled      = "sparse_disabled"
+	// Triage of an auto Task (intake modes addendum).
+	EventTriageRequested   = "triage_requested"
+	EventTriageDecided     = "triage_decided"
+	EventTriageReminder    = "triage_reminder"
+	EventDirectSpawned     = "direct_spawned"
+	EventDirectSpawnFailed = "direct_spawn_failed"
 )
 
 const (
@@ -76,6 +82,9 @@ type Service struct {
 	retryMu       sync.Mutex
 	retrying      map[domain.PlanID]bool
 	kickoffMu     sync.Mutex
+	// triageMu serialises triage decisions end to end, spawn included, so a
+	// plan is decided (and its direct worker spawned) at most once.
+	triageMu sync.Mutex
 
 	reports       ReportReader
 	workspaces    Workspaces
@@ -140,6 +149,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 	if err := validateMaxParallel(maxParallel); err != nil {
 		return domain.Plan{}, err
 	}
+	mode, state := domain.PlanIntakePlan, domain.PlanStatePlanning
+	switch in.Mode {
+	case "", domain.PlanIntakePlan:
+	case domain.PlanIntakeAuto:
+		mode, state = domain.PlanIntakeAuto, domain.PlanStateTriage
+	default:
+		return domain.Plan{}, apierr.Invalid("INVALID_PLAN_MODE", "mode must be plan or auto; a direct Task is a session, not a plan", map[string]any{"field": "mode"})
+	}
 	project, err := s.requireProject(ctx, in.ProjectID)
 	if err != nil {
 		return domain.Plan{}, err
@@ -152,7 +169,8 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 		Title:       title,
 		Brief:       in.Brief,
 		TicketRef:   ticket,
-		State:       domain.PlanStatePlanning,
+		State:       state,
+		IntakeMode:  mode,
 		MaxParallel: maxParallel,
 		CreatedAt:   now,
 		UpdatedAt:   now,
@@ -161,6 +179,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 		return domain.Plan{}, storeError(err)
 	}
 	s.recordEvent(ctx, p.ID, "", "", EventPlanCreated, "")
+	if state == domain.PlanStateTriage {
+		s.recordEvent(ctx, p.ID, "", "", EventTriageRequested, "")
+	}
 
 	orch, err := s.sessions.EnsureOrchestrator(ctx, p.ProjectID)
 	if err != nil {
@@ -195,7 +216,11 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 // deliverKickoff sends the orchestrator the plan request through the guarded
 // path, recording kickoff_sent when it lands.
 func (s *Service) deliverKickoff(ctx context.Context, p domain.Plan, project domain.ProjectRecord) error {
-	err := s.sessions.Send(ctx, p.OrchestratorSessionID, KickoffMessage(p, projectName(project)), ports.MessageDeliveryOptions{})
+	msg := KickoffMessage(p, projectName(project))
+	if p.State == domain.PlanStateTriage {
+		msg = planTriageMessage(p, projectName(project))
+	}
+	err := s.sessions.Send(ctx, p.OrchestratorSessionID, msg, ports.MessageDeliveryOptions{})
 	if err != nil {
 		s.logger.Info("plan kickoff refused", "plan", p.ID, "error", err)
 		return err
@@ -204,9 +229,9 @@ func (s *Service) deliverKickoff(ctx context.Context, p domain.Plan, project dom
 	return nil
 }
 
-// RetryDeferredKickoff tries once more to deliver a planning plan's kickoff
-// that has not landed yet. It reports whether the kickoff is now delivered
-// (or no longer needed because the plan left planning).
+// RetryDeferredKickoff tries once more to deliver a planning or triage plan's
+// kickoff that has not landed yet. It reports whether the kickoff is now
+// delivered (or no longer needed because the plan moved on).
 func (s *Service) RetryDeferredKickoff(ctx context.Context, id domain.PlanID) (bool, error) {
 	// Check-then-deliver must be atomic so the background retry and a
 	// scheduler tick cannot both deliver the same kickoff.
@@ -216,7 +241,7 @@ func (s *Service) RetryDeferredKickoff(ctx context.Context, id domain.PlanID) (b
 	if err != nil {
 		return false, err
 	}
-	if p.State != domain.PlanStatePlanning {
+	if p.State != domain.PlanStatePlanning && p.State != domain.PlanStateTriage {
 		return true, nil
 	}
 	sent, err := s.kickoffSent(ctx, id)
@@ -246,19 +271,25 @@ func (s *Service) RetryDeferredKickoff(ctx context.Context, id domain.PlanID) (b
 }
 
 func (s *Service) kickoffSent(ctx context.Context, id domain.PlanID) (bool, error) {
+	_, sent, err := s.kickoffSentAt(ctx, id)
+	return sent, err
+}
+
+// kickoffSentAt finds when the plan's first kickoff landed.
+func (s *Service) kickoffSentAt(ctx context.Context, id domain.PlanID) (time.Time, bool, error) {
 	var after int64
 	for {
 		evs, err := s.store.ListPlanEvents(ctx, id, after, MaxEventsPage)
 		if err != nil {
-			return false, err
+			return time.Time{}, false, err
 		}
 		for _, e := range evs {
 			if e.Kind == EventKickoffSent {
-				return true, nil
+				return e.CreatedAt, true, nil
 			}
 		}
 		if len(evs) < MaxEventsPage {
-			return false, nil
+			return time.Time{}, false, nil
 		}
 		after = evs[len(evs)-1].ID
 	}
@@ -689,7 +720,8 @@ func (s *Service) cancelLocked(ctx context.Context, id domain.PlanID) (domain.Pl
 	if err != nil {
 		return domain.Plan{}, err
 	}
-	if p.State == domain.PlanStateCancelled {
+	// A direct Task is finished; its worker is an ordinary session.
+	if p.State == domain.PlanStateCancelled || p.State == domain.PlanStateDirect {
 		return p, nil
 	}
 	ms, err := s.store.ListMilestones(ctx, p.ID)

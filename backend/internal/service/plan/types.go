@@ -93,6 +93,9 @@ type CreateInput struct {
 	TicketRef string
 	// MaxParallel nil uses DefaultPlanMaxParallel; any value must be 1-10.
 	MaxParallel *int
+	// Mode is plan (the zero value) or auto, which asks the orchestrator to
+	// triage the Task first.
+	Mode domain.PlanIntakeMode
 }
 
 // Patch edits a plan. Nil fields are left alone.

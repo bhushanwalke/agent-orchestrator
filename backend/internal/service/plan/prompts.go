@@ -3,6 +3,7 @@ package plan
 import (
 	"fmt"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -174,6 +175,54 @@ QA found problems with your milestone %q:
 
 Fix them on your current branch, rebuild, rerun the relevant tests, push the fix to your PR if one exists, then `+"`ao report --done --note \"<what you changed>\"`"+`. QA will run again after all fixes are in.
 </ao-qa-defect>`, string(p.ID), m.Key, m.Title, strings.TrimSpace(m.QANote))
+}
+
+// directBrief is the composed brief a direct worker starts with: the words
+// the plan request shows the orchestrator, so direct and plan workers read
+// the same Task.
+func directBrief(p domain.Plan) string {
+	var b strings.Builder
+	fmt.Fprintf(&b, "Task: %s\n\n%s", p.Title, strings.TrimSpace(p.Brief))
+	if ref := strings.TrimSpace(p.TicketRef); ref != "" {
+		fmt.Fprintf(&b, "\n\nTicket: %s", ref)
+	}
+	return b.String()
+}
+
+// planTriageMessage asks the orchestrator to decide how an auto Task runs. It
+// carries everything the plan request does, so a plan decision continues in
+// the same turn.
+func planTriageMessage(p domain.Plan, projectName string) string {
+	return fmt.Sprintf(`<ao-plan-triage id="%[1]s">
+A new Task was created for project %[2]s, and you decide how to run it.
+
+Title: %[3]s
+Ticket: %[4]s
+
+%[5]s
+
+Decide now. Follow the "Plans (Tasks)" section of your standing instructions:
+- One worker: `+"`ao plan triage %[1]s --direct --reason \"<one sentence>\"`"+`. AO spawns one worker with this brief; you are done until it reports.
+- A plan: `+"`ao plan triage %[1]s --plan --reason \"<one sentence>\"`"+`, then plan it in this turn: investigate the repository,
+  spawn research workers in parallel if the ticket is broad (attach each with `+"`ao spawn --plan %[1]s ...`"+`, and kill
+  them once their findings are in the plan), write the plan with `+"`ao plan set-spec %[1]s --file <plan.md>`"+`,
+  register milestones with `+"`ao plan milestone add %[1]s ...`"+`, then `+"`ao plan activate %[1]s`"+`.
+</ao-plan-triage>`, p.ID, projectName, p.Title, ticketLine(p), strings.TrimSpace(p.Brief))
+}
+
+// planTriageReminderMessage reminds the orchestrator of an undecided Task.
+func planTriageReminderMessage(p domain.Plan) string {
+	return fmt.Sprintf(`<ao-plan-triage-reminder id="%[1]s">
+Task %[2]q (plan %[1]s) has waited %[3]d minutes for your decision. Decide now with `+"`ao plan triage %[1]s --direct --reason \"...\"`"+` or `+"`ao plan triage %[1]s --plan --reason \"...\"`"+` (then plan it), or tell the human why you cannot.
+</ao-plan-triage-reminder>`, p.ID, p.Title, int(TriageReminderAfter/time.Minute))
+}
+
+// planTriageFailedMessage reports a direct worker that could not start.
+func planTriageFailedMessage(p domain.Plan, cause string) string {
+	return fmt.Sprintf(`<ao-plan-triage-failed id="%[1]s">
+The worker for Task %[2]q (plan %[1]s) could not start: %[3]s
+The Task is still waiting for a decision. Run `+"`ao plan triage %[1]s --direct`"+` again once the cause is fixed, choose `+"`--plan`"+`, or `+"`ao plan cancel %[1]s`"+`.
+</ao-plan-triage-failed>`, p.ID, p.Title, clipNote(strings.TrimSpace(cause), PromptNoteMaxBytes))
 }
 
 // qaOutcome is the passed QA round as the plan done notice reports it.

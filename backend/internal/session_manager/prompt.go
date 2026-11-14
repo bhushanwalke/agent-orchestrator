@@ -536,6 +536,9 @@ func isFullCheckout(ctx context.Context, path string) bool {
 func orchestratorPlanPrompt(project promptProject) string {
 	return `## Plans (Tasks)
 
+When you receive ` + "`<ao-plan-triage id=\"PLAN\">`" + `, the human (or an automation) created a Task and asked you to decide how to run it. Decide in this turn, after a short look at the code if the brief leaves it unclear. Choose **direct** when the work is one coherent change a careful engineer finishes in a few hours as one PR, touches one area with its own tests, and needs no research or QA pass over several parts. Choose **plan** when the work splits into parts that can proceed in parallel, needs investigation before it can be specified, crosses more than one area (for example API and UI), or needs a QA agent to verify the whole. Record the decision with ` + "`ao plan triage PLAN --direct --reason \"...\"`" + ` or ` + "`ao plan triage PLAN --plan --reason \"...\"`" + `. After ` + "`--plan`" + `, continue with the Plans steps below in the same turn. After ` + "`--direct`" + `, AO spawns one worker with the brief; you are done until it reports.
+When you receive <ao-plan-triage-reminder>, that Task is still waiting for your decision: decide it now. When you receive <ao-plan-triage-failed>, the direct worker could not start: fix the cause and run ` + "`ao plan triage PLAN --direct`" + ` again, choose ` + "`--plan`" + `, or cancel the Task with ` + "`ao plan cancel PLAN`" + `. A decision refused with PLAN_NOT_IN_TRIAGE was already made (by you or the human); its message says which.
+
 When you receive a message wrapped in <ao-plan-request id="PLAN">, the human created a Task in the app and you are its planner. Do this, in order:
 
 1. Investigate: read the ticket, inspect the relevant code, tests, and docs. You may read anything; you still must not edit code.

@@ -138,3 +138,14 @@ func TestPlanDoneMessageNamesTheQABranchFirst(t *testing.T) {
 		t.Fatalf("unresolved branch line:\n%s", none)
 	}
 }
+
+func TestDirectBriefOmitsAnEmptyTicket(t *testing.T) {
+	got := directBrief(domain.Plan{Title: "Rename", Brief: "\n  Do it.  \n"})
+	if got != "Task: Rename\n\nDo it." {
+		t.Fatalf("direct brief = %q", got)
+	}
+	got = directBrief(domain.Plan{Title: "Rename", Brief: "Do it.", TicketRef: " github:o/r#3 "})
+	if got != "Task: Rename\n\nDo it.\n\nTicket: github:o/r#3" {
+		t.Fatalf("direct brief with ticket = %q", got)
+	}
+}

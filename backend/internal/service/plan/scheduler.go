@@ -30,8 +30,9 @@ func (s *Service) Wake() {
 // WakeC is the channel Wake signals; the plan observer polls when it fires.
 func (s *Service) WakeC() <-chan struct{} { return s.wake }
 
-// Tick runs one scheduling pass: deferred kickoffs of planning plans, then
-// every active plan in creation order. Ticks never overlap.
+// Tick runs one scheduling pass: deferred kickoffs of planning and triage
+// plans and the triage reminder, then every active plan in creation order.
+// Direct and cancelled plans are never ticked. Ticks never overlap.
 func (s *Service) Tick(ctx context.Context, _ time.Time) error {
 	s.tickMu.Lock()
 	defer s.tickMu.Unlock()
@@ -41,11 +42,14 @@ func (s *Service) Tick(ctx context.Context, _ time.Time) error {
 	}
 	var errs []error
 	for _, p := range all {
-		if p.State != domain.PlanStatePlanning {
+		if p.State != domain.PlanStatePlanning && p.State != domain.PlanStateTriage {
 			continue
 		}
 		if _, err := s.RetryDeferredKickoff(ctx, p.ID); err != nil {
 			errs = append(errs, fmt.Errorf("plan %s kickoff: %w", p.ID, err))
+		}
+		if err := s.triageReminder(ctx, p); err != nil {
+			errs = append(errs, fmt.Errorf("plan %s triage reminder: %w", p.ID, err))
 		}
 	}
 	active, err := s.store.ListActivePlans(ctx)

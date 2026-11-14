@@ -14,6 +14,9 @@ type Store interface {
 	ListPlans(ctx context.Context, projectID domain.ProjectID) ([]domain.Plan, error)
 	ListActivePlans(ctx context.Context) ([]domain.Plan, error)
 	UpdatePlan(ctx context.Context, p domain.Plan) error
+	// DecidePlanTriage writes a triage decision only while the stored plan is
+	// in triage, reporting whether this call recorded it.
+	DecidePlanTriage(ctx context.Context, p domain.Plan) (bool, error)
 	InsertMilestone(ctx context.Context, m domain.Milestone) error
 	UpdateMilestone(ctx context.Context, m domain.Milestone) error
 	DeleteMilestone(ctx context.Context, id domain.MilestoneID) error

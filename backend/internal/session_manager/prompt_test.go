@@ -445,6 +445,23 @@ func TestSparseCheckoutPrompt(t *testing.T) {
 	}
 }
 
+func TestOrchestratorPromptTeachesTriageBeforePlanSteps(t *testing.T) {
+	got := buildSystemPromptText(systemPromptConfig{Role: sessionPromptRoleOrchestrator, Project: promptProject{ID: "todo", Name: "Todo"}})
+	want := "When you receive `<ao-plan-triage id=\"PLAN\">`, the human (or an automation) created a Task and asked you to decide how to run it. Decide in this turn, after a short look at the code if the brief leaves it unclear. Choose **direct** when the work is one coherent change a careful engineer finishes in a few hours as one PR, touches one area with its own tests, and needs no research or QA pass over several parts. Choose **plan** when the work splits into parts that can proceed in parallel, needs investigation before it can be specified, crosses more than one area (for example API and UI), or needs a QA agent to verify the whole. Record the decision with `ao plan triage PLAN --direct --reason \"...\"` or `ao plan triage PLAN --plan --reason \"...\"`. After `--plan`, continue with the Plans steps below in the same turn. After `--direct`, AO spawns one worker with the brief; you are done until it reports."
+	at := strings.Index(got, want)
+	if at < 0 {
+		t.Fatalf("orchestrator prompt missing the triage rule:\n%s", got)
+	}
+	if steps := strings.Index(got, "1. Investigate:"); at > steps {
+		t.Fatal("the triage rule must come before the Plans steps")
+	}
+	for _, notice := range []string{"<ao-plan-triage-reminder>", "<ao-plan-triage-failed>"} {
+		if !strings.Contains(got, notice) {
+			t.Fatalf("orchestrator prompt does not explain %s", notice)
+		}
+	}
+}
+
 func TestOrchestratorPromptTeachesPlans(t *testing.T) {
 	got := buildSystemPromptText(systemPromptConfig{Role: sessionPromptRoleOrchestrator, Project: promptProject{ID: "todo", Name: "Todo"}})
 	for _, want := range []string{
