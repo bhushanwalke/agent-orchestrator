@@ -740,11 +740,11 @@ func TestUpdateAndCancelReturnDerivedSummary(t *testing.T) {
 	}
 	mp := 4
 	sum, err := f.svc.Update(ctx, p.ID, plan.Patch{MaxParallel: &mp})
-	if err != nil || sum.Plan.MaxParallel != 4 || sum.Counts.Total != 3 || string(sum.DisplayStatus) != "Implementing 1/2" {
+	if err != nil || sum.Plan.MaxParallel != 4 || sum.Counts.Total != 2 || string(sum.DisplayStatus) != "Implementing 1/2" {
 		t.Fatalf("update summary = %+v err=%v", sum, err)
 	}
 	sum, err = f.svc.Cancel(ctx, p.ID)
-	if err != nil || sum.Phase != domain.PlanPhaseCancelled || sum.Counts.Done != 1 || sum.Counts.Total != 3 {
+	if err != nil || sum.Phase != domain.PlanPhaseCancelled || sum.Counts.Done != 1 || sum.Counts.Total != 2 {
 		t.Fatalf("cancel summary = %+v err=%v", sum, err)
 	}
 }
@@ -849,7 +849,8 @@ func TestQADependsOnIsRejectedAndDerivedOnRead(t *testing.T) {
 		}
 	}
 	list, _ := f.svc.List(ctx, "mer")
-	if len(list) != 1 || list[0].Counts.Total != 4 {
+	// Counts are implementation milestones; QA reads as the phase.
+	if len(list) != 1 || list[0].Counts.Total != 3 {
 		t.Fatalf("list = %+v", list)
 	}
 }

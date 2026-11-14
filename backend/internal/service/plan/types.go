@@ -130,7 +130,8 @@ type QAResultInput struct {
 	SessionID    domain.SessionID
 }
 
-// MilestoneCounts summarises a plan's milestones by status.
+// MilestoneCounts summarises a plan's implementation milestones by status;
+// the qa milestone is conveyed by the phase.
 type MilestoneCounts struct {
 	Total, Done, Running, Failed, Blocked int
 }

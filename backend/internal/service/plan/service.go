@@ -960,17 +960,6 @@ func summarize(p domain.Plan, views []MilestoneView) Summary {
 	for _, v := range views {
 		m := v.Milestone
 		ms = append(ms, m)
-		sum.Counts.Total++
-		switch m.Status {
-		case domain.MilestoneStatusDone:
-			sum.Counts.Done++
-		case domain.MilestoneStatusRunning:
-			sum.Counts.Running++
-		case domain.MilestoneStatusFailed:
-			sum.Counts.Failed++
-		case domain.MilestoneStatusBlocked:
-			sum.Counts.Blocked++
-		}
 		if v.Session != nil && !v.Session.IsTerminated {
 			sum.LiveSessions = append(sum.LiveSessions, *v.Session)
 		}
@@ -981,6 +970,21 @@ func summarize(p domain.Plan, views []MilestoneView) Summary {
 					sum.PRs = append(sum.PRs, pr)
 				}
 			}
+		}
+		// Counts are implementation milestones; QA reads as the phase.
+		if m.Kind != domain.MilestoneKindImplement {
+			continue
+		}
+		sum.Counts.Total++
+		switch m.Status {
+		case domain.MilestoneStatusDone:
+			sum.Counts.Done++
+		case domain.MilestoneStatusRunning:
+			sum.Counts.Running++
+		case domain.MilestoneStatusFailed:
+			sum.Counts.Failed++
+		case domain.MilestoneStatusBlocked:
+			sum.Counts.Blocked++
 		}
 	}
 	sum.Phase = domain.DerivePlanPhase(p, ms)

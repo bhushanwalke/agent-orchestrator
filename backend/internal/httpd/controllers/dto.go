@@ -4798,7 +4798,8 @@ type PlanSessionSummary struct {
 	IsTerminated  bool   `json:"isTerminated"`
 }
 
-// PlanMilestoneCounts summarises a plan's milestones by status.
+// PlanMilestoneCounts summarises a plan's implementation milestones by
+// status; the qa milestone is conveyed by the phase.
 type PlanMilestoneCounts struct {
 	Total   int `json:"total"`
 	Done    int `json:"done"`
