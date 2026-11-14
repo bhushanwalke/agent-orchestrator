@@ -735,8 +735,25 @@ func (s *Service) retryLocked(ctx context.Context, id domain.PlanID, key string)
 	}
 	m := ms[idx]
 	blockedQA := m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusBlocked
-	if p.State != domain.PlanStateActive || (m.Status != domain.MilestoneStatusFailed && !blockedQA) {
-		return domain.Plan{}, apierr.Conflict("MILESTONE_NOT_RETRYABLE", "Only a failed milestone, or a blocked qa milestone, of an active plan can be retried", nil)
+	// Re-running QA after it passed (the run view's "Re-run QA") checks the
+	// built work again on a fresh QA worker.
+	passedQA := m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusDone && implementDone(ms)
+	if p.State != domain.PlanStateActive || (m.Status != domain.MilestoneStatusFailed && !blockedQA && !passedQA) {
+		return domain.Plan{}, apierr.Conflict("MILESTONE_NOT_RETRYABLE", "Only a failed milestone, a blocked qa milestone, or a finished qa milestone of an active plan can be retried", nil)
+	}
+	if passedQA {
+		m.QAVerdict = domain.QAVerdictNone
+		m.QANote = ""
+		m.FinishedAt = nil
+		if p.FinishedAt != nil {
+			p, err = s.mutatePlan(ctx, p.ID, func(p *domain.Plan) error {
+				p.FinishedAt = nil
+				return nil
+			})
+			if err != nil {
+				return domain.Plan{}, err
+			}
+		}
 	}
 	m.Status = domain.MilestoneStatusReady
 	// A fresh budget without reusing a spawn request id.
@@ -747,6 +764,15 @@ func (s *Service) retryLocked(ctx context.Context, id domain.PlanID, key string)
 	}
 	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneReady, "retry requested")
 	return p, nil
+}
+
+func implementDone(ms []domain.Milestone) bool {
+	for _, m := range ms {
+		if m.Kind == domain.MilestoneKindImplement && m.Status != domain.MilestoneStatusDone {
+			return false
+		}
+	}
+	return true
 }
 
 // RecordQAResult records the QA worker's verdict. Only the session that owns

@@ -213,3 +213,26 @@ func TestSummaryCollectsMilestonePRs(t *testing.T) {
 		t.Fatalf("plan PRs = %+v err=%v", list, err)
 	}
 }
+
+// Re-running QA from the run view: a passed (or failed/blocked) qa milestone
+// can be retried once every implement milestone is done; a pending one cannot.
+func TestRerunQAAfterItPassed(t *testing.T) {
+	f := flowFixture(t, domain.ProjectConfig{})
+	ctx := context.Background()
+	id, qaSess := toQA(t, f)
+	if _, err := f.svc.RecordQAResult(ctx, id, planQAPass(qaSess)); err != nil {
+		t.Fatal(err)
+	}
+	tick(t, f)
+	if _, err := f.svc.RetryMilestone(ctx, id, "qa"); err != nil {
+		t.Fatalf("re-run QA: %v", err)
+	}
+	qa := milestones(t, f, id)["qa"]
+	if qa.Status != domain.MilestoneStatusRunning || qa.SessionID == qaSess || qa.QAVerdict != domain.QAVerdictNone {
+		t.Fatalf("re-run qa = %+v", qa)
+	}
+	f2 := flowFixture(t, domain.ProjectConfig{})
+	id2 := activePlan(t, f2, 3, msSpec{key: "m1"})
+	_, err := f2.svc.RetryMilestone(ctx, id2, "qa")
+	wantCode(t, err, "MILESTONE_NOT_RETRYABLE")
+}
