@@ -210,12 +210,41 @@ func (m Milestone) Validate() error {
 			return milestoneFieldError("sparsePaths", "%q: %s", p, err.Error())
 		}
 	}
+	if m.Kind == MilestoneKindQA && len(m.DependsOn) > 0 {
+		return milestoneFieldError("dependsOn", "the qa milestone depends on every implement milestone; it takes no explicit dependencies")
+	}
 	for _, dep := range m.DependsOn {
 		if dep == m.Key {
 			return milestoneFieldError("dependsOn", "a milestone cannot depend on itself")
 		}
 	}
 	return nil
+}
+
+// WithDerivedQADeps returns ms with the qa milestone's DependsOn set to every
+// implement milestone's key in ordinal order. The qa dependencies are implicit
+// and never stored; read paths call this so they are reported consistently.
+func WithDerivedQADeps(ms []Milestone) []Milestone {
+	out := make([]Milestone, len(ms))
+	copy(out, ms)
+	var keys []string
+	for _, m := range sortedByOrdinal(ms) {
+		if m.Kind == MilestoneKindImplement {
+			keys = append(keys, m.Key)
+		}
+	}
+	for i := range out {
+		if out[i].Kind == MilestoneKindQA {
+			out[i].DependsOn = append([]string{}, keys...)
+		}
+	}
+	return out
+}
+
+func sortedByOrdinal(ms []Milestone) []Milestone {
+	sorted := append([]Milestone(nil), ms...)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].Ordinal < sorted[j].Ordinal })
+	return sorted
 }
 
 // PlanGraphError reports why a plan's milestone graph cannot run.

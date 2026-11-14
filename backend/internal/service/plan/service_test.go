@@ -737,3 +737,42 @@ func TestMilestoneCapLeavesRoomForQA(t *testing.T) {
 		t.Fatalf("activate with %d implement milestones: %v", domain.MaxPlanMilestones-1, err)
 	}
 }
+
+func TestQADependsOnIsRejectedAndDerivedOnRead(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	p := createPlan(t, f)
+	addMs(t, f, p.ID, "a1")
+	addMs(t, f, p.ID, "b1")
+	_, err := f.svc.AddMilestone(ctx, p.ID, plan.MilestoneInput{Key: "qa", Kind: domain.MilestoneKindQA, Title: "QA", DependsOn: []string{"a1"}})
+	if ae := wantCode(t, err, "INVALID_MILESTONE"); ae.Details["field"] != "dependsOn" {
+		t.Fatalf("details = %+v", ae.Details)
+	}
+	qa, err := f.svc.AddMilestone(ctx, p.ID, plan.MilestoneInput{Key: "qa", Kind: domain.MilestoneKindQA, Title: "QA"})
+	if err != nil || fmt.Sprint(qa.DependsOn) != "[a1 b1]" {
+		t.Fatalf("added qa = %+v err=%v", qa, err)
+	}
+	deps := []string{"b1"}
+	_, err = f.svc.UpdateMilestone(ctx, p.ID, "qa", plan.MilestonePatch{DependsOn: &deps})
+	if ae := wantCode(t, err, "INVALID_MILESTONE"); ae.Details["field"] != "dependsOn" {
+		t.Fatalf("details = %+v", ae.Details)
+	}
+	addMs(t, f, p.ID, "c1")
+	d, err := f.svc.Activate(ctx, p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := d.Milestones[2].Milestone; got.Key != "qa" || fmt.Sprint(got.DependsOn) != "[a1 b1 c1]" {
+		t.Fatalf("qa deps on read = %+v", got)
+	}
+	stored, _ := f.store.ListMilestones(ctx, p.ID)
+	for _, m := range stored {
+		if m.Kind == domain.MilestoneKindQA && len(m.DependsOn) != 0 {
+			t.Fatalf("qa deps were stored: %v", m.DependsOn)
+		}
+	}
+	list, _ := f.svc.List(ctx, "mer")
+	if len(list) != 1 || list[0].Counts.Total != 4 {
+		t.Fatalf("list = %+v", list)
+	}
+}

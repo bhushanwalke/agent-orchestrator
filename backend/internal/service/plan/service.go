@@ -446,7 +446,21 @@ func (s *Service) AddMilestone(ctx context.Context, id domain.PlanID, in Milesto
 	}
 	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneAdded, m.Key)
 	s.touchPlan(ctx, p.ID)
-	return m, nil
+	return withDerivedQADeps(m, append(ms, m)), nil
+}
+
+// withDerivedQADeps reports m as reads do: a qa milestone depends on every
+// implement milestone in all.
+func withDerivedQADeps(m domain.Milestone, all []domain.Milestone) domain.Milestone {
+	if m.Kind != domain.MilestoneKindQA {
+		return m
+	}
+	for _, d := range domain.WithDerivedQADeps(all) {
+		if d.ID == m.ID {
+			return d
+		}
+	}
+	return m
 }
 
 // UpdateMilestone edits a milestone of a plan that is still planning.
@@ -511,7 +525,7 @@ func (s *Service) UpdateMilestone(ctx context.Context, id domain.PlanID, key str
 	}
 	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneUpdated, m.Key)
 	s.touchPlan(ctx, p.ID)
-	return m, nil
+	return withDerivedQADeps(m, append(others, m)), nil
 }
 
 // RemoveMilestone deletes a milestone of a plan that is still planning. A
@@ -873,6 +887,7 @@ func (s *Service) detail(ctx context.Context, p domain.Plan) (Detail, error) {
 }
 
 func (s *Service) milestoneViews(ctx context.Context, ms []domain.Milestone) []MilestoneView {
+	ms = domain.WithDerivedQADeps(ms)
 	views := make([]MilestoneView, 0, len(ms))
 	for _, m := range ms {
 		v := MilestoneView{Milestone: m}
