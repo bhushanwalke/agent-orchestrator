@@ -2150,6 +2150,11 @@ func toSpawnAPIError(err error) error {
 	if mapped := toAPIError(err); !errors.Is(mapped, err) {
 		return mapped
 	}
+	// Mapped with its cause attached, so the check above lets it through; it
+	// must win over the generic workspace stage below.
+	if errors.Is(err, ports.ErrWorkspaceSparseCheckoutFailed) {
+		return apierr.InternalCause("WORKSPACE_SPARSE_FAILED", "Creating the sparse checkout failed; the partial worktree was removed", err)
+	}
 	// A failed Setup step already explains itself; the spawn stage prefix is noise.
 	var setupErr *sessionmanager.SetupStepError
 	if errors.As(err, &setupErr) {

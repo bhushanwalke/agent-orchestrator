@@ -3996,6 +3996,14 @@ func TestToSpawnAPIErrorMapsSpawnStageSentinels(t *testing.T) {
 			"WORKSPACE_CREATE_FAILED",
 		},
 		{
+			// The manager wraps every workspace failure in ErrWorkspaceCreate;
+			// a failed sparse checkout still keeps its own code.
+			"sparse checkout failed",
+			fmt.Errorf("spawn mer-1: %w: %w: fatal: specify directories rather than patterns", sessionmanager.ErrWorkspaceCreate, ports.ErrWorkspaceSparseCheckoutFailed),
+			apierr.KindInternal,
+			"WORKSPACE_SPARSE_FAILED",
+		},
+		{
 			"workspace provision",
 			fmt.Errorf("spawn mer-1: %w: postCreate \"pnpm install\": exit 1", sessionmanager.ErrWorkspaceProvision),
 			apierr.KindConflict,
