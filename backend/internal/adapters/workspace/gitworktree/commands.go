@@ -31,20 +31,47 @@ func fetchBranchArgs(repo, remote, branch string) []string {
 // is what keeps a lock an effective "do not touch" signal. Never pass it twice.
 const worktreeAddForce = "--force"
 
-func worktreeAddBranchArgs(repo, path, branch string, force bool) []string {
+// worktreeNoCheckout leaves a new worktree's files unwritten so a sparse cone
+// can be set before the first checkout.
+const worktreeNoCheckout = "--no-checkout"
+
+func worktreeAddBranchArgs(repo, path, branch string, force, noCheckout bool) []string {
 	args := []string{"-C", repo, "worktree", "add"}
 	if force {
 		args = append(args, worktreeAddForce)
+	}
+	if noCheckout {
+		args = append(args, worktreeNoCheckout)
 	}
 	return append(args, path, branch)
 }
 
-func worktreeAddNewBranchArgs(repo, branch, path, baseRef string, force bool) []string {
+func worktreeAddNewBranchArgs(repo, branch, path, baseRef string, force, noCheckout bool) []string {
 	args := []string{"-C", repo, "worktree", "add"}
 	if force {
 		args = append(args, worktreeAddForce)
 	}
+	if noCheckout {
+		args = append(args, worktreeNoCheckout)
+	}
 	return append(args, "-b", branch, path, baseRef)
+}
+
+func sparseInitArgs(worktree string) []string {
+	return []string{"-C", worktree, "sparse-checkout", "init", "--cone"}
+}
+
+func sparseSetArgs(worktree string, paths []string) []string {
+	return append([]string{"-C", worktree, "sparse-checkout", "set", "--"}, paths...)
+}
+
+// readTreeArgs writes the files of HEAD that the sparse cone selects.
+func readTreeArgs(worktree string) []string {
+	return []string{"-C", worktree, "read-tree", "-mu", "HEAD"}
+}
+
+func deleteBranchArgs(repo, branch string) []string {
+	return []string{"-C", repo, "branch", "-D", "--", branch}
 }
 
 // worktreeRemoveArgs intentionally omits --force: a dirty worktree (uncommitted

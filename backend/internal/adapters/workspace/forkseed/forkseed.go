@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -166,6 +167,9 @@ func DiscardChanges(ctx context.Context, worktree string) error {
 // Apply writes the seed's files into worktree, which must be checked out at
 // the seed's parent. The files stay uncommitted.
 func Apply(ctx context.Context, worktree, ref string) error {
+	if err := widenSparseCone(ctx, worktree, ref); err != nil {
+		return err
+	}
 	if _, err := run(ctx, worktree, nil, "checkout", ref, "--", "."); err != nil {
 		return fmt.Errorf("forkseed: write files: %w", err)
 	}
@@ -186,6 +190,58 @@ func Apply(ctx context.Context, worktree, ref string) error {
 		return fmt.Errorf("forkseed: unstage files: %w", err)
 	}
 	return nil
+}
+
+// widenSparseCone adds to a cone-mode sparse worktree's cone every directory
+// holding a seed change outside it, so the copied files are part of the
+// checkout rather than stray files a later sparse refresh would drop. A full
+// checkout is left alone.
+func widenSparseCone(ctx context.Context, worktree, ref string) error {
+	sparse, err := run(ctx, worktree, nil, "config", "--get", "--bool", "core.sparseCheckout")
+	if err != nil || strings.TrimSpace(sparse) != "true" {
+		return nil
+	}
+	listed, err := run(ctx, worktree, nil, "sparse-checkout", "list")
+	if err != nil {
+		return fmt.Errorf("forkseed: read sparse cone: %w", err)
+	}
+	var cone []string
+	for _, dir := range strings.Split(listed, "\n") {
+		if dir = strings.TrimSpace(dir); dir != "" {
+			cone = append(cone, dir)
+		}
+	}
+	changed, err := run(ctx, worktree, nil, "diff", "--name-only", "-z", "--no-renames", "HEAD", ref)
+	if err != nil {
+		return fmt.Errorf("forkseed: list seed changes: %w", err)
+	}
+	seen := map[string]bool{}
+	var add []string
+	for _, name := range strings.Split(changed, "\x00") {
+		dir := path.Dir(name)
+		if name == "" || dir == "." || seen[dir] || insideCone(dir, cone) {
+			continue
+		}
+		seen[dir] = true
+		add = append(add, dir)
+	}
+	if len(add) == 0 {
+		return nil
+	}
+	if _, err := run(ctx, worktree, nil, append([]string{"sparse-checkout", "add", "--"}, add...)...); err != nil {
+		return fmt.Errorf("forkseed: widen sparse cone: %w", err)
+	}
+	return nil
+}
+
+// insideCone reports whether dir is a cone directory or below one.
+func insideCone(dir string, cone []string) bool {
+	for _, c := range cone {
+		if dir == c || strings.HasPrefix(dir, c+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // ErrSnapshotMissing means no snapshot exists under the ref.

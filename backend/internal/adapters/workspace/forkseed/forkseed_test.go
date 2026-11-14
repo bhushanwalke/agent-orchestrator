@@ -323,3 +323,50 @@ func TestRestoreBaseLeavesReplayedEditsAlone(t *testing.T) {
 		t.Fatalf("a.txt = %q", got)
 	}
 }
+
+// A fork into a sparse worktree copies the files inside the cone and widens
+// the cone for seed files outside it, instead of silently dropping them.
+func TestApplyIntoSparseWorktreeWidensTheCone(t *testing.T) {
+	src := t.TempDir()
+	git(t, src, "init", "-q", "-b", "main")
+	git(t, src, "config", "extensions.worktreeConfig", "true")
+	for _, dir := range []string{"a", "b", "c"} {
+		write(t, filepath.Join(src, dir, "file.txt"), dir+"\n")
+	}
+	write(t, filepath.Join(src, "README"), "root\n")
+	git(t, src, "add", "-A")
+	git(t, src, "commit", "-qm", "dirs")
+	write(t, filepath.Join(src, "a", "file.txt"), "a edited\n")
+	write(t, filepath.Join(src, "c", "file.txt"), "c edited\n")
+	write(t, filepath.Join(src, "c", "deep", "new.txt"), "new\n")
+	write(t, filepath.Join(src, "README"), "root edited\n")
+
+	ctx := context.Background()
+	ref := "refs/ao/fork-seeds/sparse"
+	head, err := Capture(ctx, src, ref)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := filepath.Join(t.TempDir(), "fork")
+	git(t, src, "worktree", "add", "-q", "--no-checkout", "-b", "fork", dst, head)
+	git(t, dst, "sparse-checkout", "init", "--cone")
+	git(t, dst, "sparse-checkout", "set", "a")
+	git(t, dst, "read-tree", "-mu", "HEAD")
+
+	if err := Apply(ctx, dst, ref); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		"a/file.txt": "a edited\n", "c/file.txt": "c edited\n", "c/deep/new.txt": "new\n", "README": "root edited\n",
+	} {
+		if got := read(t, filepath.Join(dst, filepath.FromSlash(path))); got != want {
+			t.Fatalf("%s = %q, want %q", path, got, want)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(dst, "b")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("b/ has no seed changes and must stay outside the cone: %v", err)
+	}
+	if got := git(t, dst, "sparse-checkout", "list"); got != "a\nc" {
+		t.Fatalf("cone = %q, want a and c", got)
+	}
+}

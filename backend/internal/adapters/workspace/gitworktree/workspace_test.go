@@ -28,13 +28,17 @@ func TestCommandArgs(t *testing.T) {
 	}{
 		{"check ref", checkRefFormatBranchArgs(repo, branch), []string{"-C", repo, "check-ref-format", "--branch", branch}},
 		{"rev parse", revParseVerifyArgs(repo, "origin/main"), []string{"-C", repo, "rev-parse", "--verify", "--quiet", "origin/main"}},
-		{"add existing", worktreeAddBranchArgs(repo, path, branch, false), []string{"-C", repo, "worktree", "add", path, branch}},
-		{"add new", worktreeAddNewBranchArgs(repo, branch, path, "origin/main", false), []string{"-C", repo, "worktree", "add", "-b", branch, path, "origin/main"}},
+		{"add existing", worktreeAddBranchArgs(repo, path, branch, false, false), []string{"-C", repo, "worktree", "add", path, branch}},
+		{"add new", worktreeAddNewBranchArgs(repo, branch, path, "origin/main", false, false), []string{"-C", repo, "worktree", "add", "-b", branch, path, "origin/main"}},
 		// --force is git's documented override for a registration whose directory
 		// is gone, and is passed exactly once: `-f -f` would also override an
 		// operator's `git worktree lock`.
-		{"add existing forced", worktreeAddBranchArgs(repo, path, branch, true), []string{"-C", repo, "worktree", "add", "--force", path, branch}},
-		{"add new forced", worktreeAddNewBranchArgs(repo, branch, path, "origin/main", true), []string{"-C", repo, "worktree", "add", "--force", "-b", branch, path, "origin/main"}},
+		{"add existing forced", worktreeAddBranchArgs(repo, path, branch, true, false), []string{"-C", repo, "worktree", "add", "--force", path, branch}},
+		{"add new forced", worktreeAddNewBranchArgs(repo, branch, path, "origin/main", true, false), []string{"-C", repo, "worktree", "add", "--force", "-b", branch, path, "origin/main"}},
+		{"add new sparse", worktreeAddNewBranchArgs(repo, branch, path, "origin/main", false, true), []string{"-C", repo, "worktree", "add", "--no-checkout", "-b", branch, path, "origin/main"}},
+		{"sparse init", sparseInitArgs(path), []string{"-C", path, "sparse-checkout", "init", "--cone"}},
+		{"sparse set", sparseSetArgs(path, []string{"a", "c"}), []string{"-C", path, "sparse-checkout", "set", "--", "a", "c"}},
+		{"read tree", readTreeArgs(path), []string{"-C", path, "read-tree", "-mu", "HEAD"}},
 		// No --force: a dirty worktree must cause `git worktree remove` to fail so
 		// the post-prune safety check surfaces the refusal instead of deleting
 		// uncommitted agent work (review item RA).
@@ -156,7 +160,7 @@ func TestReadsGitMessages(t *testing.T) {
 		want bool
 	}{
 		{worktreeRemoveArgs("/r", "/w"), true},
-		{worktreeAddBranchArgs("/r", "/w", "b", false), true},
+		{worktreeAddBranchArgs("/r", "/w", "b", false, false), true},
 		{worktreeListPorcelainArgs("/r"), true},
 		{statusPorcelainArgs("/w"), true},
 		{fetchBranchArgs("/r", "origin", "b"), false},

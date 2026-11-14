@@ -82,6 +82,10 @@ var (
 	ErrWorktreeLocked = ports.ErrWorkspaceLocked
 	// ErrPathOccupied is an adapter-local alias of ports.ErrWorkspacePathOccupied.
 	ErrPathOccupied = ports.ErrWorkspacePathOccupied
+	// ErrSparseUnsupported and ErrSparseCheckoutFailed alias the port-level
+	// sparse checkout sentinels.
+	ErrSparseUnsupported    = ports.ErrWorkspaceSparseUnsupported
+	ErrSparseCheckoutFailed = ports.ErrWorkspaceSparseCheckoutFailed
 )
 
 // RepoResolver maps a project to the absolute path of its source git repo.
@@ -357,7 +361,22 @@ func (w *Workspace) Create(ctx context.Context, cfg ports.WorkspaceConfig) (port
 			return ports.WorkspaceInfo{}, err
 		}
 	}
-	baseRef, err := w.addWorktree(ctx, repo, path, cfg.Branch, cfg.BaseBranch, cfg.BaseRef, seedRef, true, cfg.RequireNewBranch)
+	sparse := len(cfg.SparsePaths) > 0
+	branchExisted := false
+	if sparse {
+		if _, err := os.Stat(filepath.Join(repo, ".git")); err != nil {
+			return ports.WorkspaceInfo{}, fmt.Errorf("%w: %q is not a git repository", ErrSparseUnsupported, repo)
+		}
+		if branchExisted, err = w.refExists(ctx, repo, "refs/heads/"+cfg.Branch); err != nil {
+			return ports.WorkspaceInfo{}, err
+		}
+	}
+	baseRef, err := w.addWorktree(ctx, repo, path, cfg.Branch, cfg.BaseBranch, cfg.BaseRef, seedRef, true, cfg.RequireNewBranch, sparse)
+	if err == nil && sparse {
+		if sparseErr := w.applySparseCheckout(ctx, path, cfg.SparsePaths); sparseErr != nil {
+			return ports.WorkspaceInfo{}, w.rollbackSparseAdd(ctx, repo, path, cfg.Branch, branchExisted, sparseErr)
+		}
+	}
 	if err != nil {
 		// An occupied path is refused before git runs, so there is no prepared
 		// branch or worktree to roll back, and the rollback would misreport the
@@ -1535,7 +1554,7 @@ func (w *Workspace) Restore(ctx context.Context, cfg ports.WorkspaceConfig) (por
 	if err := w.validateBranch(ctx, repo, recreateBranch); err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
-	baseRef, err := w.addWorktree(ctx, repo, path, recreateBranch, cfg.BaseBranch, cfg.BaseRef, "", false, false)
+	baseRef, err := w.addWorktree(ctx, repo, path, recreateBranch, cfg.BaseBranch, cfg.BaseRef, "", false, false, false)
 	if err != nil {
 		return ports.WorkspaceInfo{}, err
 	}
@@ -1628,7 +1647,7 @@ func registeredWorktreeDirMissing(rec worktreeRecord) (bool, error) {
 	return false, nil
 }
 
-func (w *Workspace) addWorktree(ctx context.Context, repo, path, branch, baseBranch, baseRef, seedRef string, resolveExistingBase, requireNewBranch bool) (string, error) {
+func (w *Workspace) addWorktree(ctx context.Context, repo, path, branch, baseBranch, baseRef, seedRef string, resolveExistingBase, requireNewBranch, noCheckout bool) (string, error) {
 	// Refuse early if the branch is already checked out in another worktree:
 	// `git worktree add` will fail, but its stderr leaks through as an opaque
 	// 500. A typed sentinel lets the HTTP layer surface a 409.
@@ -1678,7 +1697,7 @@ func (w *Workspace) addWorktree(ctx context.Context, repo, path, branch, baseBra
 			}
 			baseRef = refs.baseRef
 		}
-		if _, err := w.run(ctx, w.binary, worktreeAddBranchArgs(repo, path, branch, force)...); err != nil {
+		if _, err := w.run(ctx, w.binary, worktreeAddBranchArgs(repo, path, branch, force, noCheckout)...); err != nil {
 			return "", fmt.Errorf("gitworktree: worktree add existing branch %q: %w", branch, err)
 		}
 		return baseRef, nil
@@ -1693,7 +1712,7 @@ func (w *Workspace) addWorktree(ctx context.Context, repo, path, branch, baseBra
 			return "", err
 		}
 		baseRef = refs.baseRef
-		if err := w.addNewBranchWorktree(ctx, repo, branch, path, refs.seedRef, force); err != nil {
+		if err := w.addNewBranchWorktree(ctx, repo, branch, path, refs.seedRef, force, noCheckout); err != nil {
 			return "", fmt.Errorf("gitworktree: worktree add branch %q from %q: %w", branch, refs.seedRef, err)
 		}
 		return baseRef, nil
@@ -1711,7 +1730,7 @@ func (w *Workspace) addWorktree(ctx context.Context, repo, path, branch, baseBra
 	// Restore reaches this path when its local branch is gone but its durable
 	// comparison ref remains. Fresh creation returns above after resolving its
 	// seed and comparison refs independently.
-	if err := w.addNewBranchWorktree(ctx, repo, branch, path, seedRef, force); err != nil {
+	if err := w.addNewBranchWorktree(ctx, repo, branch, path, seedRef, force, noCheckout); err != nil {
 		return "", fmt.Errorf("gitworktree: worktree add branch %q from %q: %w", branch, seedRef, err)
 	}
 	return baseRef, nil
@@ -1865,8 +1884,8 @@ func (w *Workspace) isOrphanedWorktreeOf(ctx context.Context, repo, path string)
 // worktree that won. The leftover ref is harmless and self-correcting: the next
 // addWorktree for it takes the existing-branch path, and workspaceProjectBranch
 // simply picks the next free candidate.
-func (w *Workspace) addNewBranchWorktree(ctx context.Context, repo, branch, path, baseRef string, force bool) error {
-	_, err := w.run(ctx, w.binary, worktreeAddNewBranchArgs(repo, branch, path, baseRef, force)...)
+func (w *Workspace) addNewBranchWorktree(ctx context.Context, repo, branch, path, baseRef string, force, noCheckout bool) error {
+	_, err := w.run(ctx, w.binary, worktreeAddNewBranchArgs(repo, branch, path, baseRef, force, noCheckout)...)
 	if err == nil {
 		return nil
 	}
@@ -1886,9 +1905,9 @@ func (w *Workspace) addNewBranchWorktree(ctx context.Context, repo, branch, path
 	if refErr != nil {
 		return errors.Join(err, refErr)
 	}
-	retryArgs := worktreeAddNewBranchArgs(repo, branch, path, baseRef, true)
+	retryArgs := worktreeAddNewBranchArgs(repo, branch, path, baseRef, true, noCheckout)
 	if created {
-		retryArgs = worktreeAddBranchArgs(repo, path, branch, true)
+		retryArgs = worktreeAddBranchArgs(repo, path, branch, true, noCheckout)
 	}
 	if _, retryErr := w.run(ctx, w.binary, retryArgs...); retryErr != nil {
 		return errors.Join(err, retryErr)
@@ -1982,7 +2001,7 @@ func (w *Workspace) createWorkspaceProjectRepo(ctx context.Context, repo workspa
 	}
 	// addWorktree handles both the ordinary new-branch path and a preparation
 	// recovered after a daemon crash left this branch or registration behind.
-	if _, err := w.addWorktree(ctx, repo.repoPath, repo.outputPath, branch, repo.baseBranch, baseRef, seedRef, false, requireNewBranch); err != nil {
+	if _, err := w.addWorktree(ctx, repo.repoPath, repo.outputPath, branch, repo.baseBranch, baseRef, seedRef, false, requireNewBranch, false); err != nil {
 		return "", fmt.Errorf("gitworktree: workspace repo %q worktree add branch %q from %q: %w", repo.name, branch, seedRef, err)
 	}
 	return baseSHA, nil
@@ -2625,3 +2644,39 @@ func (e commandError) Error() string {
 }
 
 func (e commandError) Unwrap() error { return e.err }
+
+// applySparseCheckout turns a worktree added with --no-checkout into a
+// cone-mode sparse checkout of paths and writes the selected files. The cone
+// lives in the worktree's own config (extensions.worktreeConfig), so the
+// human checkout and sibling worktrees are unaffected.
+func (w *Workspace) applySparseCheckout(ctx context.Context, path string, paths []string) error {
+	for _, args := range [][]string{sparseInitArgs(path), sparseSetArgs(path, paths), readTreeArgs(path)} {
+		if _, err := w.run(ctx, w.binary, args...); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// rollbackSparseAdd removes a worktree whose sparse setup failed. Nothing was
+// checked out into it, so a forced removal loses no work. A branch this
+// Create made is deleted; a branch that existed before is kept.
+func (w *Workspace) rollbackSparseAdd(ctx context.Context, repo, path, branch string, branchExisted bool, cause error) error {
+	cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
+	defer cancel()
+	errs := []error{fmt.Errorf("%w: %w", ErrSparseCheckoutFailed, cause)}
+	if _, err := w.run(cleanupCtx, w.binary, worktreeForceRemoveArgs(repo, path)...); err != nil {
+		if rmErr := os.RemoveAll(path); rmErr != nil {
+			errs = append(errs, fmt.Errorf("gitworktree: remove partial sparse worktree: %w", rmErr))
+		}
+	}
+	if _, err := w.run(cleanupCtx, w.binary, worktreePruneArgs(repo)...); err != nil {
+		errs = append(errs, fmt.Errorf("gitworktree: prune after sparse failure: %w", err))
+	}
+	if !branchExisted {
+		if _, err := w.run(cleanupCtx, w.binary, deleteBranchArgs(repo, branch)...); err != nil {
+			errs = append(errs, fmt.Errorf("gitworktree: delete branch of failed sparse worktree: %w", err))
+		}
+	}
+	return errors.Join(errs...)
+}

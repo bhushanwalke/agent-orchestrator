@@ -904,7 +904,7 @@ func TestWorkspaceIntegrationAddNewBranchRecoversStaleRegistration(t *testing.T)
 
 	// force=false is what a caller passes when its own pre-check did not see the
 	// registration go stale, so this exercises the recovery, not the pre-check.
-	if err := ws.addNewBranchWorktree(ctx, repo, "child-new", info.Path, "origin/main", false); err != nil {
+	if err := ws.addNewBranchWorktree(ctx, repo, "child-new", info.Path, "origin/main", false, false); err != nil {
 		t.Fatalf("addNewBranchWorktree over a stale registration: %v", err)
 	}
 
