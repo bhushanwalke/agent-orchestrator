@@ -70,3 +70,17 @@ func TestBranchFallsBackToThePRHeadThenTheSession(t *testing.T) {
 		t.Fatalf("milestone_branch_unresolved events = %d", unresolved)
 	}
 }
+
+func TestUnresolvedBranchWithNoSessionBranchSaysSo(t *testing.T) {
+	f := flowFixture(t, domain.ProjectConfig{})
+	ctx := context.Background()
+	id := activePlan(t, f, 3, msSpec{key: "m1"})
+	m1 := milestones(t, f, id)["m1"]
+	f.workspaces.failFor["/wt/"+string(m1.SessionID)] = true
+	setSession(f, m1.SessionID, func(s *domain.Session) { s.Metadata.Branch = "" })
+	f.svc.OnReport(ctx, domain.ReportRecord{SessionID: m1.SessionID, State: domain.ReportDone})
+	notes := planEvents(t, f, id, "milestone_branch_unresolved")
+	if len(notes) != 1 || !strings.HasSuffix(notes[0], "using no branch") {
+		t.Fatalf("unresolved notes = %q", notes)
+	}
+}

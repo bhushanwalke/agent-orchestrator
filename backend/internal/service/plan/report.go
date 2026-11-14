@@ -99,8 +99,12 @@ func (s *Service) onReportLocked(ctx context.Context, rec domain.ReportRecord, w
 				return false, ""
 			}
 			if work.unresolved {
+				using := work.branch
+				if using == "" {
+					using = "no branch"
+				}
 				s.recordEvent(ctx, p.ID, m.ID, rec.SessionID, EventMilestoneBranchUnresolved,
-					fmt.Sprintf("could not read the worktree's branch; using %s", work.branch))
+					"could not read the worktree's branch; using "+using)
 			}
 			return true, ""
 		}
