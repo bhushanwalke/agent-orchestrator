@@ -111,6 +111,7 @@ export function sessionsBoardLabels(t: TFunction): BoardColumnLabels {
 }
 
 export function BoardSessionCardAdapter({
+	compact = false,
 	me,
 	participants,
 	memory,
@@ -119,8 +120,11 @@ export function BoardSessionCardAdapter({
 	onOpenArtifact,
 	onOpenArtifacts,
 	onTerminate,
+	selected,
 	session,
 }: {
+	/** The dense card, as a Task's run view lists its agents. */
+	compact?: boolean;
 	/** Live reading of the session's process tree, for the card's resource chip. */
 	memory?: SessionMemoryReading;
 	/** Colour for the chip; neutral unless this card is part of the fix. */
@@ -130,6 +134,7 @@ export function BoardSessionCardAdapter({
 	onOpenArtifact?: (path: string) => void;
 	onOpenArtifacts?: () => void;
 	onTerminate?: (choice: SessionArchiveChoice) => void;
+	selected?: boolean;
 	session: WorkspaceSession;
 	/** The people in this session when it is shared. */
 	participants?: readonly SessionPerson[];
@@ -138,6 +143,7 @@ export function BoardSessionCardAdapter({
 }) {
 	return (
 		<DesktopSessionCard
+			compact={compact}
 			me={me}
 			participants={participants}
 			memory={memory}
@@ -146,6 +152,7 @@ export function BoardSessionCardAdapter({
 			onOpenArtifact={onOpenArtifact}
 			onOpenArtifacts={onOpenArtifacts}
 			onTerminate={onTerminate}
+			selected={selected}
 			session={session}
 		/>
 	);
