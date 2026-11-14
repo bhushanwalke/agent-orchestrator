@@ -185,6 +185,15 @@ describe("PlanRunView", () => {
 		expect(within(row).getByText("started")).not.toHaveClass("truncate");
 	});
 
+	it("labels a kickoff held for a starting orchestrator as neutral waiting", () => {
+		const d = detail();
+		planMock.mockReturnValue({ ...d, events: [{ id: 9, kind: "kickoff_waiting", milestoneKey: "", sessionId: "orch-1", note: "", createdAt: "2026-01-01T00:00:01Z" }, ...d.events] });
+		renderView();
+		const row = screen.getAllByTestId("plan-event")[0];
+		expect(row).toHaveTextContent(/^Starting the orchestrator/);
+		expect(row.querySelector("svg")).toHaveClass("text-passive");
+	});
+
 	it("cancels the plan only after confirming", async () => {
 		renderView();
 		await userEvent.click(screen.getByRole("button", { name: "Actions" }));

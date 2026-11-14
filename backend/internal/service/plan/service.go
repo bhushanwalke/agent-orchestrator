@@ -19,9 +19,12 @@ import (
 
 // Plan event kinds (spec §9).
 const (
-	EventPlanCreated         = "plan_created"
-	EventKickoffSent         = "kickoff_sent"
-	EventKickoffDeferred     = "kickoff_deferred"
+	EventPlanCreated     = "plan_created"
+	EventKickoffSent     = "kickoff_sent"
+	EventKickoffDeferred = "kickoff_deferred"
+	// EventKickoffWaiting is a kickoff held while a just-started orchestrator
+	// comes up; the background retry delivers it.
+	EventKickoffWaiting      = "kickoff_waiting"
 	EventSpecSet             = "spec_set"
 	EventMilestoneAdded      = "milestone_added"
 	EventMilestoneUpdated    = "milestone_updated"
@@ -176,7 +179,14 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 		return domain.Plan{}, err
 	}
 	if err := s.deliverKickoff(ctx, p, project); err != nil {
-		s.recordEvent(ctx, p.ID, "", p.OrchestratorSessionID, EventKickoffDeferred, err.Error())
+		// An orchestrator this Create started (or one still provisioning)
+		// refuses until its controller is up; that is waiting, not a failure.
+		kind := EventKickoffDeferred
+		// Stored timestamps may be whole seconds, hence the slack.
+		if !orch.CreatedAt.Before(p.CreatedAt.Add(-2*time.Second)) || orch.ProvisionState == domain.SessionProvisionProvisioning {
+			kind = EventKickoffWaiting
+		}
+		s.recordEvent(ctx, p.ID, "", p.OrchestratorSessionID, kind, err.Error())
 		s.scheduleKickoffRetry(p.ID)
 	}
 	return p, nil

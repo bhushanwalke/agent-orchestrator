@@ -447,7 +447,7 @@ Error envelopes follow `apierr` conventions; request ids preserved.
 
 ## 9. Plan event kinds
 
-`plan_created`, `kickoff_sent`, `kickoff_deferred`, `spec_set`, `milestone_added`, `milestone_updated`, `milestone_removed`, `plan_activated`, `milestone_ready`, `milestone_started`, `milestone_checkpoint`, `milestone_blocked`, `milestone_done`, `milestone_failed`, `qa_passed`, `qa_failed`, `defect_sent`, `plan_done`, `plan_cancelled`, `sparse_disabled`, `milestone_branch_unresolved`, `qa_verdict_requested`, `plan_done_notified`, `milestone_blocked_notified`, `milestone_failed_notified`.
+`plan_created`, `kickoff_sent`, `kickoff_waiting` (a just-started orchestrator is still coming up), `kickoff_deferred` (the orchestrator could not start or refused), `spec_set`, `milestone_added`, `milestone_updated`, `milestone_removed`, `plan_activated`, `milestone_ready`, `milestone_started`, `milestone_checkpoint`, `milestone_blocked`, `milestone_done`, `milestone_failed`, `qa_passed`, `qa_failed`, `defect_sent`, `plan_done`, `plan_cancelled`, `sparse_disabled`, `milestone_branch_unresolved`, `qa_verdict_requested`, `plan_done_notified`, `milestone_blocked_notified`, `milestone_failed_notified`.
 
 ## 10. CLI (`backend/internal/cli/plan.go`, table-tested like `cue_test.go`)
 

@@ -42,6 +42,9 @@ type fakeSessions struct {
 	getCalls   int
 	// sendHook runs at the start of Send, outside the fake's lock.
 	sendHook func(domain.SessionID)
+	// orchCreatedAt and orchProvisioning describe the ensured orchestrator.
+	orchCreatedAt    time.Time
+	orchProvisioning bool
 }
 
 func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.ProjectID) (domain.SessionRecord, error) {
@@ -51,7 +54,10 @@ func (f *fakeSessions) EnsureOrchestrator(_ context.Context, projectID domain.Pr
 	if f.ensureErr != nil {
 		return domain.SessionRecord{}, f.ensureErr
 	}
-	rec := domain.SessionRecord{ID: "orch-1", ProjectID: projectID, Kind: domain.KindOrchestrator}
+	rec := domain.SessionRecord{ID: "orch-1", ProjectID: projectID, Kind: domain.KindOrchestrator, CreatedAt: f.orchCreatedAt}
+	if f.orchProvisioning {
+		rec.ProvisionState = domain.SessionProvisionProvisioning
+	}
 	if f.sessions != nil {
 		if _, ok := f.sessions[rec.ID]; !ok {
 			f.sessions[rec.ID] = domain.Session{SessionRecord: rec}
