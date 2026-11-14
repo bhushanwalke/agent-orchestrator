@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -69,6 +70,8 @@ type sessionFact struct {
 	found  bool
 	ended  bool
 	branch string
+	// failing is why the agent's turns keep failing, or "" when they do not.
+	failing string
 }
 
 func (f sessionFact) alive() bool { return f.known && f.found && !f.ended }
@@ -157,10 +160,40 @@ func (s *Service) sessionFacts(ctx context.Context, ms []domain.Milestone) map[d
 			found: found,
 			ended: found && (sess.IsTerminated || sess.Activity.State == domain.ActivityExited ||
 				sess.ProvisionState == domain.SessionProvisionFailed),
-			branch: sess.Metadata.Branch,
+			branch:  sess.Metadata.Branch,
+			failing: s.failingTurns(ctx, m.SessionID),
 		}
 	}
 	return facts
+}
+
+// failingTurns says why a Chat session's agent keeps failing: the provider
+// put the thread in system_error, or its last two turns failed. A session
+// without a conversation, or one that cannot be read, is not failing.
+func (s *Service) failingTurns(ctx context.Context, id domain.SessionID) string {
+	if s.conversations == nil {
+		return ""
+	}
+	conv, err := s.conversations.ConversationForSession(ctx, id)
+	if err != nil {
+		return ""
+	}
+	if conv.ThreadState != nil && conv.ThreadState.Status == domain.ThreadStatusSystemError {
+		return string(domain.ThreadStatusSystemError)
+	}
+	turns, err := s.conversations.RecentConversationTurns(ctx, conv.ID, 2)
+	if err != nil || len(turns) < 2 {
+		return ""
+	}
+	for _, turn := range turns {
+		if turn.State != domain.TurnStateFailed {
+			return ""
+		}
+	}
+	if msg := strings.TrimSpace(turns[0].ErrorMessage); msg != "" {
+		return msg
+	}
+	return string(turns[0].FailureCode)
 }
 
 // planActionsLocked reconciles and promotes milestones and picks this tick's
@@ -195,9 +228,19 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 		if m.Kind == domain.MilestoneKindQA && m.Status == domain.MilestoneStatusBlocked && m.QAVerdict == domain.QAVerdictFail {
 			continue
 		}
-		if facts[m.SessionID].gone() {
+		fact := facts[m.SessionID]
+		if fact.gone() {
 			m.Status = domain.MilestoneStatusFailed
 			if err := write(m, EventMilestoneFailed, fmt.Sprintf("session %s ended without reporting done", m.SessionID)); err != nil {
+				return nil, err
+			}
+			continue
+		}
+		// A live worker whose agent keeps failing waits for a person; its next
+		// checkpoint or done report sets it running again.
+		if m.Status == domain.MilestoneStatusRunning && fact.failing != "" {
+			m.Status = domain.MilestoneStatusBlocked
+			if err := write(m, EventMilestoneBlocked, "agent turns are failing: "+fact.failing); err != nil {
 				return nil, err
 			}
 		}

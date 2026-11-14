@@ -1225,6 +1225,22 @@ func (s *Store) LatestConversationTurn(ctx context.Context, conversationID strin
 	return turnToDomain(row), nil
 }
 
+// RecentConversationTurns reads the conversation's newest turns, newest
+// first, across branches and without messages or activities.
+func (s *Store) RecentConversationTurns(ctx context.Context, conversationID string, limit int) ([]domain.ConversationTurn, error) {
+	rows, err := s.qr.SelectRecentConversationTurns(ctx, gen.SelectRecentConversationTurnsParams{
+		ConversationID: conversationID, RowLimit: int64(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("select recent conversation turns: %w", err)
+	}
+	out := make([]domain.ConversationTurn, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, turnToDomain(row))
+	}
+	return out, nil
+}
+
 // TurnByProviderID is the conversation's turn the provider knows as
 // providerTurnID.
 func (s *Store) TurnByProviderID(ctx context.Context, conversationID, providerTurnID string) (domain.ConversationTurn, error) {

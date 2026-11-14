@@ -74,13 +74,14 @@ func (planWorkspaces) CurrentBranch(ctx context.Context, worktree string) (strin
 // startPlans wires the task plan service and starts its scheduler observer.
 func startPlans(ctx context.Context, store *sqlite.Store, sessions planSessionService, log *slog.Logger) (*plansvc.Service, <-chan struct{}) {
 	svc := plansvc.New(plansvc.Deps{
-		Store:       store,
-		Sessions:    planSessions{svc: sessions},
-		Projects:    store,
-		Reports:     store,
-		Workspaces:  planWorkspaces{},
-		Logger:      log.With("component", "plans"),
-		BaseContext: ctx,
+		Store:         store,
+		Sessions:      planSessions{svc: sessions},
+		Projects:      store,
+		Reports:       store,
+		Workspaces:    planWorkspaces{},
+		Conversations: store,
+		Logger:        log.With("component", "plans"),
+		BaseContext:   ctx,
 	})
 	return svc, planobserver.New(svc, planobserver.Config{Logger: log}).Start(ctx)
 }

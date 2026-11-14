@@ -74,8 +74,9 @@ type Service struct {
 	retrying      map[domain.PlanID]bool
 	kickoffMu     sync.Mutex
 
-	reports    ReportReader
-	workspaces Workspaces
+	reports       ReportReader
+	workspaces    Workspaces
+	conversations Conversations
 	// tickMu keeps scheduler passes from overlapping; wake requests one.
 	tickMu sync.Mutex
 	wake   chan struct{}
@@ -102,7 +103,7 @@ func New(d Deps) *Service {
 		d.KickoffRetryTimeout = 5 * time.Minute
 	}
 	s := &Service{
-		store: d.Store, sessions: d.Sessions, projects: d.Projects, scheduler: d.Scheduler, reports: d.Reports, workspaces: d.Workspaces,
+		store: d.Store, sessions: d.Sessions, projects: d.Projects, scheduler: d.Scheduler, reports: d.Reports, workspaces: d.Workspaces, conversations: d.Conversations,
 		now: d.Now, newID: d.NewID, logger: d.Logger,
 		baseCtx: d.BaseContext, retryInterval: d.KickoffRetryInterval, retryTimeout: d.KickoffRetryTimeout,
 		retrying: map[domain.PlanID]bool{}, wake: make(chan struct{}, 1),

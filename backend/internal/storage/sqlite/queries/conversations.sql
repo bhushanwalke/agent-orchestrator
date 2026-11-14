@@ -923,6 +923,16 @@ ORDER BY conversation_turns.requested_at, conversation_turns.rowid;
 
 -- The latest non-discarded turn uses the same active lineage and ordering as
 -- SelectConversationTurns, independently of where late timeline items occur.
+-- name: SelectRecentConversationTurns :many
+-- The conversation's newest turns across every branch, for health checks that
+-- only ask whether the agent's latest turns failed.
+SELECT * FROM conversation_turns
+WHERE conversation_id = sqlc.arg(conversation_id)
+  AND promoted_to_turn_id IS NULL
+  AND rolled_back_at IS NULL
+ORDER BY requested_at DESC, rowid DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: SelectLatestConversationTurn :one
 WITH RECURSIVE active_path(branch_id, max_sequence) AS (
     SELECT conversations.active_branch_id, CAST(NULL AS INTEGER)

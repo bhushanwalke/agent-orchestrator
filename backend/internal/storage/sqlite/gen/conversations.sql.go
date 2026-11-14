@@ -4412,8 +4412,6 @@ ORDER BY conversation_turns.requested_at DESC, conversation_turns.rowid DESC
 LIMIT 1
 `
 
-// The latest non-discarded turn uses the same active lineage and ordering as
-// SelectConversationTurns, independently of where late timeline items occur.
 func (q *Queries) SelectLatestConversationTurn(ctx context.Context, conversationID string) (ConversationTurn, error) {
 	row := q.db.QueryRowContext(ctx, selectLatestConversationTurn, conversationID)
 	var i ConversationTurn
@@ -4725,6 +4723,75 @@ func (q *Queries) SelectQueuedConversationTurnOrder(ctx context.Context, convers
 	for rows.Next() {
 		var i SelectQueuedConversationTurnOrderRow
 		if err := rows.Scan(&i.ID, &i.RequestedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const selectRecentConversationTurns = `-- name: SelectRecentConversationTurns :many
+SELECT id, conversation_id, handled_by_session_id, provider_turn_id, controller_generation, state, error_message, requested_at, started_at, completed_at, diff_json, rolled_back_at, plan_json, branch_id, promotion_started_at, promoted_to_turn_id, retry_of_turn_id, handled_by_review_id, usage_limit_resets_at, usage_limit_auto_resume, usage_limit_resume_error, batched_input, provider_input_text, failure_code, batch_delivery_kind, batch_delivery_steer_id, artifacts_json FROM conversation_turns
+WHERE conversation_id = ?1
+  AND promoted_to_turn_id IS NULL
+  AND rolled_back_at IS NULL
+ORDER BY requested_at DESC, rowid DESC
+LIMIT ?2
+`
+
+type SelectRecentConversationTurnsParams struct {
+	ConversationID string
+	RowLimit       int64
+}
+
+// The latest non-discarded turn uses the same active lineage and ordering as
+// SelectConversationTurns, independently of where late timeline items occur.
+// The conversation's newest turns across every branch, for health checks that
+// only ask whether the agent's latest turns failed.
+func (q *Queries) SelectRecentConversationTurns(ctx context.Context, arg SelectRecentConversationTurnsParams) ([]ConversationTurn, error) {
+	rows, err := q.db.QueryContext(ctx, selectRecentConversationTurns, arg.ConversationID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ConversationTurn{}
+	for rows.Next() {
+		var i ConversationTurn
+		if err := rows.Scan(
+			&i.ID,
+			&i.ConversationID,
+			&i.HandledBySessionID,
+			&i.ProviderTurnID,
+			&i.ControllerGeneration,
+			&i.State,
+			&i.ErrorMessage,
+			&i.RequestedAt,
+			&i.StartedAt,
+			&i.CompletedAt,
+			&i.DiffJson,
+			&i.RolledBackAt,
+			&i.PlanJson,
+			&i.BranchID,
+			&i.PromotionStartedAt,
+			&i.PromotedToTurnID,
+			&i.RetryOfTurnID,
+			&i.HandledByReviewID,
+			&i.UsageLimitResetsAt,
+			&i.UsageLimitAutoResume,
+			&i.UsageLimitResumeError,
+			&i.BatchedInput,
+			&i.ProviderInputText,
+			&i.FailureCode,
+			&i.BatchDeliveryKind,
+			&i.BatchDeliverySteerID,
+			&i.ArtifactsJson,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

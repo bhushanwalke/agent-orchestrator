@@ -146,6 +146,7 @@ type fixture struct {
 	sessions   *fakeSessions
 	sched      *fakeScheduler
 	workspaces *fakeWorkspaces
+	turns      *fakeConversations
 }
 
 func newFixture(t *testing.T, kind domain.ProjectKind) fixture {

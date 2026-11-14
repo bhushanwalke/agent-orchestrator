@@ -26,13 +26,14 @@ func flowFixture(t *testing.T, config domain.ProjectConfig) fixture {
 	}
 	sessions := &fakeSessions{sessions: map[domain.SessionID]domain.Session{}}
 	workspaces := &fakeWorkspaces{sessions: sessions, checkedOut: map[string]string{}, failFor: map[string]bool{}}
+	turns := &fakeConversations{thread: map[domain.SessionID]domain.ThreadStatus{}, recent: map[domain.SessionID][]domain.ConversationTurn{}}
 	n := 0
 	svc := plan.New(plan.Deps{
-		Store: st, Sessions: sessions, Projects: st, Workspaces: workspaces, KickoffRetryInterval: -1,
+		Store: st, Sessions: sessions, Projects: st, Workspaces: workspaces, Conversations: turns, KickoffRetryInterval: -1,
 		Now:   func() time.Time { return time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC) },
 		NewID: func(prefix string) string { n++; return fmt.Sprintf("%s%d", prefix, n) },
 	})
-	return fixture{svc: svc, store: st, sessions: sessions, workspaces: workspaces}
+	return fixture{svc: svc, store: st, sessions: sessions, workspaces: workspaces, turns: turns}
 }
 
 type msSpec struct {

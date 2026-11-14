@@ -28,6 +28,14 @@ type Sessions interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, bool, error)
 }
 
+// Conversations reads a Chat session's thread state and newest turns, to tell
+// a worker whose agent keeps failing from one that is merely slow. The SQLite
+// store satisfies it.
+type Conversations interface {
+	ConversationForSession(ctx context.Context, session domain.SessionID) (domain.ConversationRecord, error)
+	RecentConversationTurns(ctx context.Context, conversationID string, limit int) ([]domain.ConversationTurn, error)
+}
+
 // Workspaces reads a worktree's checked-out branch, the branch a milestone's
 // work is on when it reports done.
 type Workspaces interface {
@@ -56,6 +64,9 @@ type Deps struct {
 	// Workspaces probes a worker's branch at done time. Optional: without it
 	// the PR head or the session's branch is used.
 	Workspaces Workspaces
+	// Conversations reports failing agent turns. Optional: without it a
+	// worker whose turns fail stays running until its session ends.
+	Conversations Conversations
 	// Scheduler runs after activation and retries. Nil uses the service's
 	// own Tick; tests inject a fake.
 	Scheduler Scheduler
