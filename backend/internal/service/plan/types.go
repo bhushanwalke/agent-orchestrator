@@ -51,6 +51,14 @@ type Deps struct {
 	// NewID overrides id generation in tests; it receives "plan_" or "ms_".
 	NewID  func(prefix string) string
 	Logger *slog.Logger
+	// BaseContext bounds background work (deferred kickoff retries). The
+	// daemon passes its lifetime context; nil uses context.Background.
+	BaseContext context.Context
+	// KickoffRetryInterval and KickoffRetryTimeout pace the background retry
+	// of a kickoff the orchestrator refused (typically while it is still
+	// starting). Zero uses 5s and 5m; a negative interval disables retries.
+	KickoffRetryInterval time.Duration
+	KickoffRetryTimeout  time.Duration
 }
 
 // CreateInput is a new plan as the person typed it.
@@ -125,4 +133,12 @@ type Detail struct {
 	Summary
 	Milestones []MilestoneView
 	Events     []domain.PlanEvent
+}
+
+// EventsPage is one page of a plan's events, oldest first.
+type EventsPage struct {
+	Events    []domain.PlanEvent
+	NextAfter int64
+	// MilestoneKeys maps the plan's current milestone ids to keys.
+	MilestoneKeys map[domain.MilestoneID]string
 }

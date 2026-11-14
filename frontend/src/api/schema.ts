@@ -2043,6 +2043,144 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/plans/{planId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get a task plan with its milestones and latest events */
+        get: operations["getPlan"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit a task plan's title, parallel limit, or plan document */
+        patch: operations["updatePlan"];
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/activate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Validate the milestone graph and start the plan */
+        post: operations["activatePlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a plan; its sessions keep running */
+        post: operations["cancelPlan"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page through a plan's activity log, oldest first */
+        get: operations["listPlanEvents"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/milestones": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add a milestone to a plan that is still planning */
+        post: operations["addPlanMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/milestones/{key}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove a milestone from a plan that is still planning */
+        delete: operations["removePlanMilestone"];
+        options?: never;
+        head?: never;
+        /** Edit a milestone of a plan that is still planning */
+        patch: operations["updatePlanMilestone"];
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/milestones/{key}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reset a failed milestone to ready with a fresh attempt budget */
+        post: operations["retryPlanMilestone"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/plans/{planId}/qa-result": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record the QA worker's verdict for a plan */
+        post: operations["recordPlanQAResult"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/projects": {
         parameters: {
             query?: never;
@@ -2144,6 +2282,24 @@ export interface paths {
         put?: never;
         /** Create a cue for a project */
         post: operations["createCue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/projects/{projectId}/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List a project's task plans, newest first */
+        get: operations["listProjectPlans"];
+        put?: never;
+        /** Create a task plan and ask the project orchestrator to plan it */
+        post: operations["createPlan"];
         delete?: never;
         options?: never;
         head?: never;
@@ -6924,6 +7080,16 @@ export interface components {
         CreateConversationSideChatResponse: {
             side: components["schemas"]["SideConversation"];
         };
+        CreatePlanRequest: {
+            /** @description The ticket text as pasted, at most 100 KiB. */
+            brief: string;
+            /** @description Most implementation workers running at once. Defaults to 3. */
+            maxParallel?: number;
+            /** @description Display-only ticket link or reference. */
+            ticketRef?: string;
+            /** @description Task title, 1-100 characters. */
+            title: string;
+        };
         CreateReportRequest: {
             message?: string;
             note?: string;
@@ -7384,6 +7550,9 @@ export interface components {
             summary: components["schemas"]["WorkspaceSummary"];
             truncated: boolean;
         };
+        ListPlansResponse: {
+            plans: components["schemas"]["PlanSummary"][];
+        };
         ListProjectsResponse: {
             projects: components["schemas"]["ProjectSummary"][];
         };
@@ -7509,6 +7678,53 @@ export interface components {
             stateChangedAt: string;
             /** @enum {string} */
             status: "merged" | "enqueued" | "pending";
+        };
+        MilestoneEnvelope: {
+            milestone: components["schemas"]["MilestoneResponse"];
+        };
+        MilestoneRequest: {
+            /** @description Keys of milestones in the same plan this one needs. */
+            dependsOn?: null | string[];
+            /** @description The milestone's own spec, Markdown. Required for implement milestones. */
+            description?: null | string;
+            /** @description Short slug matching ^[a-z0-9][a-z0-9-]{0,31}$; qa is reserved for the QA milestone. */
+            key?: null | string;
+            /**
+             * @description Defaults to implement.
+             * @enum {null|string}
+             */
+            kind?: "implement" | "qa" | null;
+            /** @description Repo-relative directories for a cone-mode sparse checkout. Empty is a full checkout. */
+            sparsePaths?: null | string[];
+            title?: null | string;
+        };
+        MilestoneResponse: {
+            attempt: number;
+            branch: string;
+            /** Format: date-time */
+            createdAt: string;
+            dependsOn: string[];
+            description: string;
+            /** Format: date-time */
+            finishedAt?: null | string;
+            id: string;
+            key: string;
+            /** @enum {string} */
+            kind: "implement" | "qa";
+            ordinal: number;
+            prs: components["schemas"]["SessionPRFacts"][];
+            qaNote: string;
+            /** @enum {string} */
+            qaVerdict: "" | "pass" | "fail";
+            session?: components["schemas"]["PlanSessionSummary"];
+            sparsePaths: string[];
+            /** Format: date-time */
+            startedAt?: null | string;
+            /** @enum {string} */
+            status: "pending" | "ready" | "running" | "blocked" | "done" | "failed" | "cancelled";
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         MobileDeviceResponse: {
             /** Format: date-time */
@@ -7675,6 +7891,104 @@ export interface components {
             number: number;
             open: boolean;
             url: string;
+        };
+        PlanDetailResponse: {
+            events: components["schemas"]["PlanEventResponse"][];
+            milestones: components["schemas"]["MilestoneResponse"][];
+            plan: components["schemas"]["PlanResponse"];
+        };
+        PlanEnvelope: {
+            plan: components["schemas"]["PlanResponse"];
+        };
+        PlanEventResponse: {
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: int64 */
+            id: number;
+            kind: string;
+            milestoneKey: string;
+            note: string;
+            sessionId: string;
+        };
+        PlanEventsResponse: {
+            events: components["schemas"]["PlanEventResponse"][];
+            /** Format: int64 */
+            nextAfter: number;
+        };
+        PlanMilestoneCounts: {
+            blocked: number;
+            done: number;
+            failed: number;
+            running: number;
+            total: number;
+        };
+        PlanPatchRequest: {
+            maxParallel?: null | number;
+            /** @description The orchestrator's plan document, Markdown. */
+            specMarkdown?: null | string;
+            title?: null | string;
+        };
+        PlanResponse: {
+            /** Format: date-time */
+            activatedAt?: null | string;
+            brief: string;
+            /** Format: date-time */
+            createdAt: string;
+            displayStatus: string;
+            /** Format: date-time */
+            finishedAt?: null | string;
+            id: string;
+            /** @enum {string} */
+            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            liveSessions: components["schemas"]["PlanSessionSummary"][];
+            maxParallel: number;
+            milestoneCounts: components["schemas"]["PlanMilestoneCounts"];
+            orchestratorSessionId: string;
+            /** @enum {string} */
+            phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
+            projectId: string;
+            specMarkdown: string;
+            /** @enum {string} */
+            state: "planning" | "active" | "cancelled";
+            ticketRef: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        PlanSessionSummary: {
+            displayName?: string;
+            displayStatus: string;
+            harness?: string;
+            id: string;
+            isTerminated: boolean;
+            /** @enum {string} */
+            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            status: string;
+        };
+        PlanSummary: {
+            /** Format: date-time */
+            activatedAt?: null | string;
+            /** Format: date-time */
+            createdAt: string;
+            displayStatus: string;
+            /** Format: date-time */
+            finishedAt?: null | string;
+            id: string;
+            /** @enum {string} */
+            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            liveSessions: components["schemas"]["PlanSessionSummary"][];
+            maxParallel: number;
+            milestoneCounts: components["schemas"]["PlanMilestoneCounts"];
+            orchestratorSessionId: string;
+            /** @enum {string} */
+            phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
+            projectId: string;
+            /** @enum {string} */
+            state: "planning" | "active" | "cancelled";
+            ticketRef: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
         };
         PostPRCommentRequest: {
             attachments?: components["schemas"]["PRCommentAttachment"][];
@@ -7854,6 +8168,16 @@ export interface components {
             pat: string;
             refreshToken?: string;
             refreshTokenExpiresIn?: number;
+        };
+        QAResultRequest: {
+            /** @description The implement milestone a fail is recorded against. Omit for pass, or for a fail no milestone owns. */
+            milestoneKey?: string;
+            /** @description What QA verified, or steps to reproduce, expected and actual behaviour. At most 8 KiB. */
+            note: string;
+            /** @description The calling QA session (AO_SESSION_ID). Only the plan's QA session may record a result. */
+            sessionId: string;
+            /** @enum {string} */
+            verdict: "pass" | "fail";
         };
         RecordAgentSignInResponse: {
             releasedKey?: string;
@@ -16343,6 +16667,720 @@ export interface operations {
             };
         };
     };
+    getPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updatePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanPatchRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    activatePlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    cancelPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listPlanEvents: {
+        parameters: {
+            query?: {
+                /** @description Return events with an id greater than this. Omit for the first page. */
+                after?: null | number;
+                /** @description Maximum events to return. Defaults to 100. */
+                limit?: null | number;
+            };
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEventsResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    addPlanMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    removePlanMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+                /** @description Milestone key, unique within the plan. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    updatePlanMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+                /** @description Milestone key, unique within the plan. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MilestoneRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MilestoneEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    retryPlanMilestone: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+                /** @description Milestone key, unique within the plan. */
+                key: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Conflict */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    recordPlanQAResult: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Plan identifier. */
+                planId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["QAResultRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanDetailResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Forbidden */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
     listProjects: {
         parameters: {
             query?: never;
@@ -16871,6 +17909,128 @@ export interface operations {
             };
             /** @description Conflict */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Request Entity Too Large */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    listProjectPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier. */
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListPlansResponse"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Internal Server Error */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Implemented */
+            501: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+        };
+    };
+    createPlan: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Project identifier. */
+                projectId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePlanRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanEnvelope"];
+                };
+            };
+            /** @description Bad Request */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["APIError"];
+                };
+            };
+            /** @description Not Found */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

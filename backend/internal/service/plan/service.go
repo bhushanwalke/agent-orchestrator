@@ -66,6 +66,12 @@ type Service struct {
 	logger    *slog.Logger
 	// mu serialises plan writes so read-modify-write edits never interleave.
 	mu sync.Mutex
+
+	baseCtx       context.Context
+	retryInterval time.Duration
+	retryTimeout  time.Duration
+	retryMu       sync.Mutex
+	retrying      map[domain.PlanID]bool
 }
 
 // New constructs the plan service.
@@ -79,9 +85,20 @@ func New(d Deps) *Service {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
 	}
+	if d.BaseContext == nil {
+		d.BaseContext = context.Background()
+	}
+	if d.KickoffRetryInterval == 0 {
+		d.KickoffRetryInterval = 5 * time.Second
+	}
+	if d.KickoffRetryTimeout == 0 {
+		d.KickoffRetryTimeout = 5 * time.Minute
+	}
 	return &Service{
 		store: d.Store, sessions: d.Sessions, projects: d.Projects, scheduler: d.Scheduler,
 		now: d.Now, newID: d.NewID, logger: d.Logger,
+		baseCtx: d.BaseContext, retryInterval: d.KickoffRetryInterval, retryTimeout: d.KickoffRetryTimeout,
+		retrying: map[domain.PlanID]bool{},
 	}
 }
 
@@ -134,6 +151,7 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 	if err != nil {
 		s.logger.Warn("plan kickoff deferred: orchestrator unavailable", "plan", p.ID, "error", err)
 		s.recordEvent(ctx, p.ID, "", "", EventKickoffDeferred, "orchestrator unavailable: "+err.Error())
+		s.scheduleKickoffRetry(p.ID)
 		return p, nil
 	}
 	s.mu.Lock()
@@ -145,20 +163,122 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 	if err != nil {
 		return domain.Plan{}, err
 	}
-	s.deliverKickoff(ctx, p, project)
+	if err := s.deliverKickoff(ctx, p, project); err != nil {
+		s.recordEvent(ctx, p.ID, "", p.OrchestratorSessionID, EventKickoffDeferred, err.Error())
+		s.scheduleKickoffRetry(p.ID)
+	}
 	return p, nil
 }
 
 // deliverKickoff sends the orchestrator the plan request through the guarded
-// path and records whether it landed.
-func (s *Service) deliverKickoff(ctx context.Context, p domain.Plan, project domain.ProjectRecord) {
+// path, recording kickoff_sent when it lands.
+func (s *Service) deliverKickoff(ctx context.Context, p domain.Plan, project domain.ProjectRecord) error {
 	err := s.sessions.Send(ctx, p.OrchestratorSessionID, KickoffMessage(p, projectName(project)), ports.MessageDeliveryOptions{})
 	if err != nil {
-		s.logger.Info("plan kickoff deferred: delivery refused", "plan", p.ID, "error", err)
-		s.recordEvent(ctx, p.ID, "", p.OrchestratorSessionID, EventKickoffDeferred, err.Error())
-		return
+		s.logger.Info("plan kickoff refused", "plan", p.ID, "error", err)
+		return err
 	}
 	s.recordEvent(ctx, p.ID, "", p.OrchestratorSessionID, EventKickoffSent, "")
+	return nil
+}
+
+// RetryDeferredKickoff tries once more to deliver a planning plan's kickoff
+// that has not landed yet. It reports whether the kickoff is now delivered
+// (or no longer needed because the plan left planning).
+func (s *Service) RetryDeferredKickoff(ctx context.Context, id domain.PlanID) (bool, error) {
+	p, err := s.requirePlan(ctx, id)
+	if err != nil {
+		return false, err
+	}
+	if p.State != domain.PlanStatePlanning {
+		return true, nil
+	}
+	sent, err := s.kickoffSent(ctx, id)
+	if err != nil || sent {
+		return sent, err
+	}
+	project, err := s.requireProject(ctx, p.ProjectID)
+	if err != nil {
+		return false, err
+	}
+	orch, err := s.sessions.EnsureOrchestrator(ctx, p.ProjectID)
+	if err != nil {
+		return false, nil
+	}
+	if orch.ID != p.OrchestratorSessionID {
+		s.mu.Lock()
+		p, err = s.mutatePlan(ctx, p.ID, func(p *domain.Plan) error {
+			p.OrchestratorSessionID = orch.ID
+			return nil
+		})
+		s.mu.Unlock()
+		if err != nil {
+			return false, err
+		}
+	}
+	return s.deliverKickoff(ctx, p, project) == nil, nil
+}
+
+func (s *Service) kickoffSent(ctx context.Context, id domain.PlanID) (bool, error) {
+	var after int64
+	for {
+		evs, err := s.store.ListPlanEvents(ctx, id, after, MaxEventsPage)
+		if err != nil {
+			return false, err
+		}
+		for _, e := range evs {
+			if e.Kind == EventKickoffSent {
+				return true, nil
+			}
+		}
+		if len(evs) < MaxEventsPage {
+			return false, nil
+		}
+		after = evs[len(evs)-1].ID
+	}
+}
+
+// scheduleKickoffRetry retries a deferred kickoff in the background until it
+// lands, the plan leaves planning, or the retry window closes. A freshly
+// started orchestrator refuses messages until its startup settles, so the
+// first delivery usually needs this.
+func (s *Service) scheduleKickoffRetry(id domain.PlanID) {
+	if s.retryInterval < 0 {
+		return
+	}
+	s.retryMu.Lock()
+	if s.retrying[id] {
+		s.retryMu.Unlock()
+		return
+	}
+	s.retrying[id] = true
+	s.retryMu.Unlock()
+	go func() {
+		defer func() {
+			s.retryMu.Lock()
+			delete(s.retrying, id)
+			s.retryMu.Unlock()
+		}()
+		ctx, cancel := context.WithTimeout(s.baseCtx, s.retryTimeout)
+		defer cancel()
+		ticker := time.NewTicker(s.retryInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+			done, err := s.RetryDeferredKickoff(ctx, id)
+			if err != nil {
+				s.logger.Warn("plan kickoff retry failed", "plan", id, "error", err)
+				return
+			}
+			if done {
+				return
+			}
+		}
+	}()
 }
 
 // KickoffMessage is the orchestrator's plan request. The wrapper tag is exact
@@ -666,24 +786,32 @@ func (s *Service) qaResultLocked(ctx context.Context, id domain.PlanID, in QARes
 	return p, "", nil
 }
 
-// Events returns up to limit events after the given id, oldest first, and the
-// cursor for the next page (the last id returned, or after when empty).
-func (s *Service) Events(ctx context.Context, id domain.PlanID, after int64, limit int) ([]domain.PlanEvent, int64, error) {
+// Events returns up to limit events after the given id, oldest first, the
+// cursor for the next page (the last id returned, or after when empty), and
+// the keys of the plan's current milestones.
+func (s *Service) Events(ctx context.Context, id domain.PlanID, after int64, limit int) (EventsPage, error) {
 	if _, err := s.requirePlan(ctx, id); err != nil {
-		return nil, 0, err
+		return EventsPage{}, err
 	}
 	if limit <= 0 || limit > MaxEventsPage {
 		limit = DetailEventLimit
 	}
 	evs, err := s.store.ListPlanEvents(ctx, id, after, limit)
 	if err != nil {
-		return nil, 0, err
+		return EventsPage{}, err
 	}
-	next := after
+	ms, err := s.store.ListMilestones(ctx, id)
+	if err != nil {
+		return EventsPage{}, err
+	}
+	page := EventsPage{Events: evs, NextAfter: after, MilestoneKeys: make(map[domain.MilestoneID]string, len(ms))}
 	if len(evs) > 0 {
-		next = evs[len(evs)-1].ID
+		page.NextAfter = evs[len(evs)-1].ID
 	}
-	return evs, next, nil
+	for _, m := range ms {
+		page.MilestoneKeys[m.ID] = m.Key
+	}
+	return page, nil
 }
 
 func (s *Service) tick(ctx context.Context) {

@@ -1271,6 +1271,7 @@ func Run(buildVersion string) (retErr error) {
 		ShellTerminals:     shellTermSvc,
 		PaneTerminals:      shellTermSvc,
 		Cues:               cuesvc.New(cuesvc.Deps{Store: store, Sessions: sessionSvc, Terminals: shellTermSvc}),
+		Plans:              newPlanService(ctx, store, sessionSvc, log),
 		AgentAuth:          agentAuthSvc,
 		GitHub:             newGitHubStatusService(githubpat.New(cfg.DataDir), prReader),
 		Conversations:      chatSvc,

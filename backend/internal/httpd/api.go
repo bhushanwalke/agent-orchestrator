@@ -61,6 +61,7 @@ type APIDeps struct {
 	Directories        controllers.DirectoryBrowserService
 	ShellTerminals     controllers.ShellTerminalService
 	Cues               controllers.CueService
+	Plans              controllers.PlanService
 	// Conversations is nil until a Chat driver is wired; the controller then
 	// answers 501 rather than panicking, matching the other optional surfaces.
 	Conversations controllers.ConversationService
@@ -175,6 +176,7 @@ type API struct {
 	fs            *controllers.FSController
 	shellTerms    *controllers.ShellTerminalsController
 	cues          *controllers.CuesController
+	plans         *controllers.PlansController
 	conversations *controllers.ConversationsController
 	settings      *controllers.SettingsController
 	dev           *controllers.DevController
@@ -244,6 +246,7 @@ func newAPIWithLogger(cfg config.Config, deps APIDeps, log *slog.Logger) *API {
 		fs:            &controllers.FSController{Svc: deps.Directories},
 		shellTerms:    &controllers.ShellTerminalsController{Svc: deps.ShellTerminals},
 		cues:          &controllers.CuesController{Svc: deps.Cues},
+		plans:         &controllers.PlansController{Svc: deps.Plans},
 		conversations: &controllers.ConversationsController{Svc: deps.Conversations, Renders: attachmentstore.New(cfg.DataDir), Search: deps.ConversationSearch, UserMessages: userMessageRecorder(deps.Sessions)},
 		settings:      &controllers.SettingsController{Svc: deps.Settings},
 		dev:           &controllers.DevController{Import: deps.DevImport},
@@ -395,6 +398,7 @@ func (a *API) Register(root chi.Router) {
 			a.fs.Register(r)
 			a.shellTerms.Register(r)
 			a.cues.Register(r)
+			a.plans.Register(r)
 			a.conversations.Register(r)
 			a.settings.Register(r)
 			a.dev.Register(r)

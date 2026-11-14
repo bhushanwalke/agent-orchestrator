@@ -87,7 +87,7 @@ func newFixture(t *testing.T, kind domain.ProjectKind) fixture {
 	sched := &fakeScheduler{}
 	n := 0
 	svc := plan.New(plan.Deps{
-		Store: st, Sessions: sessions, Projects: st, Scheduler: sched,
+		Store: st, Sessions: sessions, Projects: st, Scheduler: sched, KickoffRetryInterval: -1,
 		Now:   func() time.Time { return time.Date(2026, 11, 14, 9, 0, 0, 0, time.UTC) },
 		NewID: func(prefix string) string { n++; return fmt.Sprintf("%s%d", prefix, n) },
 	})
@@ -179,6 +179,62 @@ func TestCreateDefersKickoffWhenDeliveryRefused(t *testing.T) {
 	if got := strings.Join(eventKinds(t, f, p.ID), ","); got != "plan_created,kickoff_deferred" {
 		t.Fatalf("events = %s", got)
 	}
+}
+
+func TestDeferredKickoffIsRetriedUntilDelivered(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	f.sessions.sendErr = apierr.Conflict("SESSION_STARTUP_PENDING", "starting", nil)
+	p := createPlan(t, f)
+	done, err := f.svc.RetryDeferredKickoff(context.Background(), p.ID)
+	if err != nil || done {
+		t.Fatalf("retry while refused: done=%v err=%v", done, err)
+	}
+	f.sessions.mu.Lock()
+	f.sessions.sendErr = nil
+	f.sessions.mu.Unlock()
+	if done, err := f.svc.RetryDeferredKickoff(context.Background(), p.ID); err != nil || !done {
+		t.Fatalf("retry after startup: done=%v err=%v", done, err)
+	}
+	if done, err := f.svc.RetryDeferredKickoff(context.Background(), p.ID); err != nil || !done {
+		t.Fatalf("retry after delivered: done=%v err=%v", done, err)
+	}
+	if len(f.sessions.sent) != 1 {
+		t.Fatalf("kickoff delivered %d times", len(f.sessions.sent))
+	}
+	if got := strings.Join(eventKinds(t, f, p.ID), ","); got != "plan_created,kickoff_deferred,kickoff_sent" {
+		t.Fatalf("events = %s", got)
+	}
+}
+
+func TestDeferredKickoffBackgroundRetry(t *testing.T) {
+	st := sqlitetest.MustOpen(t)
+	ctx := context.Background()
+	if err := st.UpsertProject(ctx, domain.ProjectRecord{ID: "mer", Path: "/tmp/mer", RegisteredAt: time.Now().UTC()}); err != nil {
+		t.Fatal(err)
+	}
+	sessions := &fakeSessions{sendErr: errors.New("starting")}
+	svc := plan.New(plan.Deps{Store: st, Sessions: sessions, Projects: st, KickoffRetryInterval: 10 * time.Millisecond, KickoffRetryTimeout: 5 * time.Second})
+	p, err := svc.Create(ctx, plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sessions.mu.Lock()
+	sessions.sendErr = nil
+	sessions.mu.Unlock()
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		sessions.mu.Lock()
+		n := len(sessions.sent)
+		sessions.mu.Unlock()
+		if n == 1 {
+			evs, _ := st.ListPlanEvents(ctx, p.ID, 0, 10)
+			if evs[len(evs)-1].Kind == "kickoff_sent" {
+				return
+			}
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("deferred kickoff was not retried in the background")
 }
 
 func TestCreateDefersKickoffWhenOrchestratorCannotStart(t *testing.T) {
@@ -544,14 +600,16 @@ func TestListAndEvents(t *testing.T) {
 		list[0].Counts.Total != 1 {
 		t.Fatalf("list = %+v err=%v", list, err)
 	}
-	evs, next, err := f.svc.Events(ctx, p.ID, 0, 2)
-	if err != nil || len(evs) != 2 || evs[0].Kind != "plan_created" || next != evs[1].ID {
-		t.Fatalf("events = %+v next=%d err=%v", evs, next, err)
+	page, err := f.svc.Events(ctx, p.ID, 0, 2)
+	evs := page.Events
+	if err != nil || len(evs) != 2 || evs[0].Kind != "plan_created" || page.NextAfter != evs[1].ID {
+		t.Fatalf("events = %+v err=%v", page, err)
 	}
-	more, next2, err := f.svc.Events(ctx, p.ID, next, 50)
-	if err != nil || len(more) != 1 || more[0].Kind != "milestone_added" || next2 != more[0].ID {
-		t.Fatalf("more = %+v next=%d err=%v", more, next2, err)
+	more, err := f.svc.Events(ctx, p.ID, page.NextAfter, 50)
+	if err != nil || len(more.Events) != 1 || more.Events[0].Kind != "milestone_added" || more.NextAfter != more.Events[0].ID ||
+		more.MilestoneKeys[more.Events[0].MilestoneID] != "m1" {
+		t.Fatalf("more = %+v err=%v", more, err)
 	}
-	_, _, err = f.svc.Events(ctx, "plan_missing", 0, 10)
+	_, err = f.svc.Events(ctx, "plan_missing", 0, 10)
 	wantCode(t, err, "PLAN_NOT_FOUND")
 }

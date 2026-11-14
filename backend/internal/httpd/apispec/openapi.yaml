@@ -5079,6 +5079,582 @@ paths:
       summary: Start a worker task and refine its title in the background
       tags:
       - sessions
+  /api/v1/plans/{planId}:
+    get:
+      operationId: getPlan
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Get a task plan with its milestones and latest events
+      tags:
+      - plans
+    patch:
+      operationId: updatePlan
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanPatchRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Edit a task plan's title, parallel limit, or plan document
+      tags:
+      - plans
+  /api/v1/plans/{planId}/activate:
+    post:
+      operationId: activatePlan
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Validate the milestone graph and start the plan
+      tags:
+      - plans
+  /api/v1/plans/{planId}/cancel:
+    post:
+      operationId: cancelPlan
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Cancel a plan; its sessions keep running
+      tags:
+      - plans
+  /api/v1/plans/{planId}/events:
+    get:
+      operationId: listPlanEvents
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      - description: Return events with an id greater than this. Omit for the first
+          page.
+        in: query
+        name: after
+        schema:
+          description: Return events with an id greater than this. Omit for the first
+            page.
+          minimum: 0
+          type:
+          - "null"
+          - integer
+      - description: Maximum events to return. Defaults to 100.
+        in: query
+        name: limit
+        schema:
+          description: Maximum events to return. Defaults to 100.
+          maximum: 500
+          minimum: 1
+          type:
+          - "null"
+          - integer
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEventsResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Page through a plan's activity log, oldest first
+      tags:
+      - plans
+  /api/v1/plans/{planId}/milestones:
+    post:
+      operationId: addPlanMilestone
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Add a milestone to a plan that is still planning
+      tags:
+      - plans
+  /api/v1/plans/{planId}/milestones/{key}:
+    delete:
+      operationId: removePlanMilestone
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      - description: Milestone key, unique within the plan.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: Milestone key, unique within the plan.
+          type: string
+      responses:
+        "204":
+          description: No Content
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Remove a milestone from a plan that is still planning
+      tags:
+      - plans
+    patch:
+      operationId: updatePlanMilestone
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      - description: Milestone key, unique within the plan.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: Milestone key, unique within the plan.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MilestoneRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MilestoneEnvelope'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Edit a milestone of a plan that is still planning
+      tags:
+      - plans
+  /api/v1/plans/{planId}/milestones/{key}/retry:
+    post:
+      operationId: retryPlanMilestone
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      - description: Milestone key, unique within the plan.
+        in: path
+        name: key
+        required: true
+        schema:
+          description: Milestone key, unique within the plan.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Reset a failed milestone to ready with a fresh attempt budget
+      tags:
+      - plans
+  /api/v1/plans/{planId}/qa-result:
+    post:
+      operationId: recordPlanQAResult
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QAResultRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "403":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Forbidden
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Record the QA worker's verdict for a plan
+      tags:
+      - plans
   /api/v1/projects:
     get:
       operationId: listProjects
@@ -5517,6 +6093,101 @@ paths:
       summary: Create a cue for a project
       tags:
       - cues
+  /api/v1/projects/{projectId}/plans:
+    get:
+      operationId: listProjectPlans
+      parameters:
+      - description: Project identifier.
+        in: path
+        name: projectId
+        required: true
+        schema:
+          description: Project identifier.
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPlansResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: List a project's task plans, newest first
+      tags:
+      - plans
+    post:
+      operationId: createPlan
+      parameters:
+      - description: Project identifier.
+        in: path
+        name: projectId
+        required: true
+        schema:
+          description: Project identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePlanRequest'
+        required: true
+      responses:
+        "201":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanEnvelope'
+          description: Created
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "413":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Request Entity Too Large
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Create a task plan and ask the project orchestrator to plan it
+      tags:
+      - plans
   /api/v1/projects/clone:
     post:
       operationId: cloneProject
@@ -20127,6 +20798,26 @@ components:
       required:
       - side
       type: object
+    CreatePlanRequest:
+      properties:
+        brief:
+          description: The ticket text as pasted, at most 100 KiB.
+          type: string
+        maxParallel:
+          description: Most implementation workers running at once. Defaults to 3.
+          maximum: 10
+          minimum: 1
+          type: integer
+        ticketRef:
+          description: Display-only ticket link or reference.
+          type: string
+        title:
+          description: Task title, 1-100 characters.
+          type: string
+      required:
+      - title
+      - brief
+      type: object
     CreateReportRequest:
       properties:
         message:
@@ -21368,6 +22059,15 @@ components:
       - truncated
       - summary
       type: object
+    ListPlansResponse:
+      properties:
+        plans:
+          items:
+            $ref: '#/components/schemas/PlanSummary'
+          type: array
+      required:
+      - plans
+      type: object
     ListProjectsResponse:
       properties:
         projects:
@@ -21710,6 +22410,142 @@ components:
       - method
       - status
       - stateChangedAt
+      type: object
+    MilestoneEnvelope:
+      properties:
+        milestone:
+          $ref: '#/components/schemas/MilestoneResponse'
+      required:
+      - milestone
+      type: object
+    MilestoneRequest:
+      properties:
+        dependsOn:
+          description: Keys of milestones in the same plan this one needs.
+          items:
+            type: string
+          type:
+          - "null"
+          - array
+        description:
+          description: The milestone's own spec, Markdown. Required for implement
+            milestones.
+          type:
+          - "null"
+          - string
+        key:
+          description: Short slug matching ^[a-z0-9][a-z0-9-]{0,31}$; qa is reserved
+            for the QA milestone.
+          type:
+          - "null"
+          - string
+        kind:
+          description: Defaults to implement.
+          enum:
+          - implement
+          - qa
+          type:
+          - "null"
+          - string
+        sparsePaths:
+          description: Repo-relative directories for a cone-mode sparse checkout.
+            Empty is a full checkout.
+          items:
+            type: string
+          type:
+          - "null"
+          - array
+        title:
+          type:
+          - "null"
+          - string
+      type: object
+    MilestoneResponse:
+      properties:
+        attempt:
+          type: integer
+        branch:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        dependsOn:
+          items:
+            type: string
+          type: array
+        description:
+          type: string
+        finishedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        id:
+          type: string
+        key:
+          type: string
+        kind:
+          enum:
+          - implement
+          - qa
+          type: string
+        ordinal:
+          type: integer
+        prs:
+          items:
+            $ref: '#/components/schemas/SessionPRFacts'
+          type: array
+        qaNote:
+          type: string
+        qaVerdict:
+          enum:
+          - ""
+          - pass
+          - fail
+          type: string
+        session:
+          $ref: '#/components/schemas/PlanSessionSummary'
+        sparsePaths:
+          items:
+            type: string
+          type: array
+        startedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        status:
+          enum:
+          - pending
+          - ready
+          - running
+          - blocked
+          - done
+          - failed
+          - cancelled
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - key
+      - ordinal
+      - kind
+      - title
+      - description
+      - status
+      - dependsOn
+      - sparsePaths
+      - qaVerdict
+      - qaNote
+      - attempt
+      - branch
+      - prs
+      - createdAt
+      - updatedAt
       type: object
     MobileDeviceResponse:
       properties:
@@ -22139,6 +22975,295 @@ components:
       - baseBranch
       - open
       - layers
+      type: object
+    PlanDetailResponse:
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/PlanEventResponse'
+          type: array
+        milestones:
+          items:
+            $ref: '#/components/schemas/MilestoneResponse'
+          type: array
+        plan:
+          $ref: '#/components/schemas/PlanResponse'
+      required:
+      - plan
+      - milestones
+      - events
+      type: object
+    PlanEnvelope:
+      properties:
+        plan:
+          $ref: '#/components/schemas/PlanResponse'
+      required:
+      - plan
+      type: object
+    PlanEventResponse:
+      properties:
+        createdAt:
+          format: date-time
+          type: string
+        id:
+          format: int64
+          type: integer
+        kind:
+          type: string
+        milestoneKey:
+          type: string
+        note:
+          type: string
+        sessionId:
+          type: string
+      required:
+      - id
+      - milestoneKey
+      - sessionId
+      - kind
+      - note
+      - createdAt
+      type: object
+    PlanEventsResponse:
+      properties:
+        events:
+          items:
+            $ref: '#/components/schemas/PlanEventResponse'
+          type: array
+        nextAfter:
+          format: int64
+          type: integer
+      required:
+      - events
+      - nextAfter
+      type: object
+    PlanMilestoneCounts:
+      properties:
+        blocked:
+          type: integer
+        done:
+          type: integer
+        failed:
+          type: integer
+        running:
+          type: integer
+        total:
+          type: integer
+      required:
+      - total
+      - done
+      - running
+      - failed
+      - blocked
+      type: object
+    PlanPatchRequest:
+      properties:
+        maxParallel:
+          maximum: 10
+          minimum: 1
+          type:
+          - "null"
+          - integer
+        specMarkdown:
+          description: The orchestrator's plan document, Markdown.
+          type:
+          - "null"
+          - string
+        title:
+          type:
+          - "null"
+          - string
+      type: object
+    PlanResponse:
+      properties:
+        activatedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        brief:
+          type: string
+        createdAt:
+          format: date-time
+          type: string
+        displayStatus:
+          type: string
+        finishedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        id:
+          type: string
+        kanbanColumn:
+          enum:
+          - building
+          - validating
+          - needs_review
+          - ready
+          - archive
+          type: string
+        liveSessions:
+          items:
+            $ref: '#/components/schemas/PlanSessionSummary'
+          type: array
+        maxParallel:
+          type: integer
+        milestoneCounts:
+          $ref: '#/components/schemas/PlanMilestoneCounts'
+        orchestratorSessionId:
+          type: string
+        phase:
+          enum:
+          - planning
+          - implementing
+          - qa
+          - fixing
+          - done
+          - cancelled
+          - failed
+          type: string
+        projectId:
+          type: string
+        specMarkdown:
+          type: string
+        state:
+          enum:
+          - planning
+          - active
+          - cancelled
+          type: string
+        ticketRef:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - projectId
+      - title
+      - ticketRef
+      - state
+      - phase
+      - kanbanColumn
+      - displayStatus
+      - milestoneCounts
+      - liveSessions
+      - orchestratorSessionId
+      - maxParallel
+      - createdAt
+      - updatedAt
+      - brief
+      - specMarkdown
+      type: object
+    PlanSessionSummary:
+      properties:
+        displayName:
+          type: string
+        displayStatus:
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        isTerminated:
+          type: boolean
+        kanbanColumn:
+          enum:
+          - building
+          - validating
+          - needs_review
+          - ready
+          - archive
+          type: string
+        status:
+          type: string
+      required:
+      - id
+      - status
+      - kanbanColumn
+      - displayStatus
+      - isTerminated
+      type: object
+    PlanSummary:
+      properties:
+        activatedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        createdAt:
+          format: date-time
+          type: string
+        displayStatus:
+          type: string
+        finishedAt:
+          format: date-time
+          type:
+          - "null"
+          - string
+        id:
+          type: string
+        kanbanColumn:
+          enum:
+          - building
+          - validating
+          - needs_review
+          - ready
+          - archive
+          type: string
+        liveSessions:
+          items:
+            $ref: '#/components/schemas/PlanSessionSummary'
+          type: array
+        maxParallel:
+          type: integer
+        milestoneCounts:
+          $ref: '#/components/schemas/PlanMilestoneCounts'
+        orchestratorSessionId:
+          type: string
+        phase:
+          enum:
+          - planning
+          - implementing
+          - qa
+          - fixing
+          - done
+          - cancelled
+          - failed
+          type: string
+        projectId:
+          type: string
+        state:
+          enum:
+          - planning
+          - active
+          - cancelled
+          type: string
+        ticketRef:
+          type: string
+        title:
+          type: string
+        updatedAt:
+          format: date-time
+          type: string
+      required:
+      - id
+      - projectId
+      - title
+      - ticketRef
+      - state
+      - phase
+      - kanbanColumn
+      - displayStatus
+      - milestoneCounts
+      - liveSessions
+      - orchestratorSessionId
+      - maxParallel
+      - createdAt
+      - updatedAt
       type: object
     PostPRCommentRequest:
       properties:
@@ -22587,6 +23712,30 @@ components:
           type: integer
       required:
       - pat
+      type: object
+    QAResultRequest:
+      properties:
+        milestoneKey:
+          description: The implement milestone a fail is recorded against. Omit for
+            pass, or for a fail no milestone owns.
+          type: string
+        note:
+          description: What QA verified, or steps to reproduce, expected and actual
+            behaviour. At most 8 KiB.
+          type: string
+        sessionId:
+          description: The calling QA session (AO_SESSION_ID). Only the plan's QA
+            session may record a result.
+          type: string
+        verdict:
+          enum:
+          - pass
+          - fail
+          type: string
+      required:
+      - verdict
+      - note
+      - sessionId
       type: object
     RecordAgentSignInResponse:
       properties:

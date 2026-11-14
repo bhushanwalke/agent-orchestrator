@@ -4712,3 +4712,175 @@ type ForkSessionResponse struct {
 	SessionID   domain.SessionID `json:"sessionId"`
 	DisplayName string           `json:"displayName"`
 }
+
+// PlanIDParam is the {planId} path parameter of the /plans/{planId} routes.
+type PlanIDParam struct {
+	PlanID string `path:"planId" description:"Plan identifier."`
+}
+
+// PlanMilestoneParams are the {planId} and {key} path parameters of the
+// milestone routes.
+type PlanMilestoneParams struct {
+	PlanID string `path:"planId" description:"Plan identifier."`
+	Key    string `path:"key" description:"Milestone key, unique within the plan."`
+}
+
+// PlanProjectIDParam is the {projectId} path parameter of the project-scoped
+// plan routes.
+type PlanProjectIDParam struct {
+	ProjectID string `path:"projectId" description:"Project identifier."`
+}
+
+// PlanEventsQuery pages GET /api/v1/plans/{planId}/events.
+type PlanEventsQuery struct {
+	After *int64 `query:"after,omitempty" minimum:"0" description:"Return events with an id greater than this. Omit for the first page."`
+	Limit *int64 `query:"limit,omitempty" minimum:"1" maximum:"500" description:"Maximum events to return. Defaults to 100."`
+}
+
+// CreatePlanRequest is the body of POST /api/v1/projects/{projectId}/plans.
+// Body limit: 128 KiB.
+type CreatePlanRequest struct {
+	Title       string `json:"title" description:"Task title, 1-100 characters."`
+	Brief       string `json:"brief" description:"The ticket text as pasted, at most 100 KiB."`
+	TicketRef   string `json:"ticketRef,omitempty" description:"Display-only ticket link or reference."`
+	MaxParallel int    `json:"maxParallel,omitempty" minimum:"1" maximum:"10" description:"Most implementation workers running at once. Defaults to 3."`
+}
+
+// PlanPatchRequest is the body of PATCH /api/v1/plans/{planId}. Title and
+// spec change only while planning; maxParallel is always editable.
+type PlanPatchRequest struct {
+	Title        *string `json:"title,omitempty"`
+	MaxParallel  *int    `json:"maxParallel,omitempty" minimum:"1" maximum:"10"`
+	SpecMarkdown *string `json:"specMarkdown,omitempty" description:"The orchestrator's plan document, Markdown."`
+}
+
+// MilestoneRequest is the body of the milestone create and update routes.
+// On update every field is optional and omitted fields are left alone.
+type MilestoneRequest struct {
+	Key         *string   `json:"key,omitempty" description:"Short slug matching ^[a-z0-9][a-z0-9-]{0,31}$; qa is reserved for the QA milestone."`
+	Kind        *string   `json:"kind,omitempty" enum:"implement,qa" description:"Defaults to implement."`
+	Title       *string   `json:"title,omitempty"`
+	Description *string   `json:"description,omitempty" description:"The milestone's own spec, Markdown. Required for implement milestones."`
+	DependsOn   *[]string `json:"dependsOn,omitempty" description:"Keys of milestones in the same plan this one needs."`
+	SparsePaths *[]string `json:"sparsePaths,omitempty" description:"Repo-relative directories for a cone-mode sparse checkout. Empty is a full checkout."`
+}
+
+// QAResultRequest is the body of POST /api/v1/plans/{planId}/qa-result.
+type QAResultRequest struct {
+	Verdict      string `json:"verdict" enum:"pass,fail"`
+	MilestoneKey string `json:"milestoneKey,omitempty" description:"The implement milestone a fail is recorded against. Omit for pass, or for a fail no milestone owns."`
+	Note         string `json:"note" description:"What QA verified, or steps to reproduce, expected and actual behaviour. At most 8 KiB."`
+	SessionID    string `json:"sessionId" description:"The calling QA session (AO_SESSION_ID). Only the plan's QA session may record a result."`
+}
+
+// PlanSessionSummary is a session as a plan's agent cards show it, built from
+// the same read model as GET /sessions.
+type PlanSessionSummary struct {
+	ID            string `json:"id"`
+	DisplayName   string `json:"displayName,omitempty"`
+	Harness       string `json:"harness,omitempty"`
+	Status        string `json:"status"`
+	KanbanColumn  string `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
+	DisplayStatus string `json:"displayStatus"`
+	IsTerminated  bool   `json:"isTerminated"`
+}
+
+// PlanMilestoneCounts summarises a plan's milestones by status.
+type PlanMilestoneCounts struct {
+	Total   int `json:"total"`
+	Done    int `json:"done"`
+	Running int `json:"running"`
+	Failed  int `json:"failed"`
+	Blocked int `json:"blocked"`
+}
+
+// PlanSummary is one plan as the board shows it. Phase, kanbanColumn, and
+// displayStatus are derived from the milestones at read time.
+type PlanSummary struct {
+	ID                    string               `json:"id"`
+	ProjectID             string               `json:"projectId"`
+	Title                 string               `json:"title"`
+	TicketRef             string               `json:"ticketRef"`
+	State                 string               `json:"state" enum:"planning,active,cancelled"`
+	Phase                 string               `json:"phase" enum:"planning,implementing,qa,fixing,done,cancelled,failed"`
+	KanbanColumn          string               `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
+	DisplayStatus         string               `json:"displayStatus"`
+	MilestoneCounts       PlanMilestoneCounts  `json:"milestoneCounts"`
+	LiveSessions          []PlanSessionSummary `json:"liveSessions"`
+	OrchestratorSessionID string               `json:"orchestratorSessionId"`
+	MaxParallel           int                  `json:"maxParallel"`
+	CreatedAt             time.Time            `json:"createdAt"`
+	UpdatedAt             time.Time            `json:"updatedAt"`
+	ActivatedAt           *time.Time           `json:"activatedAt,omitempty"`
+	FinishedAt            *time.Time           `json:"finishedAt,omitempty"`
+}
+
+// PlanResponse is a plan with its brief and plan document.
+type PlanResponse struct {
+	PlanSummary
+	Brief        string `json:"brief"`
+	SpecMarkdown string `json:"specMarkdown"`
+}
+
+// MilestoneResponse is one milestone with its current owning session.
+type MilestoneResponse struct {
+	ID          string              `json:"id"`
+	Key         string              `json:"key"`
+	Ordinal     int                 `json:"ordinal"`
+	Kind        string              `json:"kind" enum:"implement,qa"`
+	Title       string              `json:"title"`
+	Description string              `json:"description"`
+	Status      string              `json:"status" enum:"pending,ready,running,blocked,done,failed,cancelled"`
+	DependsOn   []string            `json:"dependsOn"`
+	SparsePaths []string            `json:"sparsePaths"`
+	QAVerdict   string              `json:"qaVerdict" enum:",pass,fail"`
+	QANote      string              `json:"qaNote"`
+	Attempt     int                 `json:"attempt"`
+	Session     *PlanSessionSummary `json:"session,omitempty"`
+	Branch      string              `json:"branch"`
+	PRs         []SessionPRFacts    `json:"prs"`
+	CreatedAt   time.Time           `json:"createdAt"`
+	UpdatedAt   time.Time           `json:"updatedAt"`
+	StartedAt   *time.Time          `json:"startedAt,omitempty"`
+	FinishedAt  *time.Time          `json:"finishedAt,omitempty"`
+}
+
+// PlanEventResponse is one entry of a plan's activity log.
+type PlanEventResponse struct {
+	ID           int64     `json:"id"`
+	MilestoneKey string    `json:"milestoneKey"`
+	SessionID    string    `json:"sessionId"`
+	Kind         string    `json:"kind"`
+	Note         string    `json:"note"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+// PlanEnvelope is the { plan } body for plan reads and mutations.
+type PlanEnvelope struct {
+	Plan PlanResponse `json:"plan"`
+}
+
+// ListPlansResponse is the body of GET /api/v1/projects/{projectId}/plans.
+type ListPlansResponse struct {
+	Plans []PlanSummary `json:"plans"`
+}
+
+// PlanDetailResponse is a plan with its milestones and its latest 100 events,
+// newest first.
+type PlanDetailResponse struct {
+	Plan       PlanResponse        `json:"plan"`
+	Milestones []MilestoneResponse `json:"milestones"`
+	Events     []PlanEventResponse `json:"events"`
+}
+
+// MilestoneEnvelope is the { milestone } body for milestone mutations.
+type MilestoneEnvelope struct {
+	Milestone MilestoneResponse `json:"milestone"`
+}
+
+// PlanEventsResponse is one page of a plan's events, oldest first.
+// nextAfter is the cursor for the next page.
+type PlanEventsResponse struct {
+	Events    []PlanEventResponse `json:"events"`
+	NextAfter int64               `json:"nextAfter"`
+}

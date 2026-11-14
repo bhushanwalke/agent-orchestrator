@@ -634,6 +634,26 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"ControllersInvokeCueRequest":     "InvokeCueRequest",
 	"ControllersInvokeCueResponse":    "InvokeCueResponse",
 	"ControllersCueEnvelope":          "CueEnvelope",
+	// httpd/controllers — task plan wire envelopes
+	"ControllersPlanIDParam":         "PlanIDParam",
+	"ControllersPlanMilestoneParams": "PlanMilestoneParams",
+	"ControllersPlanProjectIDParam":  "PlanProjectIDParam",
+	"ControllersPlanEventsQuery":     "PlanEventsQuery",
+	"ControllersCreatePlanRequest":   "CreatePlanRequest",
+	"ControllersPlanPatchRequest":    "PlanPatchRequest",
+	"ControllersMilestoneRequest":    "MilestoneRequest",
+	"ControllersQAResultRequest":     "QAResultRequest",
+	"ControllersPlanSessionSummary":  "PlanSessionSummary",
+	"ControllersPlanMilestoneCounts": "PlanMilestoneCounts",
+	"ControllersPlanSummary":         "PlanSummary",
+	"ControllersPlanResponse":        "PlanResponse",
+	"ControllersMilestoneResponse":   "MilestoneResponse",
+	"ControllersPlanEventResponse":   "PlanEventResponse",
+	"ControllersPlanEnvelope":        "PlanEnvelope",
+	"ControllersListPlansResponse":   "ListPlansResponse",
+	"ControllersPlanDetailResponse":  "PlanDetailResponse",
+	"ControllersMilestoneEnvelope":   "MilestoneEnvelope",
+	"ControllersPlanEventsResponse":  "PlanEventsResponse",
 	// httpd/controllers — PR wire envelopes
 	"ControllersMergePRRequest":             "MergePRRequest",
 	"ControllersPRStackLayerResponse":       "PRStackLayerResponse",
@@ -848,6 +868,7 @@ func operations() []operation {
 	ops = append(ops, paneOperations()...)
 	ops = append(ops, shellTerminalOperations()...)
 	ops = append(ops, cueOperations()...)
+	ops = append(ops, planOperations()...)
 	ops = append(ops, systemOperations()...)
 	ops = append(ops, computerUseOperations()...)
 	ops = append(ops, identityOperations()...)
@@ -4451,5 +4472,106 @@ func awakeOperations() []operation {
 		common(http.MethodPost, "/api/v1/awake/recover", "recoverAwake", nil, nil),
 		common(http.MethodDelete, "/api/v1/awake/history", "clearAwakeHistory", nil, nil),
 		common(http.MethodPost, "/api/v1/awake/downloads", "awakeDownloads", controllers.AwakeDownloadsRequest{}, nil),
+	}
+}
+
+func planOperations() []operation {
+	errs := func(statuses ...int) []respUnit {
+		out := make([]respUnit, 0, len(statuses)+2)
+		for _, st := range statuses {
+			out = append(out, respUnit{st, envelope.APIError{}})
+		}
+		return append(out,
+			respUnit{http.StatusInternalServerError, envelope.APIError{}},
+			respUnit{http.StatusNotImplemented, envelope.APIError{}})
+	}
+	with := func(ok respUnit, rest []respUnit) []respUnit { return append([]respUnit{ok}, rest...) }
+	plan := []any{controllers.PlanIDParam{}}
+	milestone := []any{controllers.PlanMilestoneParams{}}
+	return []operation{
+		{
+			method: http.MethodPost, path: "/api/v1/projects/{projectId}/plans", id: "createPlan", tag: "plans",
+			summary:    "Create a task plan and ask the project orchestrator to plan it",
+			pathParams: []any{controllers.PlanProjectIDParam{}},
+			reqBody:    controllers.CreatePlanRequest{},
+			resps: with(respUnit{http.StatusCreated, controllers.PlanEnvelope{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/projects/{projectId}/plans", id: "listProjectPlans", tag: "plans",
+			summary:    "List a project's task plans, newest first",
+			pathParams: []any{controllers.PlanProjectIDParam{}},
+			resps:      with(respUnit{http.StatusOK, controllers.ListPlansResponse{}}, errs(http.StatusBadRequest)),
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/plans/{planId}", id: "getPlan", tag: "plans",
+			summary:    "Get a task plan with its milestones and latest events",
+			pathParams: plan,
+			resps:      with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}}, errs(http.StatusBadRequest, http.StatusNotFound)),
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/plans/{planId}", id: "updatePlan", tag: "plans",
+			summary:    "Edit a task plan's title, parallel limit, or plan document",
+			pathParams: plan,
+			reqBody:    controllers.PlanPatchRequest{},
+			resps: with(respUnit{http.StatusOK, controllers.PlanEnvelope{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/milestones", id: "addPlanMilestone", tag: "plans",
+			summary:    "Add a milestone to a plan that is still planning",
+			pathParams: plan,
+			reqBody:    controllers.MilestoneRequest{},
+			resps: with(respUnit{http.StatusCreated, controllers.MilestoneEnvelope{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodPatch, path: "/api/v1/plans/{planId}/milestones/{key}", id: "updatePlanMilestone", tag: "plans",
+			summary:    "Edit a milestone of a plan that is still planning",
+			pathParams: milestone,
+			reqBody:    controllers.MilestoneRequest{},
+			resps: with(respUnit{http.StatusOK, controllers.MilestoneEnvelope{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodDelete, path: "/api/v1/plans/{planId}/milestones/{key}", id: "removePlanMilestone", tag: "plans",
+			summary:    "Remove a milestone from a plan that is still planning",
+			pathParams: milestone,
+			resps:      with(respUnit{http.StatusNoContent, nil}, errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/milestones/{key}/retry", id: "retryPlanMilestone", tag: "plans",
+			summary:    "Reset a failed milestone to ready with a fresh attempt budget",
+			pathParams: milestone,
+			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/activate", id: "activatePlan", tag: "plans",
+			summary:    "Validate the milestone graph and start the plan",
+			pathParams: plan,
+			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/cancel", id: "cancelPlan", tag: "plans",
+			summary:    "Cancel a plan; its sessions keep running",
+			pathParams: plan,
+			resps:      with(respUnit{http.StatusOK, controllers.PlanEnvelope{}}, errs(http.StatusBadRequest, http.StatusNotFound)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/qa-result", id: "recordPlanQAResult", tag: "plans",
+			summary:    "Record the QA worker's verdict for a plan",
+			pathParams: plan,
+			reqBody:    controllers.QAResultRequest{},
+			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
+				errs(http.StatusBadRequest, http.StatusForbidden, http.StatusNotFound, http.StatusRequestEntityTooLarge)),
+		},
+		{
+			method: http.MethodGet, path: "/api/v1/plans/{planId}/events", id: "listPlanEvents", tag: "plans",
+			summary:    "Page through a plan's activity log, oldest first",
+			pathParams: []any{controllers.PlanIDParam{}, controllers.PlanEventsQuery{}},
+			resps:      with(respUnit{http.StatusOK, controllers.PlanEventsResponse{}}, errs(http.StatusBadRequest, http.StatusNotFound)),
+		},
 	}
 }
