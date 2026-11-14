@@ -5,6 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/workspace/gitworktree"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	planobserver "github.com/aoagents/agent-orchestrator/backend/internal/observe/plans"
@@ -62,6 +63,14 @@ func (p planSessions) Get(ctx context.Context, id domain.SessionID) (domain.Sess
 	return sess, true, nil
 }
 
+// planWorkspaces reads a worker's checked-out branch through the git
+// worktree adapter, so the plan records the branch a milestone's work is on.
+type planWorkspaces struct{}
+
+func (planWorkspaces) CurrentBranch(ctx context.Context, worktree string) (string, error) {
+	return gitworktree.CurrentBranch(ctx, "", worktree)
+}
+
 // startPlans wires the task plan service and starts its scheduler observer.
 func startPlans(ctx context.Context, store *sqlite.Store, sessions planSessionService, log *slog.Logger) (*plansvc.Service, <-chan struct{}) {
 	svc := plansvc.New(plansvc.Deps{
@@ -69,6 +78,7 @@ func startPlans(ctx context.Context, store *sqlite.Store, sessions planSessionSe
 		Sessions:    planSessions{svc: sessions},
 		Projects:    store,
 		Reports:     store,
+		Workspaces:  planWorkspaces{},
 		Logger:      log.With("component", "plans"),
 		BaseContext: ctx,
 	})

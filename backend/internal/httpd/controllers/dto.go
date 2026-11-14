@@ -60,6 +60,9 @@ type CreateReportRequest struct {
 	Note      string                `json:"note,omitempty" maxLength:"1000"`
 	Message   string                `json:"message,omitempty" maxLength:"1000"`
 	Outputs   []ReportOutputRequest `json:"outputs,omitempty"`
+	// Branch names the branch holding the work, for a task plan milestone's
+	// done report. Optional; AO otherwise reads the worktree's branch.
+	Branch string `json:"branch,omitempty" maxLength:"255" description:"Branch holding the reported work (task plan milestones). Optional."`
 }
 
 // ReportOutputRequest is one ordered structured output reference.

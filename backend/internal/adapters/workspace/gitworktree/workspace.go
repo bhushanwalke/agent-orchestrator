@@ -2680,3 +2680,20 @@ func (w *Workspace) rollbackSparseAdd(ctx context.Context, repo, path, branch st
 	}
 	return errors.Join(errs...)
 }
+
+// CurrentBranch reports the branch checked out in a worktree. A detached HEAD
+// or a path that is not a worktree is an error.
+func CurrentBranch(ctx context.Context, binary, worktree string) (string, error) {
+	if binary == "" {
+		binary = defaultGitBinary
+	}
+	out, err := aoprocess.CommandContext(ctx, binary, "-C", worktree, "symbolic-ref", "--quiet", "--short", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("gitworktree: read the branch of %s: %w", worktree, err)
+	}
+	branch := strings.TrimSpace(string(out))
+	if branch == "" {
+		return "", fmt.Errorf("gitworktree: %s has no checked-out branch", worktree)
+	}
+	return branch, nil
+}

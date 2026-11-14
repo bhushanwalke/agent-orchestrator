@@ -20833,6 +20833,10 @@ components:
       type: object
     CreateReportRequest:
       properties:
+        branch:
+          description: Branch holding the reported work (task plan milestones). Optional.
+          maxLength: 255
+          type: string
         message:
           maxLength: 1000
           type: string

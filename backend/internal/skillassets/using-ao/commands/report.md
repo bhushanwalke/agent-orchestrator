@@ -18,6 +18,7 @@ Output flags are repeatable:
 ```text
 --artifact <absolute-path>
 --pr-created <pr-or-mr-url>
+--branch <name>
 --pr-reviewed <pr-or-mr-url>
 ```
 
@@ -48,6 +49,8 @@ external publishing authorization. Publish externally only within the
 user-authorized scope.
 
 `--pr-created` and `--pr-reviewed` accept complete GitHub PR or GitLab MR URLs.
+
+In a task plan milestone, `--done` records the branch your work is on for the dependent milestones and QA. AO reads the worktree's checked-out branch, so stay on the branch you committed to when you report done. `--branch <name>` names it explicitly instead.
 
 `--needs-input` requests immediate non-interrupting delivery. `--stuck`
 requests immediate delivery plus a rate-limited interrupt. Informational work

@@ -84,7 +84,7 @@ func (c *ReportsController) create(w http.ResponseWriter, r *http.Request) {
 	}
 	rec, err := c.Svc.Create(r.Context(), reportsvc.CreateInput{
 		SessionID: domain.SessionID(req.SessionID), State: domain.ReportState(req.State),
-		Note: req.Note, Message: req.Message, Outputs: outputs,
+		Note: req.Note, Message: req.Message, Outputs: outputs, Branch: req.Branch,
 	})
 	if err != nil {
 		envelope.WriteErrorWithCode(w, r, err, "REPORT_CREATE_FAILED", "Unable to create report")

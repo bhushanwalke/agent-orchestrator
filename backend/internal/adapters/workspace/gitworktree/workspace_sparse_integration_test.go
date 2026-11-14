@@ -127,3 +127,29 @@ func runGitAllowFail(git, dir string, args ...string) (string, error) {
 	out, err := exec.Command(git, append([]string{"-C", dir}, args...)...).CombinedOutput()
 	return string(out), err
 }
+
+func TestCurrentBranchReadsTheCheckedOutTopicBranch(t *testing.T) {
+	git := requireGit(t)
+	tmp := t.TempDir()
+	repo := setupSparseRepo(t, git, tmp)
+	ws, err := New(Options{Binary: git, ManagedRoot: filepath.Join(tmp, "managed"), RepoResolver: StaticRepoResolver{"proj": repo}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := ws.Create(context.Background(), ports.WorkspaceConfig{ProjectID: "proj", SessionID: "sess", Branch: "ao/sess/root"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	runGit(t, git, info.Path, "checkout", "-q", "-b", "ao/sess/add-api")
+	got, err := CurrentBranch(context.Background(), git, info.Path)
+	if err != nil || got != "ao/sess/add-api" {
+		t.Fatalf("branch = %q err=%v", got, err)
+	}
+	runGit(t, git, info.Path, "checkout", "-q", "--detach")
+	if _, err := CurrentBranch(context.Background(), git, info.Path); err == nil {
+		t.Fatal("a detached HEAD has no branch")
+	}
+	if _, err := CurrentBranch(context.Background(), git, filepath.Join(tmp, "nowhere")); err == nil {
+		t.Fatal("a missing worktree has no branch")
+	}
+}

@@ -7095,6 +7095,8 @@ export interface components {
             title: string;
         };
         CreateReportRequest: {
+            /** @description Branch holding the reported work (task plan milestones). Optional. */
+            branch?: string;
             message?: string;
             note?: string;
             outputs?: components["schemas"]["ReportOutputRequest"][];

@@ -149,10 +149,11 @@ func TestCreateNotifiesThePlanObserver(t *testing.T) {
 			seen = r
 		},
 	})
-	if _, err := s.Create(context.Background(), CreateInput{SessionID: "ao-7", State: domain.ReportDone, Note: "built"}); err != nil {
+	if _, err := s.Create(context.Background(), CreateInput{SessionID: "ao-7", State: domain.ReportDone, Note: "built", Branch: "ao/7/topic"}); err != nil {
 		t.Fatal(err)
 	}
-	if len(order) != 2 || order[0] != "created" || order[1] != "plan" || seen.SessionID != "ao-7" || seen.State != domain.ReportDone {
+	if len(order) != 2 || order[0] != "created" || order[1] != "plan" || seen.SessionID != "ao-7" || seen.State != domain.ReportDone ||
+		seen.Branch != "ao/7/topic" {
 		t.Fatalf("order=%v seen=%+v", order, seen)
 	}
 }

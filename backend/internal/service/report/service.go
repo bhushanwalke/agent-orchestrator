@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -25,6 +26,9 @@ type CreateInput struct {
 	Note      string
 	Message   string
 	Outputs   []domain.ReportOutput
+	// Branch is the branch the worker says holds its work. It is handed to
+	// the plan observer and not stored with the report.
+	Branch string
 }
 
 // ArtifactRecorder shows a reported artifact in the worker's chat thread. It
@@ -146,7 +150,9 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (domain.ReportR
 		s.onCreated(created)
 	}
 	if s.planObserver != nil {
-		s.planObserver(ctx, created)
+		observed := created
+		observed.Branch = strings.TrimSpace(input.Branch)
+		s.planObserver(ctx, observed)
 	}
 	// Synchronous on purpose: ao report --done is often the agent's last tool
 	// call, so a goroutine would race the turn's completion and could drop the

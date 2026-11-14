@@ -182,6 +182,7 @@ You are the QA worker for Task %q (plan %s, milestone %s). AO_PLAN_ID and AO_MIL
 	return fmt.Sprintf(`## Plan milestone
 You implement milestone %s of Task %q (plan %s). AO_PLAN_ID and AO_MILESTONE_KEY are set in your environment.
 - The plan scheduler advances only on your reports: `+"`ao report --checkpoint`"+` for progress, `+"`ao report --stuck`"+` when blocked, and `+"`ao report --done --note \"...\"`"+` when the milestone is built and its tests pass.
+- Commit your milestone's work on the branch you are on when you report done; AO records that branch for dependent milestones and QA. If you create a topic branch, stay on it when you run `+"`ao report --done`"+`.
 - Messages wrapped in <ao-qa-defect> are QA findings for your milestone: fix them on your current branch and report done again.
 - Stay within your milestone; ask the orchestrator with `+"`ao send`"+` when the plan needs changing.`, m.Key, p.Title, p.ID)
 }

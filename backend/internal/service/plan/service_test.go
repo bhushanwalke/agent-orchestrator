@@ -84,7 +84,7 @@ func (f *fakeSessions) SpawnWorker(_ context.Context, cfg ports.SpawnConfig, _ d
 		branch = "ao/" + string(id) + "/root"
 	}
 	rec := domain.SessionRecord{ID: id, ProjectID: cfg.ProjectID, Kind: domain.KindWorker, DisplayName: cfg.DisplayName,
-		Metadata: domain.SessionMetadata{Branch: branch}}
+		Metadata: domain.SessionMetadata{Branch: branch, WorkspacePath: "/wt/" + string(id)}}
 	f.sessions[id] = domain.Session{SessionRecord: rec}
 	if f.byRequest == nil {
 		f.byRequest = map[string]domain.SessionID{}
@@ -141,10 +141,11 @@ type fakeScheduler struct{ ticks int }
 func (f *fakeScheduler) Tick(context.Context, time.Time) error { f.ticks++; return nil }
 
 type fixture struct {
-	svc      *plan.Service
-	store    *sqlite.Store
-	sessions *fakeSessions
-	sched    *fakeScheduler
+	svc        *plan.Service
+	store      *sqlite.Store
+	sessions   *fakeSessions
+	sched      *fakeScheduler
+	workspaces *fakeWorkspaces
 }
 
 func newFixture(t *testing.T, kind domain.ProjectKind) fixture {
@@ -898,3 +899,32 @@ func TestCancelSetsFinishedAtAndEventNotesCarryTitles(t *testing.T) {
 }
 
 func intPtr(n int) *int { return &n }
+
+// fakeWorkspaces answers the worktree branch probe. By default a worktree is
+// on its session's recorded branch; checkedOut overrides a path and failFor
+// makes the probe fail.
+type fakeWorkspaces struct {
+	mu         sync.Mutex
+	sessions   *fakeSessions
+	checkedOut map[string]string
+	failFor    map[string]bool
+}
+
+func (f *fakeWorkspaces) CurrentBranch(_ context.Context, path string) (string, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.failFor[path] {
+		return "", errors.New("not a git repository")
+	}
+	if b, ok := f.checkedOut[path]; ok {
+		return b, nil
+	}
+	f.sessions.mu.Lock()
+	defer f.sessions.mu.Unlock()
+	for _, sess := range f.sessions.sessions {
+		if sess.Metadata.WorkspacePath == path {
+			return sess.Metadata.Branch, nil
+		}
+	}
+	return "", errors.New("no worktree")
+}

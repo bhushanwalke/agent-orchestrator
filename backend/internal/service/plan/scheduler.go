@@ -184,17 +184,6 @@ func (s *Service) planActionsLocked(ctx context.Context, id domain.PlanID, facts
 		return nil
 	}
 
-	// Keep each worker's branch on its milestone; it outlives the session row.
-	for i := range ms {
-		m := &ms[i]
-		if b := facts[m.SessionID].branch; m.SessionID != "" && b != "" && b != m.Branch {
-			m.Branch = b
-			m.UpdatedAt = now
-			if err := s.store.UpdateMilestone(ctx, *m); err != nil {
-				return nil, err
-			}
-		}
-	}
 	// Reconcile: a running or blocked milestone whose session ended without a
 	// done report failed. A blocked qa holding a failure no milestone owns
 	// waits for a person instead.
@@ -706,13 +695,14 @@ func (s *Service) hasEvent(ctx context.Context, id domain.PlanID, kind string) (
 	}
 }
 
-// branchOf is the milestone worker's branch: the live session's, else the one
-// kept on the milestone.
+// branchOf is the milestone's work branch: the one recorded when it reported
+// done (workers commit on a topic branch, not the session's initial one),
+// else, for a milestone that never finished, its session's branch.
 func branchOf(m domain.Milestone, facts map[domain.SessionID]sessionFact) string {
-	if b := facts[m.SessionID].branch; b != "" {
-		return b
+	if m.Branch != "" {
+		return m.Branch
 	}
-	return m.Branch
+	return facts[m.SessionID].branch
 }
 
 func contains(list []string, v string) bool {

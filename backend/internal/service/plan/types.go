@@ -28,6 +28,12 @@ type Sessions interface {
 	Get(ctx context.Context, id domain.SessionID) (domain.Session, bool, error)
 }
 
+// Workspaces reads a worktree's checked-out branch, the branch a milestone's
+// work is on when it reports done.
+type Workspaces interface {
+	CurrentBranch(ctx context.Context, worktree string) (string, error)
+}
+
 // Projects resolves registered projects.
 type Projects interface {
 	GetProject(ctx context.Context, id string) (domain.ProjectRecord, bool, error)
@@ -47,6 +53,9 @@ type Deps struct {
 	Projects Projects
 	// Reports supplies PR links for the QA prompt and done summary. Optional.
 	Reports ReportReader
+	// Workspaces probes a worker's branch at done time. Optional: without it
+	// the PR head or the session's branch is used.
+	Workspaces Workspaces
 	// Scheduler runs after activation and retries. Nil uses the service's
 	// own Tick; tests inject a fake.
 	Scheduler Scheduler

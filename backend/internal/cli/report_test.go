@@ -60,6 +60,7 @@ func TestReportModesAndBoundaries(t *testing.T) {
 		{name: "needs input", args: []string{"report", "--needs-input", "--note", "x"}, want: reportAPIRequest{SessionID: "worker-1", State: "needs_input", Note: "x"}},
 		{name: "stuck", args: []string{"report", "--stuck", "--note", "x"}, want: reportAPIRequest{SessionID: "worker-1", State: "stuck", Note: "x"}},
 		{name: "done without output", args: []string{"report", "--done", "--note", strings.Repeat("x", 1000)}, want: reportAPIRequest{SessionID: "worker-1", State: "done", Note: strings.Repeat("x", 1000)}},
+		{name: "done with work branch", args: []string{"report", "--done", "--note", "x", "--branch", "ao/m1/api"}, want: reportAPIRequest{SessionID: "worker-1", State: "done", Note: "x", Branch: "ao/m1/api"}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

@@ -134,6 +134,9 @@ type ReportRecord struct {
 	AcknowledgedAt     time.Time
 	LastError          string
 	DeliveryBatchID    string
+	// Branch is the work branch a done report named (task plan milestones).
+	// It is passed to the plan observer and never persisted.
+	Branch string
 }
 
 // ErrInvalidReport reports an invalid report or delivery transition input.

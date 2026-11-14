@@ -13,6 +13,7 @@ import (
 )
 
 type reportOptions struct {
+	branch                              string
 	note                                string
 	noteSet                             bool
 	artifacts, prsCreated, prsReviewed  []string
@@ -30,6 +31,7 @@ type reportAPIRequest struct {
 	Note      string            `json:"note,omitempty"`
 	Message   string            `json:"message,omitempty"`
 	Outputs   []reportAPIOutput `json:"outputs,omitempty"`
+	Branch    string            `json:"branch,omitempty"`
 }
 
 type reportAPIResponse struct {
@@ -51,6 +53,7 @@ func newReportCommand(ctx *commandContext) *cobra.Command {
 	f.BoolVar(&o.needsInput, "needs-input", false, "Report that input is needed")
 	f.BoolVar(&o.stuck, "stuck", false, "Report that work is stuck")
 	f.BoolVar(&o.done, "done", false, "Report that work is done")
+	f.StringVar(&o.branch, "branch", "", "The branch holding this work (task plan milestones; default: the worktree's current branch)")
 	return cmd
 }
 
@@ -121,7 +124,7 @@ func (c *commandContext) report(ctx context.Context, args []string, o reportOpti
 		apiOutputs[i] = reportAPIOutput{Kind: string(output.Kind), Reference: output.Reference}
 	}
 	var response reportAPIResponse
-	return c.postJSON(ctx, "reports", reportAPIRequest{SessionID: sessionID, State: string(selected), Note: o.note, Message: message, Outputs: apiOutputs}, &response)
+	return c.postJSON(ctx, "reports", reportAPIRequest{SessionID: sessionID, State: string(selected), Note: o.note, Message: message, Outputs: apiOutputs, Branch: strings.TrimSpace(o.branch)}, &response)
 }
 
 func legacyReportStatus(value string) bool {
