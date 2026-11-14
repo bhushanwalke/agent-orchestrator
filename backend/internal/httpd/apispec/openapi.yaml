@@ -19330,6 +19330,38 @@ components:
       - kind
       - title
       type: object
+    ControllersPlanResearchSession:
+      properties:
+        branch:
+          type: string
+        displayName:
+          type: string
+        displayStatus:
+          type: string
+        harness:
+          type: string
+        id:
+          type: string
+        isTerminated:
+          type: boolean
+        kanbanColumn:
+          enum:
+          - building
+          - validating
+          - needs_review
+          - ready
+          - archive
+          type: string
+        status:
+          type: string
+      required:
+      - id
+      - status
+      - kanbanColumn
+      - displayStatus
+      - isTerminated
+      - branch
+      type: object
     ControllersRemoteHostAccountTokenResponse:
       properties:
         hostId:
@@ -23008,9 +23040,16 @@ components:
           type: array
         plan:
           $ref: '#/components/schemas/PlanResponse'
+        researchSessions:
+          description: Sessions attached to the plan without a milestone (spawned
+            with ao spawn --plan), oldest first.
+          items:
+            $ref: '#/components/schemas/ControllersPlanResearchSession'
+          type: array
       required:
       - plan
       - milestones
+      - researchSessions
       - events
       type: object
     PlanEnvelope:
@@ -26521,6 +26560,12 @@ components:
           maxLength: 256
           type: string
         parentSessionId:
+          type: string
+        planId:
+          description: Attach the worker to this task plan without a milestone (a
+            research worker). The plan must belong to projectId. The session gets
+            AO_PLAN_ID and appears on the plan's run view.
+          maxLength: 128
           type: string
         projectId:
           type: string

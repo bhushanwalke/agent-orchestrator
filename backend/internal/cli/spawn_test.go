@@ -1296,3 +1296,49 @@ func TestSpawnSparseRejectsStandaloneAndEmpty(t *testing.T) {
 		}
 	}
 }
+
+func TestSpawnPlanAttachesTheWorker(t *testing.T) {
+	cfg := setConfigEnv(t)
+	t.Setenv("AO_SESSION_ID", "")
+	var req spawnRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","kind":"single_repo","config":{"worker":{"agent":"codex"}}}}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/readiness/ensure":
+			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.WriteString(w, `{"session":{"id":"demo-1","status":"idle"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	_, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "spawn", "--project", "demo", "--name", "Research: storage", "--prompt", "go",
+		"--plan", " plan_1 ")
+	if err != nil {
+		t.Fatalf("spawn failed: %v stderr=%s", err, errOut)
+	}
+	if req.PlanID != "plan_1" {
+		t.Fatalf("plan id = %q", req.PlanID)
+	}
+}
+
+func TestSpawnPlanRejectsStandaloneAndOrchestrator(t *testing.T) {
+	for _, args := range [][]string{
+		{"spawn", "--standalone", "--agent", "codex", "--name", "Notes", "--plan", "plan_1"},
+		{"spawn", "--project", "demo", "--kind", "orchestrator", "--name", "Notes", "--plan", "plan_1"},
+		{"spawn", "--project", "demo", "--agent", "codex", "--name", "Notes", "--plan", " "},
+	} {
+		_, _, err := executeCLI(t, Deps{}, args...)
+		if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), "--plan") {
+			t.Fatalf("%v: err=%v exit=%d", args, err, ExitCode(err))
+		}
+	}
+}

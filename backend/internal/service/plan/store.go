@@ -23,4 +23,5 @@ type Store interface {
 	InsertPlanEvent(ctx context.Context, e domain.PlanEvent) error
 	ListPlanEvents(ctx context.Context, planID domain.PlanID, afterID int64, limit int) ([]domain.PlanEvent, error)
 	ListRecentPlanEvents(ctx context.Context, planID domain.PlanID, limit int) ([]domain.PlanEvent, error)
+	ListPlanAttachedSessionIDs(ctx context.Context, planID domain.PlanID) ([]domain.SessionID, error)
 }

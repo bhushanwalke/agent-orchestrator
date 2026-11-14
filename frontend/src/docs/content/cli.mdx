@@ -134,6 +134,7 @@ Important flags include:
 | `--no-takeover` | Refuse a PR already owned by another active session. |
 | `--skip-agent-check` | Skip only the CLI-side install/auth preflight. |
 | `--sparse <dir>` | Check out only this repository-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's `sparseCheckout.enabled` (otherwise 400). A usage error with `--standalone`. |
+| `--plan <plan-id>` | Attach the worker to a Task without a milestone, as a research worker: it appears in the Task's run view under **Research**, folds into the Task card on the board, and gets `AO_PLAN_ID`. The Task must belong to the project (otherwise 404 or 400). A usage error with `--standalone` or `--kind orchestrator`. |
 
 Orchestrator chooses a project in this order: `--project`, `AO_PROJECT_ID`, the project for `AO_SESSION_ID`, then the closest registered project containing the current directory. Before spawning, Orchestrator refreshes the selected agent's readiness unless you use `--skip-agent-check`. Readiness is advisory.
 

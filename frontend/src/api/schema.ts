@@ -6534,6 +6534,17 @@ export interface components {
             /** @description The tab's label. */
             title: string;
         };
+        ControllersPlanResearchSession: {
+            branch: string;
+            displayName?: string;
+            displayStatus: string;
+            harness?: string;
+            id: string;
+            isTerminated: boolean;
+            /** @enum {string} */
+            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            status: string;
+        };
         ControllersRemoteHostAccountTokenResponse: {
             hostId: string;
             hostKey: string;
@@ -7903,6 +7914,8 @@ export interface components {
             events: components["schemas"]["PlanEventResponse"][];
             milestones: components["schemas"]["MilestoneResponse"][];
             plan: components["schemas"]["PlanResponse"];
+            /** @description Sessions attached to the plan without a milestone (spawned with ao spawn --plan), oldest first. */
+            researchSessions: components["schemas"]["ControllersPlanResearchSession"][];
         };
         PlanEnvelope: {
             plan: components["schemas"]["PlanResponse"];
@@ -9273,6 +9286,8 @@ export interface components {
             mode?: "chat" | "tui";
             model?: string;
             parentSessionId?: string;
+            /** @description Attach the worker to this task plan without a milestone (a research worker). The plan must belong to projectId. The session gets AO_PLAN_ID and appears on the plan's run view. */
+            planId?: string;
             projectId?: string;
             prompt?: string;
             /** @enum {string} */

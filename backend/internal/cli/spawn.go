@@ -29,6 +29,7 @@ type spawnOptions struct {
 	branch          string
 	baseBranch      string
 	sparse          []string
+	plan            string
 	prompt          string
 	issue           string
 	name            string
@@ -55,6 +56,7 @@ type spawnRequest struct {
 	Branch              string   `json:"branch,omitempty"`
 	BaseBranch          string   `json:"baseBranch,omitempty"`
 	SparsePaths         []string `json:"sparsePaths,omitempty"`
+	PlanID              string   `json:"planId,omitempty"`
 	Prompt              string   `json:"prompt,omitempty"`
 	Model               string   `json:"model,omitempty"`
 	Effort              string   `json:"effort,omitempty"`
@@ -129,6 +131,14 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 			if opts.standalone && len(opts.sparse) > 0 {
 				return usageError{fmt.Errorf("--sparse is not supported with --standalone")}
 			}
+			if cmd.Flags().Changed("plan") {
+				if strings.TrimSpace(opts.plan) == "" {
+					return usageError{fmt.Errorf("--plan needs a plan id")}
+				}
+				if opts.standalone || opts.kind == "orchestrator" {
+					return usageError{fmt.Errorf("--plan attaches project worker sessions only")}
+				}
+			}
 			if opts.standalone {
 				if opts.kind == "orchestrator" {
 					return usageError{fmt.Errorf("standalone sessions must be workers")}
@@ -202,6 +212,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 				Branch:              opts.branch,
 				BaseBranch:          strings.TrimSpace(opts.baseBranch),
 				SparsePaths:         opts.sparse,
+				PlanID:              strings.TrimSpace(opts.plan),
 				Prompt:              opts.prompt,
 				Model:               strings.TrimSpace(opts.model),
 				Effort:              strings.TrimSpace(opts.effort),
@@ -274,6 +285,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.mode, "mode", "", "Initial session interface: chat (structured agent connection) or tui (the agent's native terminal). Omitted uses the daemon default; compatible sessions can switch later.")
 	f.StringVar(&opts.branch, "branch", "", "Branch for git project sessions (default: ao/<session-id>/root; unsupported for standalone or Scratch sessions)")
 	f.StringVar(&opts.baseBranch, "base", "", "Start the session's branch from this branch, to stack on its pull request (default: the project's default branch); with --branch, that branch must be new")
+	f.StringVar(&opts.plan, "plan", "", "Attach the worker to this task plan without a milestone, as a research worker: it shows on the plan's run view and gets AO_PLAN_ID")
 	f.StringArrayVar(&opts.sparse, "sparse", nil, "Check out only this repo-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's sparseCheckout.enabled")
 	f.StringVar(&opts.prompt, "prompt", "", "Initial prompt for the agent")
 	f.StringVar(&opts.model, "model", "", "Agent model override for this session only (e.g. sonnet, gpt-5.6-sol); overrides project/role config without changing it")

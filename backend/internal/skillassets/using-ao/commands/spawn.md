@@ -27,6 +27,7 @@ ao spawn [flags]
 | `--no-takeover` | Refuse if another active session owns the claimed PR (requires `--claim-pr`) | - |
 | `--project string` | Project id to spawn the session in | Optional when `--standalone` is used; defaults to `AO_PROJECT_ID` or the current repo's registered project |
 | `--standalone` | Spawn a projectless worker session in an Orchestrator-managed directory | Disabled when `--project` is set |
+| `--plan string` | Attach the worker to this task plan without a milestone, as a research worker: it shows on the plan's run view, is folded into the Task card on the board, and gets `AO_PLAN_ID` (no `AO_MILESTONE_KEY`). The plan must belong to the project (`PLAN_NOT_FOUND` 404, `PLAN_PROJECT_MISMATCH` 400). Workers only; not allowed with `--standalone` | - |
 | `--prompt string` | Initial prompt for the agent | - |
 | `--sparse stringArray` | Check out only this repo-relative directory as a cone-mode sparse worktree (repeatable). Root-level files are always present, and the project's `sparseCheckout.alwaysInclude` directories are added. The project must enable `sparseCheckout`, otherwise the spawn returns `SPARSE_CHECKOUT_DISABLED`. Scratch and multi-repo workspace projects return `SPARSE_UNSUPPORTED`. Not allowed with `--standalone` | Full checkout |
 | `--skip-agent-check` | Skip CLI readiness warnings; the daemon still validates launch readiness | - |

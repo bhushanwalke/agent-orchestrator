@@ -4907,5 +4907,6 @@
 	"board.plans.morePrsShort": "+{{n}} PRs",
 	"plan.events.kind.milestone_blocked_notified": "Orchestrator told {{title}} is blocked",
 	"plan.events.kind.milestone_failed_notified": "Orchestrator told {{title}} failed",
-	"plan.events.kind.kickoff_waiting": "Starting the orchestrator"
+	"plan.events.kind.kickoff_waiting": "Starting the orchestrator",
+	"plan.research.heading": "Research"
 }

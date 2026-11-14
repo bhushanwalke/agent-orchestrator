@@ -32,6 +32,12 @@ type PlanService interface {
 	RetryMilestone(ctx context.Context, id domain.PlanID, key string) (plansvc.Detail, error)
 	RecordQAResult(ctx context.Context, id domain.PlanID, in plansvc.QAResultInput) (plansvc.Detail, error)
 	Events(ctx context.Context, id domain.PlanID, after int64, limit int) (plansvc.EventsPage, error)
+	PlanLookup
+}
+
+// PlanLookup reads one plan; `ao spawn --plan` checks the plan it attaches to.
+type PlanLookup interface {
+	Lookup(ctx context.Context, id domain.PlanID) (domain.Plan, error)
 }
 
 // PlansController owns the task plan routes: a ticket planned by the project
@@ -336,10 +342,15 @@ func writePlanDetail(w http.ResponseWriter, r *http.Request, d plansvc.Detail, e
 		keys[v.Milestone.ID] = v.Milestone.Key
 		milestones = append(milestones, milestoneResponse(v))
 	}
+	research := make([]PlanResearchSession, 0, len(d.ResearchSessions))
+	for _, sess := range d.ResearchSessions {
+		research = append(research, PlanResearchSession{PlanSessionSummary: planSessionSummary(sess), Branch: sess.Metadata.Branch})
+	}
 	envelope.WriteJSON(w, http.StatusOK, PlanDetailResponse{
-		Plan:       planResponse(d.Summary),
-		Milestones: milestones,
-		Events:     planEventResponses(d.Events, keys),
+		Plan:             planResponse(d.Summary),
+		Milestones:       milestones,
+		ResearchSessions: research,
+		Events:           planEventResponses(d.Events, keys),
 	})
 }
 

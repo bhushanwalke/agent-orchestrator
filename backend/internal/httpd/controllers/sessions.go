@@ -213,6 +213,9 @@ type SessionsController struct {
 	AgentBrowserToken string
 	// ArtifactVersions serves artifact version history; nil leaves those routes unimplemented.
 	ArtifactVersions ArtifactVersionService
+	// Plans resolves the plan a spawn attaches to (`ao spawn --plan`); nil
+	// rejects plan attachment.
+	Plans PlanLookup
 }
 
 // Register mounts the session routes on the supplied router.
@@ -395,14 +398,45 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 		keyless.Attachments = nil
 		requestHash = clientRequestFingerprint("session", keyless, attachments)
 	}
+	planContext, ok := c.spawnPlanContext(w, r, &in)
+	if !ok {
+		return
+	}
 	// A standalone worker has no project to start in the background.
 	async := in.Async && in.ProjectID != ""
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, ParentSessionID: in.ParentSessionID, TrackerProvider: in.TrackerProvider, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, BaseBranch: strings.TrimSpace(in.BaseBranch), SparsePaths: trimmedSparsePaths(in.SparsePaths), RequestedMode: in.Mode, Prompt: in.Prompt, RequestedOutput: in.RequestedOutput, DisplayName: displayName, DisplayNameExplicit: in.DisplayNameExplicit && displayName != "", Attachments: attachments, AgentConfig: ports.AgentConfig{Model: in.Model, Effort: in.Effort, Permissions: in.ApprovalMode}, EffortOverride: strings.TrimSpace(in.Effort) != "", AgentAccountID: strings.TrimSpace(in.AccountID), ClientRequestID: in.ClientRequestID, ClientRequestHash: requestHash, Async: async})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, ParentSessionID: in.ParentSessionID, TrackerProvider: in.TrackerProvider, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, BaseBranch: strings.TrimSpace(in.BaseBranch), SparsePaths: trimmedSparsePaths(in.SparsePaths), RequestedMode: in.Mode, Prompt: in.Prompt, RequestedOutput: in.RequestedOutput, DisplayName: displayName, DisplayNameExplicit: in.DisplayNameExplicit && displayName != "", Attachments: attachments, AgentConfig: ports.AgentConfig{Model: in.Model, Effort: in.Effort, Permissions: in.ApprovalMode}, EffortOverride: strings.TrimSpace(in.Effort) != "", AgentAccountID: strings.TrimSpace(in.AccountID), ClientRequestID: in.ClientRequestID, ClientRequestHash: requestHash, Async: async, PlanContext: planContext})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
 	}
 	envelope.WriteJSON(w, http.StatusCreated, SpawnSessionResponse{Session: sessionView(r, sess), PromptBytes: promptBytes, SystemPromptBytes: systemPromptBytes})
+}
+
+// spawnPlanContext attaches a worker to the plan named by planId, without a
+// milestone. The plan must exist and belong to the spawn's project.
+func (c *SessionsController) spawnPlanContext(w http.ResponseWriter, r *http.Request, in *SpawnSessionRequest) (*ports.PlanSpawnContext, bool) {
+	in.PlanID = domain.PlanID(strings.TrimSpace(string(in.PlanID)))
+	if in.PlanID == "" {
+		return nil, true
+	}
+	if in.Kind != domain.KindWorker {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "PLAN_ATTACH_WORKER_ONLY", "Only a worker session can be attached to a plan", map[string]any{"field": "planId"})
+		return nil, false
+	}
+	if c.Plans == nil {
+		envelope.WriteAPIError(w, r, http.StatusNotFound, "not_found", "PLAN_NOT_FOUND", "Unknown plan", nil)
+		return nil, false
+	}
+	p, err := c.Plans.Lookup(r.Context(), in.PlanID)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return nil, false
+	}
+	if in.ProjectID == "" || p.ProjectID != in.ProjectID {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "validation", "PLAN_PROJECT_MISMATCH", "The plan belongs to another project", map[string]any{"field": "planId", "planProjectId": string(p.ProjectID)})
+		return nil, false
+	}
+	return &ports.PlanSpawnContext{PlanID: p.ID}, true
 }
 
 // attachmentError carries a client-facing API error code + message for a

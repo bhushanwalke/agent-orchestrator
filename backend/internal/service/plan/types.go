@@ -161,7 +161,10 @@ type MilestoneView struct {
 type Detail struct {
 	Summary
 	Milestones []MilestoneView
-	Events     []domain.PlanEvent
+	// ResearchSessions are the sessions attached to the plan without a
+	// milestone (`ao spawn --plan`), oldest first.
+	ResearchSessions []domain.Session
+	Events           []domain.PlanEvent
 }
 
 // EventsPage is one page of a plan's events, oldest first.

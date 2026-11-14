@@ -12613,3 +12613,29 @@ func TestSpawnWorker_PlanContextIsPersistedExportedAndPrompted(t *testing.T) {
 		t.Fatal("ordinary worker got AO_PLAN_ID")
 	}
 }
+
+// A research worker attached with `ao spawn --plan` knows its plan but has no
+// milestone.
+func TestSpawnWorker_PlanAttachmentWithoutMilestoneExportsOnlyThePlan(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	agent := &recordingAgent{}
+	rt := &fakeRuntime{}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: "look into storage",
+		PlanContext: &ports.PlanSpawnContext{PlanID: "plan_1"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored := st.sessions[rec.ID]; stored.PlanID != "plan_1" || stored.PlanMilestoneID != "" || stored.PlanPrompt != "" {
+		t.Fatalf("stored plan link = %q %q %q", stored.PlanID, stored.PlanMilestoneID, stored.PlanPrompt)
+	}
+	if rt.lastCfg.Env[EnvPlanID] != "plan_1" {
+		t.Fatalf("AO_PLAN_ID = %q", rt.lastCfg.Env[EnvPlanID])
+	}
+	if v, ok := rt.lastCfg.Env[EnvMilestoneKey]; ok {
+		t.Fatalf("research worker got AO_MILESTONE_KEY=%q", v)
+	}
+}

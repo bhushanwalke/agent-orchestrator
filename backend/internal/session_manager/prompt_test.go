@@ -450,7 +450,9 @@ func TestOrchestratorPromptTeachesPlans(t *testing.T) {
 	for _, want := range []string{
 		"## Plans (Tasks)",
 		"When you receive a message wrapped in <ao-plan-request id=\"PLAN\">",
-		"1. Investigate:", "2. If the ticket is broad, spawn research workers in parallel with `ao spawn --project todo --name \"Research: <topic>\" --output artifact --prompt \"<question>\"`",
+		"1. Investigate:", "2. If the ticket is broad, spawn research workers in parallel with `ao spawn --project todo --plan PLAN --name \"Research: <topic>\" --output artifact --prompt \"<question>\"`",
+		"`--plan PLAN` (the id from <ao-plan-request>) attaches each one to the Task",
+		"Once their findings are in the plan, end each research worker with `ao session kill <id>` so it does not linger on the board.",
 		"3. Write the plan as Markdown", "`ao plan set-spec PLAN --file <path>`",
 		"4. Register milestones: `ao plan milestone add PLAN --key m1 --title \"<title>\" --description-file <file> [--depends-on m0,m2] [--sparse src/api --sparse src/shared]`",
 		"5. Activate with `ao plan activate PLAN`", "<ao-plan-done>", "`ao plan get PLAN`", "`ao plan events PLAN`",

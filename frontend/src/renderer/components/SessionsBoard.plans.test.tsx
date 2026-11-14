@@ -265,6 +265,20 @@ describe("SessionsBoard plans", () => {
 		expect(screen.getByRole("button", { name: "Show agent sessions" })).toHaveAttribute("aria-pressed", "true");
 	});
 
+	it("folds a research worker attached to the Task without a milestone", () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspaceWithSessions([
+				boardSession({ id: "solo", title: "Solo worker", status: "working" }),
+				boardSession({ id: "r-1", title: "Research: storage", status: "needs_input", planId: "plan_1" }),
+			])],
+			isSuccess: true,
+		});
+		renderBoard("p1");
+		expect(screen.getByTestId("board-plan-card")).toBeInTheDocument();
+		expect(screen.queryByText("Research: storage")).toBeNull();
+		expect(screen.getByText("Solo worker")).toBeInTheDocument();
+	});
+
 	it("places Tasks by their lane and leaves cancelled ones off the board", () => {
 		plansMock.mockReturnValue([
 			plan({ id: "plan_done", title: "Shipped task", phase: "done", kanbanColumn: "ready", displayStatus: "QA passed" }),

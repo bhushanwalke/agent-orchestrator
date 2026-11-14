@@ -377,3 +377,13 @@ func unmarshalSparsePaths(raw string) []string {
 	}
 	return paths
 }
+
+// ListPlanAttachedSessionIDs returns the sessions attached to a plan without
+// a milestone (research workers), oldest first.
+func (s *Store) ListPlanAttachedSessionIDs(ctx context.Context, planID domain.PlanID) ([]domain.SessionID, error) {
+	ids, err := s.qr.SelectPlanAttachedSessionIDs(ctx, planID)
+	if err != nil {
+		return nil, fmt.Errorf("select sessions attached to plan %s: %w", planID, err)
+	}
+	return ids, nil
+}

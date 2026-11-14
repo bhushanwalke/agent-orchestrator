@@ -7992,9 +7992,9 @@ func (m *Manager) rememberPlanEnv(id domain.SessionID, plan *ports.PlanSpawnCont
 	m.planEnvs[id] = entry
 }
 
-// addPlanEnv exports a plan milestone worker's plan id and milestone key. A
-// session this daemon did not spawn (one restored after a restart) is read
-// from the store once.
+// addPlanEnv exports a plan worker's plan id and milestone key (none for a
+// research worker). A session this daemon did not spawn (one restored after a
+// restart) is read from the store once.
 func (m *Manager) addPlanEnv(env map[string]string, id domain.SessionID, caseInsensitive bool) {
 	if id == "" {
 		return
@@ -8022,5 +8022,10 @@ func (m *Manager) addPlanEnv(env map[string]string, id domain.SessionID, caseIns
 		return
 	}
 	setProtectedEnv(env, EnvPlanID, string(entry.planID), caseInsensitive)
+	// A research worker attached with `ao spawn --plan` has no milestone.
+	if entry.milestoneKey == "" {
+		deleteProtectedEnv(env, EnvMilestoneKey, caseInsensitive)
+		return
+	}
 	setProtectedEnv(env, EnvMilestoneKey, entry.milestoneKey, caseInsensitive)
 }

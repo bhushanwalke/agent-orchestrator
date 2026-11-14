@@ -54,6 +54,7 @@ const sessions: WorkspaceSession[] = [
 	session("orch-1", "radic orchestrator"),
 	{ ...session("w-1", "TODO app · m1: API"), activity: { state: "active" } as WorkspaceSession["activity"] },
 	{ ...session("w-2", "TODO app · m2: UI"), activity: { state: "idle" } as WorkspaceSession["activity"] },
+	{ ...session("r-1", "Research: storage"), activity: { state: "idle" } as WorkspaceSession["activity"] },
 ];
 
 function milestone(key: string, status: PlanMilestone["status"], overrides: Partial<PlanMilestone> = {}): PlanMilestone {
@@ -108,6 +109,7 @@ function detail(overrides: Partial<PlanDetail["plan"]> = {}): PlanDetail {
 			milestone("m2", "pending", { title: "UI", dependsOn: ["m1"] }),
 			milestone("qa", "pending", { title: "QA", dependsOn: ["m2"] }),
 		],
+		researchSessions: [],
 		events: [
 			{ id: 3, kind: "milestone_started", milestoneKey: "m1", sessionId: "w-1", note: "", createdAt: "2026-01-01T00:02:00Z" },
 			{ id: 2, kind: "plan_activated", milestoneKey: "", sessionId: "", note: "", createdAt: "2026-01-01T00:01:00Z" },
@@ -158,6 +160,25 @@ describe("PlanRunView", () => {
 		expect(within(cards[1]).getByText("m1 · API")).toBeInTheDocument();
 		await userEvent.click(within(cards[1]).getByText("TODO app · m1: API"));
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId: "p1", sessionId: "w-1" } });
+	});
+
+	it("lists research workers under the milestone agents in their own Research section", async () => {
+		const research = { id: "r-1", harness: "codex", status: "idle", kanbanColumn: "validating", displayStatus: "Idle", isTerminated: false, branch: "ao/r-1" } as const;
+		const gone = { ...research, id: "r-gone" };
+		planMock.mockReturnValue({ ...detail(), researchSessions: [research, gone] });
+		renderView();
+		expect(screen.getByRole("button", { name: "Research", expanded: true })).toBeInTheDocument();
+		// A killed research worker has left the board, so it leaves the rail too.
+		const cards = screen.getAllByTestId("plan-research-card");
+		expect(cards).toHaveLength(1);
+		expect(screen.getAllByTestId("plan-agent-card")).toHaveLength(2);
+		await userEvent.click(within(cards[0]).getByText("Research: storage"));
+		expect(navigateMock).toHaveBeenCalledWith({ to: "/projects/$projectId/sessions/$sessionId", params: { projectId: "p1", sessionId: "r-1" } });
+	});
+
+	it("omits the Research section when the Task has no research workers", () => {
+		renderView();
+		expect(screen.queryByRole("button", { name: "Research" })).toBeNull();
 	});
 
 	it("titles the rail sections in sentence case, as the inspector does", () => {

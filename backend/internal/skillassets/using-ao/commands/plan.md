@@ -19,7 +19,7 @@ ao plan events [<plan-id>] [--after N] [--limit N] [--json]
 
 ## When the orchestrator receives `<ao-plan-request id="PLAN">`
 
-1. Investigate the ticket and the code. Spawn research workers in parallel when the ticket is broad.
+1. Investigate the ticket and the code. Spawn research workers in parallel when the ticket is broad, attached to the Task with `ao spawn --plan PLAN ...` so they show on its run view. Once their findings are in the plan, end each one with `ao session kill <id>`.
 2. Write the plan as Markdown and store it with `ao plan set-spec PLAN --file plan.md`.
 3. Register milestones with `ao plan milestone add`. Each one should be a single PR that a careful engineer can finish in a few hours. Declare `--depends-on` only when a milestone needs another milestone's code. Add a dependency's key before the milestone that depends on it. Use `--sparse` when the repository has more than roughly 200 tracked files or is a monorepo, listing the directories the milestone edits plus those it must read or build; leave it off for small repositories.
 4. Run `ao plan activate PLAN`. Activation rejects an invalid graph with `PLAN_GRAPH_INVALID`: no implement milestone, a cycle, or a dependency on `qa`. Fix the milestones and activate again. Activation adds the `qa` milestone automatically.

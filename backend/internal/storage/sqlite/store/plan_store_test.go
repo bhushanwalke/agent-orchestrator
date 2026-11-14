@@ -271,3 +271,41 @@ func TestSessionPersistsPlanLinkAndSparsePaths(t *testing.T) {
 		t.Fatalf("plain session plan link = %q %#v", got.PlanID, got.SparsePaths)
 	}
 }
+
+func TestListPlanAttachedSessionIDsSkipsMilestoneWorkers(t *testing.T) {
+	s := newTestStore(t)
+	ctx := context.Background()
+	seedProject(t, s, "mer")
+	worker := sampleRecord("mer")
+	worker.PlanID = "plan_1"
+	worker.PlanMilestoneID = "ms_1"
+	worker.PlanMilestoneKey = "m1"
+	if _, err := s.CreateSession(ctx, worker); err != nil {
+		t.Fatalf("create worker: %v", err)
+	}
+	var want []domain.SessionID
+	for range 2 {
+		rec := sampleRecord("mer")
+		rec.PlanID = "plan_1"
+		created, err := s.CreateSession(ctx, rec)
+		if err != nil {
+			t.Fatalf("create research: %v", err)
+		}
+		want = append(want, created.ID)
+	}
+	other := sampleRecord("mer")
+	other.PlanID = "plan_2"
+	if _, err := s.CreateSession(ctx, other); err != nil {
+		t.Fatalf("create other: %v", err)
+	}
+	if _, err := s.CreateSession(ctx, sampleRecord("mer")); err != nil {
+		t.Fatalf("create plain: %v", err)
+	}
+	got, err := s.ListPlanAttachedSessionIDs(ctx, "plan_1")
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("attached = %v, want %v", got, want)
+	}
+}

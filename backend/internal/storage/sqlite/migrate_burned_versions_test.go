@@ -269,6 +269,7 @@ var shippedMigrations = map[int64]string{
 	20261114092547622: "20261114092547622_task_plans.sql",
 	20261114111138604: "20261114111138604_task_plan_session_context.sql",
 	20261114112602243: "20261114112602243_task_plan_milestone_retry_base.sql",
+	20261114161310228: "20261114161310228_task_plan_attached_sessions.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

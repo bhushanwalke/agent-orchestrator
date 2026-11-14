@@ -89,3 +89,10 @@ LIMIT ?;
 
 -- name: DeletePlan :execrows
 DELETE FROM plans WHERE id = ?;
+
+-- name: SelectPlanAttachedSessionIDs :many
+-- Sessions attached to a plan without a milestone: research and
+-- investigation workers the orchestrator spawned with `ao spawn --plan`.
+SELECT id FROM sessions
+WHERE plan_id = ? AND plan_milestone_id = ''
+ORDER BY created_at, id;

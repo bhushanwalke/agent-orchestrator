@@ -323,7 +323,8 @@ Ticket: %[4]s
 %[5]s
 
 Plan it now. Follow the "Plans (Tasks)" section of your standing instructions:
-investigate the repository, spawn research workers in parallel if the ticket is broad,
+investigate the repository, spawn research workers in parallel if the ticket is broad
+(attach each with `+"`ao spawn --plan %[1]s ...`"+`, and kill them once their findings are in the plan),
 write the plan with `+"`ao plan set-spec %[1]s --file <plan.md>`"+`, register milestones with
 `+"`ao plan milestone add %[1]s ...`"+`, then `+"`ao plan activate %[1]s`"+`.
 </ao-plan-request>`, p.ID, projectName, p.Title, ticket, strings.TrimSpace(p.Brief))
@@ -336,6 +337,11 @@ func (s *Service) Get(ctx context.Context, id domain.PlanID) (Detail, error) {
 		return Detail{}, err
 	}
 	return s.detail(ctx, p)
+}
+
+// Lookup returns one plan without its milestones; PLAN_NOT_FOUND when unknown.
+func (s *Service) Lookup(ctx context.Context, id domain.PlanID) (domain.Plan, error) {
+	return s.requirePlan(ctx, id)
 }
 
 // List returns a project's plans newest first; an empty project lists all.
@@ -942,7 +948,34 @@ func (s *Service) detail(ctx context.Context, p domain.Plan) (Detail, error) {
 		return Detail{}, err
 	}
 	views := s.milestoneViews(ctx, ms)
-	return Detail{Summary: summarize(p, views), Milestones: views, Events: evs}, nil
+	research, err := s.researchSessions(ctx, p.ID)
+	if err != nil {
+		return Detail{}, err
+	}
+	return Detail{Summary: summarize(p, views), Milestones: views, ResearchSessions: research, Events: evs}, nil
+}
+
+// researchSessions reads the sessions attached to a plan without a milestone.
+func (s *Service) researchSessions(ctx context.Context, id domain.PlanID) ([]domain.Session, error) {
+	ids, err := s.store.ListPlanAttachedSessionIDs(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Session, 0, len(ids))
+	if s.sessions == nil {
+		return out, nil
+	}
+	for _, sid := range ids {
+		sess, ok, err := s.sessions.Get(ctx, sid)
+		if err != nil {
+			s.logger.Debug("plan research session unreadable", "session", sid, "error", err)
+			continue
+		}
+		if ok {
+			out = append(out, sess)
+		}
+	}
+	return out, nil
 }
 
 func (s *Service) milestoneViews(ctx context.Context, ms []domain.Milestone) []MilestoneView {

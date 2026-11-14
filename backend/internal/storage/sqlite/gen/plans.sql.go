@@ -393,6 +393,37 @@ func (q *Queries) SelectMilestonesByPlan(ctx context.Context, planID domain.Plan
 	return items, nil
 }
 
+const selectPlanAttachedSessionIDs = `-- name: SelectPlanAttachedSessionIDs :many
+SELECT id FROM sessions
+WHERE plan_id = ? AND plan_milestone_id = ''
+ORDER BY created_at, id
+`
+
+// Sessions attached to a plan without a milestone: research and
+// investigation workers the orchestrator spawned with `ao spawn --plan`.
+func (q *Queries) SelectPlanAttachedSessionIDs(ctx context.Context, planID domain.PlanID) ([]domain.SessionID, error) {
+	rows, err := q.db.QueryContext(ctx, selectPlanAttachedSessionIDs, planID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []domain.SessionID{}
+	for rows.Next() {
+		var id domain.SessionID
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const selectPlanByID = `-- name: SelectPlanByID :one
 SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at FROM plans WHERE id = ?
 `

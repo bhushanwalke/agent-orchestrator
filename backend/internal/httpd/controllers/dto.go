@@ -701,6 +701,9 @@ type SpawnSessionRequest struct {
 	// SparsePaths makes the worktree a cone-mode sparse checkout of these
 	// repo-relative directories. The project must enable sparseCheckout.
 	SparsePaths []string `json:"sparsePaths,omitempty" maxItems:"50" description:"Repo-relative directories for a cone-mode sparse checkout; root files are always present. Requires the project's sparseCheckout.enabled."`
+	// PlanID attaches a worker to a task plan without a milestone, for the
+	// orchestrator's research workers.
+	PlanID domain.PlanID `json:"planId,omitempty" maxLength:"128" description:"Attach the worker to this task plan without a milestone (a research worker). The plan must belong to projectId. The session gets AO_PLAN_ID and appears on the plan's run view."`
 	// Mode picks the conversation controller: chat talks to the agent over a
 	// structured connection, tui opens the agent's native terminal interface.
 	// Omitted resolves to the daemon-owned preference, which defaults to Chat for
@@ -4883,9 +4886,16 @@ type ListPlansResponse struct {
 // PlanDetailResponse is a plan with its milestones and its latest 100 events,
 // newest first.
 type PlanDetailResponse struct {
-	Plan       PlanResponse        `json:"plan"`
-	Milestones []MilestoneResponse `json:"milestones"`
-	Events     []PlanEventResponse `json:"events"`
+	Plan             PlanResponse          `json:"plan"`
+	Milestones       []MilestoneResponse   `json:"milestones"`
+	ResearchSessions []PlanResearchSession `json:"researchSessions" description:"Sessions attached to the plan without a milestone (spawned with ao spawn --plan), oldest first."`
+	Events           []PlanEventResponse   `json:"events"`
+}
+
+// PlanResearchSession is a session attached to a plan without a milestone.
+type PlanResearchSession struct {
+	PlanSessionSummary
+	Branch string `json:"branch"`
 }
 
 // MilestoneEnvelope is the { milestone } body for milestone mutations.
