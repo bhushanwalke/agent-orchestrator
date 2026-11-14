@@ -245,6 +245,8 @@ func TestSessionPersistsPlanLinkAndSparsePaths(t *testing.T) {
 	rec.PlanID = "plan_1"
 	rec.PlanMilestoneID = "ms_1"
 	rec.SparsePaths = []string{"a", "c"}
+	rec.PlanMilestoneKey = "m1"
+	rec.PlanPrompt = "## Plan milestone"
 	created, err := s.CreateSession(ctx, rec)
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -252,6 +254,9 @@ func TestSessionPersistsPlanLinkAndSparsePaths(t *testing.T) {
 	got, ok, err := s.GetSession(ctx, created.ID)
 	if err != nil || !ok {
 		t.Fatalf("get: ok=%v err=%v", ok, err)
+	}
+	if got.PlanMilestoneKey != "m1" || got.PlanPrompt != "## Plan milestone" {
+		t.Fatalf("plan key/prompt = %q %q", got.PlanMilestoneKey, got.PlanPrompt)
 	}
 	if got.PlanID != "plan_1" || got.PlanMilestoneID != "ms_1" || !reflect.DeepEqual(got.SparsePaths, []string{"a", "c"}) {
 		t.Fatalf("plan link = %q %q %#v", got.PlanID, got.PlanMilestoneID, got.SparsePaths)

@@ -12572,3 +12572,44 @@ func TestSpawnWorker_SparseCheckoutSectionFollowsTheSession(t *testing.T) {
 		t.Fatal("full checkout worker got the sparse section")
 	}
 }
+
+func TestSpawnWorker_PlanContextIsPersistedExportedAndPrompted(t *testing.T) {
+	st := newFakeStore()
+	st.projects["mer"] = domain.ProjectRecord{ID: "mer", Config: testRoleAgents()}
+	agent := &recordingAgent{}
+	rt := &fakeRuntime{}
+	lookPath := func(string) (string, error) { return "/bin/true", nil }
+	m := New(Deps{Runtime: rt, Agents: singleAgent{agent: agent}, Workspace: &fakeWorkspace{}, Store: st, Messenger: &fakeMessenger{}, Lifecycle: &fakeLCM{store: st}, LookPath: lookPath})
+
+	section := "## Plan milestone\nYou implement milestone m1 of Task \"Todo\" (plan plan_1)."
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: "build it",
+		PlanContext: &ports.PlanSpawnContext{PlanID: "plan_1", MilestoneID: "ms_1", MilestoneKey: "m1", Role: "implementer", PromptSection: section}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	stored := st.sessions[rec.ID]
+	if stored.PlanID != "plan_1" || stored.PlanMilestoneID != "ms_1" || stored.PlanMilestoneKey != "m1" || stored.PlanPrompt != section {
+		t.Fatalf("stored plan context = %q %q %q %q", stored.PlanID, stored.PlanMilestoneID, stored.PlanMilestoneKey, stored.PlanPrompt)
+	}
+	if !strings.Contains(agent.lastLaunch.SystemPrompt, section) {
+		t.Fatalf("system prompt missing the plan section:\n%s", agent.lastLaunch.SystemPrompt)
+	}
+	if rt.lastCfg.Env[EnvPlanID] != "plan_1" || rt.lastCfg.Env[EnvMilestoneKey] != "m1" || rt.lastCfg.Env[EnvSessionID] == "" {
+		t.Fatalf("plan env = %q %q", rt.lastCfg.Env[EnvPlanID], rt.lastCfg.Env[EnvMilestoneKey])
+	}
+	// Restore rebuilds both from the stored session.
+	restored, err := m.buildSystemPrompt(ctx, rec.Kind, rec.ProjectID, rec.ID, rec.RequestedOutput, false)
+	if err != nil || !strings.Contains(restored, section) {
+		t.Fatalf("restored prompt err=%v:\n%s", err, restored)
+	}
+	if env := m.runtimeEnv(rec.ID, rec.ProjectID, rec.IssueID, nil); env[EnvPlanID] != "plan_1" || env[EnvMilestoneKey] != "m1" {
+		t.Fatalf("restored env = %v", env)
+	}
+
+	if _, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, Prompt: "plain"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := rt.lastCfg.Env[EnvPlanID]; ok {
+		t.Fatal("ordinary worker got AO_PLAN_ID")
+	}
+}

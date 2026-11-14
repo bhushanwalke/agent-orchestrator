@@ -1,10 +1,15 @@
 package sessionmanager
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+
+	aoprocess "github.com/aoagents/agent-orchestrator/backend/internal/process"
 )
 
 type sessionPromptRole string
@@ -506,4 +511,21 @@ func sparseCheckoutPrompt(paths []string) string {
 		"Root-level files are always present. If you need another directory, run `git sparse-checkout add <dir>` " +
 		"(repeatable) before reading or editing it. Build and test commands may need directories outside the cone; " +
 		"add them rather than working around missing files."
+}
+
+// isFullCheckout reports whether the worktree at path is known to be a full
+// checkout. A restore that re-creates a missing worktree checks out everything,
+// so a session recorded as sparse must not be told it is. An unknown answer
+// (no path yet, not a repository, git missing) is not proof either way.
+func isFullCheckout(ctx context.Context, path string) bool {
+	if strings.TrimSpace(path) == "" {
+		return false
+	}
+	out, err := aoprocess.CommandContext(ctx, "git", "-C", path, "config", "--get", "--bool", "core.sparseCheckout").Output()
+	if err == nil {
+		return strings.TrimSpace(string(out)) != "true"
+	}
+	var exitErr *exec.ExitError
+	// git config exits 1 when the key is unset: a full checkout.
+	return errors.As(err, &exitErr) && exitErr.ExitCode() == 1
 }

@@ -430,6 +430,11 @@ type SessionRecord struct {
 	// milestone to that plan. Empty for every other session.
 	PlanID          PlanID      `json:"-"`
 	PlanMilestoneID MilestoneID `json:"-"`
+	// PlanMilestoneKey and PlanPrompt keep a plan worker's milestone key and
+	// plan instructions so restore re-exports AO_MILESTONE_KEY and rebuilds the
+	// same system prompt.
+	PlanMilestoneKey string `json:"-"`
+	PlanPrompt       string `json:"-"`
 	// SparsePaths are the repo-relative directories of a cone-mode sparse
 	// checkout requested at spawn. Empty is a full checkout. It lives outside
 	// SessionMetadata so that struct stays comparable.

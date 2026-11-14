@@ -228,7 +228,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE id = ?
 `
 
@@ -316,6 +316,8 @@ type GetSessionRow struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessionRow, error) {
@@ -405,6 +407,8 @@ func (q *Queries) GetSession(ctx context.Context, id domain.SessionID) (GetSessi
 		&i.PlanID,
 		&i.PlanMilestoneID,
 		&i.SparsePaths,
+		&i.PlanMilestoneKey,
+		&i.PlanPrompt,
 	)
 	return i, err
 }
@@ -429,7 +433,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE automation_run_id = ?
 `
 
@@ -517,6 +521,8 @@ type GetSessionByAutomationRunIDRow struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 func (q *Queries) GetSessionByAutomationRunID(ctx context.Context, automationRunID *domain.AutomationRunID) (GetSessionByAutomationRunIDRow, error) {
@@ -606,6 +612,8 @@ func (q *Queries) GetSessionByAutomationRunID(ctx context.Context, automationRun
 		&i.PlanID,
 		&i.PlanMilestoneID,
 		&i.SparsePaths,
+		&i.PlanMilestoneKey,
+		&i.PlanPrompt,
 	)
 	return i, err
 }
@@ -638,7 +646,7 @@ INSERT INTO sessions (
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, auto_inject_ci,
     provision_state, provision_error, is_task_preparation, automation_run_id, automation_launch_completed,
     client_request_id, client_request_hash, import_source, display_name_explicit,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -646,7 +654,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 )
 `
 
@@ -719,6 +727,8 @@ type InsertSessionParams struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) error {
@@ -791,6 +801,8 @@ func (q *Queries) InsertSession(ctx context.Context, arg InsertSessionParams) er
 		arg.PlanID,
 		arg.PlanMilestoneID,
 		arg.SparsePaths,
+		arg.PlanMilestoneKey,
+		arg.PlanPrompt,
 	)
 	return err
 }
@@ -815,7 +827,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions ORDER BY project_id, num
 `
 
@@ -903,6 +915,8 @@ type ListAllSessionsRow struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, error) {
@@ -998,6 +1012,8 @@ func (q *Queries) ListAllSessions(ctx context.Context) ([]ListAllSessionsRow, er
 			&i.PlanID,
 			&i.PlanMilestoneID,
 			&i.SparsePaths,
+			&i.PlanMilestoneKey,
+			&i.PlanPrompt,
 		); err != nil {
 			return nil, err
 		}
@@ -1120,7 +1136,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE project_id IS ? ORDER BY num
 `
 
@@ -1208,6 +1224,8 @@ type ListSessionsByProjectRow struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 func (q *Queries) ListSessionsByProject(ctx context.Context, projectID *domain.ProjectID) ([]ListSessionsByProjectRow, error) {
@@ -1303,6 +1321,8 @@ func (q *Queries) ListSessionsByProject(ctx context.Context, projectID *domain.P
 			&i.PlanID,
 			&i.PlanMilestoneID,
 			&i.SparsePaths,
+			&i.PlanMilestoneKey,
+			&i.PlanPrompt,
 		); err != nil {
 			return nil, err
 		}

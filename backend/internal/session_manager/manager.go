@@ -201,6 +201,10 @@ const (
 	EnvSessionID = "AO_SESSION_ID"
 	EnvProjectID = "AO_PROJECT_ID"
 	EnvIssueID   = "AO_ISSUE_ID"
+	// EnvPlanID and EnvMilestoneKey identify a plan milestone worker's plan
+	// and milestone so `ao plan` commands need no ids.
+	EnvPlanID       = "AO_PLAN_ID"
+	EnvMilestoneKey = "AO_MILESTONE_KEY"
 	// EnvRuntimeLaunchID identifies the current supervised agent generation.
 	EnvRuntimeLaunchID = "AO_RUNTIME_LAUNCH_ID"
 	// EnvSupervisedProcess tells terminal runtimes that the AO supervisor owns
@@ -6153,6 +6157,8 @@ func seedRecord(cfg ports.SpawnConfig, projectConfig domain.ProjectConfig, now t
 	if cfg.PlanContext != nil {
 		rec.PlanID = cfg.PlanContext.PlanID
 		rec.PlanMilestoneID = cfg.PlanContext.MilestoneID
+		rec.PlanMilestoneKey = cfg.PlanContext.MilestoneKey
+		rec.PlanPrompt = cfg.PlanContext.PromptSection
 	}
 	return rec
 }
@@ -6462,9 +6468,12 @@ func (m *Manager) buildSystemPrompt(ctx context.Context, kind domain.SessionKind
 		if note := m.forkBoundaryPrompt(ctx, sessionID); note != "" {
 			cfg.AdditionalSections = append(cfg.AdditionalSections, note)
 		}
-		// Read from the stored session so restore keeps the section.
+		// Read from the stored session so restore keeps these sections.
 		if rec, found, err := m.store.GetSession(ctx, sessionID); err == nil && found {
-			if section := sparseCheckoutPrompt(rec.SparsePaths); section != "" {
+			if section := sparseCheckoutPrompt(rec.SparsePaths); section != "" && !isFullCheckout(ctx, rec.Metadata.WorkspacePath) {
+				cfg.AdditionalSections = append(cfg.AdditionalSections, section)
+			}
+			if section := strings.TrimSpace(rec.PlanPrompt); section != "" {
 				cfg.AdditionalSections = append(cfg.AdditionalSections, section)
 			}
 		}
@@ -6771,6 +6780,7 @@ func (m *Manager) runtimeEnvForHarness(id domain.SessionID, project domain.Proje
 func (m *Manager) runtimeEnvChecked(id domain.SessionID, project domain.ProjectID, issue domain.IssueID, projectEnv map[string]string, accountID string, harness domain.AgentHarness) (map[string]string, error) {
 	caseInsensitive := envKeysCaseInsensitive
 	env := spawnEnvForOS(id, project, issue, m.dataDir, projectEnv, caseInsensitive)
+	m.addPlanEnv(env, id, caseInsensitive)
 	if m.dataDir != "" {
 		overridden := func(key string) bool {
 			for configured := range projectEnv {
@@ -7953,4 +7963,18 @@ func (m *Manager) logRelaunchFailure(operation string, id domain.SessionID, err 
 	if errors.As(err, &relaunchErr) {
 		m.logger.Warn(operation+": relaunch failed", "sessionID", id, "step", relaunchErr.Step, "error", err)
 	}
+}
+
+// addPlanEnv exports a plan milestone worker's plan id and milestone key,
+// read from the stored session so restore exports them too.
+func (m *Manager) addPlanEnv(env map[string]string, id domain.SessionID, caseInsensitive bool) {
+	if m.store == nil || id == "" {
+		return
+	}
+	rec, found, err := m.store.GetSession(context.Background(), id)
+	if err != nil || !found || rec.PlanID == "" {
+		return
+	}
+	setProtectedEnv(env, EnvPlanID, string(rec.PlanID), caseInsensitive)
+	setProtectedEnv(env, EnvMilestoneKey, rec.PlanMilestoneKey, caseInsensitive)
 }

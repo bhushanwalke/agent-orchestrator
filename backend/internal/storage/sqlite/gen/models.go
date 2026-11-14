@@ -852,6 +852,8 @@ type Session struct {
 	PlanID                           domain.PlanID
 	PlanMilestoneID                  domain.MilestoneID
 	SparsePaths                      string
+	PlanMilestoneKey                 string
+	PlanPrompt                       string
 }
 
 type SessionAgentAccount struct {

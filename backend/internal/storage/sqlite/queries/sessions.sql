@@ -24,7 +24,7 @@ INSERT INTO sessions (
     created_at, updated_at, is_pinned, pinned_at, auto_inject_review, auto_inject_ci,
     provision_state, provision_error, is_task_preparation, automation_run_id, automation_launch_completed,
     client_request_id, client_request_hash, import_source, display_name_explicit,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 ) VALUES (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -32,7 +32,7 @@ INSERT INTO sessions (
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
     ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-    ?, ?, ?, ?, ?, ?, ?, ?
+    ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
 );
 
 -- name: GetClientRequestSession :one
@@ -299,7 +299,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE id = ?;
 
 -- name: GetSessionByAutomationRunID :one
@@ -322,7 +322,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE automation_run_id = ?;
 
 -- name: ListSessionsByProject :many
@@ -345,7 +345,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions WHERE project_id IS ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -368,7 +368,7 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
 FROM sessions ORDER BY project_id, num;
 
 -- name: ListChatHibernationCandidates :many

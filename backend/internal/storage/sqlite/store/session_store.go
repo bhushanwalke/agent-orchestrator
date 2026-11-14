@@ -1156,6 +1156,8 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		PlanID:                    row.PlanID,
 		PlanMilestoneID:           row.PlanMilestoneID,
 		SparsePaths:               unmarshalSparsePaths(row.SparsePaths),
+		PlanMilestoneKey:          row.PlanMilestoneKey,
+		PlanPrompt:                row.PlanPrompt,
 		ProjectID:                 projectIDValue(row.ProjectID),
 		AutomationRunID:           row.AutomationRunID,
 		AutomationLaunchCompleted: row.AutomationLaunchCompleted,
@@ -1364,6 +1366,8 @@ func recordToInsert(rec domain.SessionRecord, num int64) gen.InsertSessionParams
 		PlanID:                           rec.PlanID,
 		PlanMilestoneID:                  rec.PlanMilestoneID,
 		SparsePaths:                      marshalSparsePaths(rec.SparsePaths),
+		PlanMilestoneKey:                 rec.PlanMilestoneKey,
+		PlanPrompt:                       rec.PlanPrompt,
 	}
 }
 

@@ -160,9 +160,18 @@ func planDoneMessage(p domain.Plan, built []builtInfo, qaNote string) string {
 	return b.String()
 }
 
+// reportRetryNote covers sandboxes that refuse the first loopback call to the
+// daemon (codex workspace-write has no network): a dropped report would stall
+// the plan.
+const reportRetryNote = "- If an `ao` command such as `ao report` or `ao plan qa-result` fails with a connection error (for example \"operation not permitted\"), run it again, asking for permission if your sandbox offers it. The plan waits until it lands."
+
 // planPromptSection is the system prompt addition for a plan session: which
 // plan and milestone it serves and how it reports.
 func planPromptSection(p domain.Plan, m domain.Milestone, role string) string {
+	return planPromptSectionBody(p, m, role) + "\n" + reportRetryNote
+}
+
+func planPromptSectionBody(p domain.Plan, m domain.Milestone, role string) string {
 	if role == RoleQA {
 		return fmt.Sprintf(`## Plan QA
 You are the QA worker for Task %q (plan %s, milestone %s). AO_PLAN_ID and AO_MILESTONE_KEY are set in your environment.
