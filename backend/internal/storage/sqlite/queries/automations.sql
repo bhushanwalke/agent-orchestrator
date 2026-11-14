@@ -1,18 +1,18 @@
 -- name: InsertAutomation :exec
 INSERT INTO automations (
     id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: GetAutomation :one
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE id = ?;
 
 -- name: ListAutomations :many
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE (sqlc.arg(project_id) = '' OR project_id = sqlc.arg(project_id))
   AND (sqlc.arg(enabled_filter) < 0 OR enabled = sqlc.arg(enabled_filter))
@@ -28,7 +28,7 @@ WHERE (sqlc.arg(project_id) = '' OR project_id = sqlc.arg(project_id))
 -- name: UpdateAutomation :execrows
 UPDATE automations
 SET display_name = ?, prompt = ?, kind = ?, harness = ?, model = ?, mode = ?, effort = ?, rrule_text = ?,
-    timezone = ?, enabled = ?, next_run_at = ?, last_run_at = ?, updated_at = ?, use_case = ?
+    timezone = ?, enabled = ?, next_run_at = ?, last_run_at = ?, updated_at = ?, use_case = ?, task_mode = ?
 WHERE id = ?;
 
 -- name: DeleteAutomation :execrows
@@ -41,7 +41,7 @@ WHERE id = ? AND enabled = 1 AND next_run_at = ?;
 
 -- name: ListDueAutomations :many
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE enabled = 1 AND next_run_at <= ?
 ORDER BY next_run_at, id
@@ -58,14 +58,14 @@ ON CONFLICT (automation_id, scheduled_for) DO NOTHING;
 -- name: GetAutomationRun :one
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE id = ?;
 
 -- name: ListActiveAutomationRuns :many
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE status IN ('spawning', 'running')
 ORDER BY scheduled_for, id;
@@ -73,14 +73,14 @@ ORDER BY scheduled_for, id;
 -- name: GetAutomationRunByOccurrence :one
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE automation_id = ? AND scheduled_for = ?;
 
 -- name: ListAutomationRuns :many
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE automation_id = sqlc.arg(automation_id)
   AND (sqlc.arg(status_filter) = '' OR status = sqlc.arg(status_filter))
@@ -96,7 +96,7 @@ WHERE automation_id = sqlc.arg(automation_id)
 -- name: ListLatestAutomationRuns :many
 SELECT r.id, r.automation_id, r.scheduled_for, r.session_id, r.status,
     r.attempt_count, r.claimed_at, r.lease_expires_at, r.started_at,
-    r.finished_at, r.error_message, r.created_at, r.updated_at
+    r.finished_at, r.error_message, r.created_at, r.updated_at, r.plan_id
 FROM automation_runs r
 WHERE r.automation_id IN (sqlc.slice('automation_ids'))
   AND r.id = (
@@ -111,7 +111,7 @@ ORDER BY r.automation_id;
 -- name: GetNextClaimableAutomationRun :one
 SELECT r.id, r.automation_id, r.scheduled_for, r.session_id, r.status,
     r.attempt_count, r.claimed_at, r.lease_expires_at, r.started_at,
-    r.finished_at, r.error_message, r.created_at, r.updated_at
+    r.finished_at, r.error_message, r.created_at, r.updated_at, r.plan_id
 FROM automation_runs r
 JOIN automations a ON a.id = r.automation_id
 WHERE r.status = 'pending'
@@ -141,6 +141,20 @@ UPDATE automation_runs
 SET status = 'running', session_id = ?, started_at = ?,
     lease_expires_at = NULL, error_message = NULL, updated_at = ?
 WHERE id = ? AND status = 'spawning';
+
+-- name: MarkAutomationRunPlan :execrows
+-- A plan or auto run is running once its Task plan exists; it has no session
+-- until a direct triage decision hands it one.
+UPDATE automation_runs
+SET status = 'running', plan_id = ?, started_at = ?,
+    lease_expires_at = NULL, error_message = NULL, updated_at = ?
+WHERE id = ? AND status = 'spawning';
+
+-- name: AdoptAutomationRunSession :execrows
+-- A plan-backed run whose Task went to one worker follows that session.
+UPDATE automation_runs
+SET session_id = ?, updated_at = ?
+WHERE id = ? AND status = 'running' AND session_id IS NULL;
 
 -- name: CompleteAutomationRun :execrows
 UPDATE automation_runs

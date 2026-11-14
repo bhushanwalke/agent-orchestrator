@@ -163,3 +163,12 @@ Automatic triage decisions without an agent; per-project default mode; changing 
 6. Automation: create an automation with Run as "Let the orchestrator decide" on a one-minute schedule, confirm the run records `planId`, the Task appears, and the run completes when the plan finishes; then the same with "Task plan" and with "One worker". Orchestrator role + plan mode is rejected.
 7. CLI: `ao plan create --mode auto`, `ao plan triage --direct` outside triage → 409, flag errors exit 2, `ao automation create --task-mode auto`.
 8. Gates as before (Go packages touched, lint, typecheck, `npm run api` no diff, renderer vitest).
+
+## 13. Implementation rulings
+
+Decisions made while building this addendum where the text above left a choice.
+
+- **R1 (state CHECK).** `plans.state` has a CHECK, so migration `20261114231812030_task_intake_modes.sql` widens it in place through `sqlite_schema` (the same guarded `writable_schema` edit the task plans migration uses for `change_log`) instead of rebuilding `plans`, which would drop its CDC triggers. Down maps `triage`/`direct` plans to `cancelled` before narrowing the CHECK back.
+- **R2 (direct on the board).** `DerivePlanKanban(direct)` returns the archive column with display status "One worker"; `PlanPhase.ShowsTaskCard()` is false for `direct`, and the board uses it to skip the card. `triage` reads "Deciding" in the building lane. `PlanPhase.Finished()` is true for done, cancelled and direct.
+- **R3 (who decided).** No session-identity header exists, so `POST /plans/{id}/triage` takes `decidedBy` (`orchestrator` | `human`, default `human`). `ao plan triage --by` defaults to `orchestrator` when `AO_SESSION_ID` is set and `human` otherwise.
+- **R4 (single decision).** The store writes a decision with `DecidePlanTriage`, an `UPDATE … WHERE state = 'triage'` that reports whether it won, so two deciders can never both record one.

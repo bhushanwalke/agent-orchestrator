@@ -459,7 +459,24 @@ func planSummary(s plansvc.Summary) PlanSummary {
 		UpdatedAt:             p.UpdatedAt,
 		ActivatedAt:           p.ActivatedAt,
 		FinishedAt:            p.FinishedAt,
+		IntakeMode:            string(intakeMode(p.IntakeMode)),
+		DirectSessionID:       string(p.DirectSessionID),
+		Triage:                planTriage(p.Triage),
 	}
+}
+
+func intakeMode(m domain.PlanIntakeMode) domain.PlanIntakeMode {
+	if m == "" {
+		return domain.PlanIntakePlan
+	}
+	return m
+}
+
+func planTriage(t *domain.PlanTriage) *PlanTriage {
+	if t == nil {
+		return nil
+	}
+	return &PlanTriage{Decision: string(t.Decision), Reason: t.Reason, DecidedBy: string(t.DecidedBy), DecidedAt: t.DecidedAt}
 }
 
 func planSessionSummary(s domain.Session) PlanSessionSummary {

@@ -14,6 +14,27 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
+const adoptAutomationRunSession = `-- name: AdoptAutomationRunSession :execrows
+UPDATE automation_runs
+SET session_id = ?, updated_at = ?
+WHERE id = ? AND status = 'running' AND session_id IS NULL
+`
+
+type AdoptAutomationRunSessionParams struct {
+	SessionID *domain.SessionID
+	UpdatedAt time.Time
+	ID        domain.AutomationRunID
+}
+
+// A plan-backed run whose Task went to one worker follows that session.
+func (q *Queries) AdoptAutomationRunSession(ctx context.Context, arg AdoptAutomationRunSessionParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, adoptAutomationRunSession, arg.SessionID, arg.UpdatedAt, arg.ID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const advanceAutomationSchedule = `-- name: AdvanceAutomationSchedule :execrows
 UPDATE automations
 SET last_run_at = ?, next_run_at = ?, updated_at = ?
@@ -175,7 +196,7 @@ func (q *Queries) FailAutomationRun(ctx context.Context, arg FailAutomationRunPa
 
 const getAutomation = `-- name: GetAutomation :one
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE id = ?
 `
@@ -202,6 +223,7 @@ func (q *Queries) GetAutomation(ctx context.Context, id domain.AutomationID) (Au
 		&i.Effort,
 		&i.TemplateID,
 		&i.UseCase,
+		&i.TaskMode,
 	)
 	return i, err
 }
@@ -209,7 +231,7 @@ func (q *Queries) GetAutomation(ctx context.Context, id domain.AutomationID) (Au
 const getAutomationRun = `-- name: GetAutomationRun :one
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE id = ?
 `
@@ -231,6 +253,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id domain.AutomationRunI
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanID,
 	)
 	return i, err
 }
@@ -238,7 +261,7 @@ func (q *Queries) GetAutomationRun(ctx context.Context, id domain.AutomationRunI
 const getAutomationRunByOccurrence = `-- name: GetAutomationRunByOccurrence :one
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE automation_id = ? AND scheduled_for = ?
 `
@@ -265,6 +288,7 @@ func (q *Queries) GetAutomationRunByOccurrence(ctx context.Context, arg GetAutom
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanID,
 	)
 	return i, err
 }
@@ -272,7 +296,7 @@ func (q *Queries) GetAutomationRunByOccurrence(ctx context.Context, arg GetAutom
 const getNextClaimableAutomationRun = `-- name: GetNextClaimableAutomationRun :one
 SELECT r.id, r.automation_id, r.scheduled_for, r.session_id, r.status,
     r.attempt_count, r.claimed_at, r.lease_expires_at, r.started_at,
-    r.finished_at, r.error_message, r.created_at, r.updated_at
+    r.finished_at, r.error_message, r.created_at, r.updated_at, r.plan_id
 FROM automation_runs r
 JOIN automations a ON a.id = r.automation_id
 WHERE r.status = 'pending'
@@ -303,6 +327,7 @@ func (q *Queries) GetNextClaimableAutomationRun(ctx context.Context) (Automation
 		&i.ErrorMessage,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.PlanID,
 	)
 	return i, err
 }
@@ -310,8 +335,8 @@ func (q *Queries) GetNextClaimableAutomationRun(ctx context.Context) (Automation
 const insertAutomation = `-- name: InsertAutomation :exec
 INSERT INTO automations (
     id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertAutomationParams struct {
@@ -333,6 +358,7 @@ type InsertAutomationParams struct {
 	Effort      string
 	TemplateID  string
 	UseCase     string
+	TaskMode    string
 }
 
 func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationParams) error {
@@ -355,6 +381,7 @@ func (q *Queries) InsertAutomation(ctx context.Context, arg InsertAutomationPara
 		arg.Effort,
 		arg.TemplateID,
 		arg.UseCase,
+		arg.TaskMode,
 	)
 	return err
 }
@@ -409,7 +436,7 @@ func (q *Queries) InsertAutomationRun(ctx context.Context, arg InsertAutomationR
 const listActiveAutomationRuns = `-- name: ListActiveAutomationRuns :many
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE status IN ('spawning', 'running')
 ORDER BY scheduled_for, id
@@ -438,6 +465,7 @@ func (q *Queries) ListActiveAutomationRuns(ctx context.Context) ([]AutomationRun
 			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanID,
 		); err != nil {
 			return nil, err
 		}
@@ -455,7 +483,7 @@ func (q *Queries) ListActiveAutomationRuns(ctx context.Context) ([]AutomationRun
 const listAutomationRuns = `-- name: ListAutomationRuns :many
 SELECT id, automation_id, scheduled_for, session_id, status, attempt_count,
     claimed_at, lease_expires_at, started_at, finished_at, error_message,
-    created_at, updated_at
+    created_at, updated_at, plan_id
 FROM automation_runs
 WHERE automation_id = ?1
   AND (?2 = '' OR status = ?2)
@@ -498,6 +526,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanID,
 		); err != nil {
 			return nil, err
 		}
@@ -514,7 +543,7 @@ func (q *Queries) ListAutomationRuns(ctx context.Context, arg ListAutomationRuns
 
 const listAutomations = `-- name: ListAutomations :many
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE (?1 = '' OR project_id = ?1)
   AND (?2 < 0 OR enabled = ?2)
@@ -562,6 +591,7 @@ func (q *Queries) ListAutomations(ctx context.Context, arg ListAutomationsParams
 			&i.Effort,
 			&i.TemplateID,
 			&i.UseCase,
+			&i.TaskMode,
 		); err != nil {
 			return nil, err
 		}
@@ -578,7 +608,7 @@ func (q *Queries) ListAutomations(ctx context.Context, arg ListAutomationsParams
 
 const listDueAutomations = `-- name: ListDueAutomations :many
 SELECT id, project_id, display_name, prompt, kind, harness, rrule_text,
-    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case
+    timezone, enabled, next_run_at, last_run_at, created_at, updated_at, model, mode, effort, template_id, use_case, task_mode
 FROM automations
 WHERE enabled = 1 AND next_run_at <= ?
 ORDER BY next_run_at, id
@@ -618,6 +648,7 @@ func (q *Queries) ListDueAutomations(ctx context.Context, arg ListDueAutomations
 			&i.Effort,
 			&i.TemplateID,
 			&i.UseCase,
+			&i.TaskMode,
 		); err != nil {
 			return nil, err
 		}
@@ -635,7 +666,7 @@ func (q *Queries) ListDueAutomations(ctx context.Context, arg ListDueAutomations
 const listLatestAutomationRuns = `-- name: ListLatestAutomationRuns :many
 SELECT r.id, r.automation_id, r.scheduled_for, r.session_id, r.status,
     r.attempt_count, r.claimed_at, r.lease_expires_at, r.started_at,
-    r.finished_at, r.error_message, r.created_at, r.updated_at
+    r.finished_at, r.error_message, r.created_at, r.updated_at, r.plan_id
 FROM automation_runs r
 WHERE r.automation_id IN (/*SLICE:automation_ids*/?)
   AND r.id = (
@@ -681,6 +712,7 @@ func (q *Queries) ListLatestAutomationRuns(ctx context.Context, automationIds []
 			&i.ErrorMessage,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.PlanID,
 		); err != nil {
 			return nil, err
 		}
@@ -693,6 +725,35 @@ func (q *Queries) ListLatestAutomationRuns(ctx context.Context, automationIds []
 		return nil, err
 	}
 	return items, nil
+}
+
+const markAutomationRunPlan = `-- name: MarkAutomationRunPlan :execrows
+UPDATE automation_runs
+SET status = 'running', plan_id = ?, started_at = ?,
+    lease_expires_at = NULL, error_message = NULL, updated_at = ?
+WHERE id = ? AND status = 'spawning'
+`
+
+type MarkAutomationRunPlanParams struct {
+	PlanID    sql.NullString
+	StartedAt sql.NullTime
+	UpdatedAt time.Time
+	ID        domain.AutomationRunID
+}
+
+// A plan or auto run is running once its Task plan exists; it has no session
+// until a direct triage decision hands it one.
+func (q *Queries) MarkAutomationRunPlan(ctx context.Context, arg MarkAutomationRunPlanParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, markAutomationRunPlan,
+		arg.PlanID,
+		arg.StartedAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const markAutomationRunRunning = `-- name: MarkAutomationRunRunning :execrows
@@ -746,7 +807,7 @@ func (q *Queries) ReleaseAutomationRun(ctx context.Context, arg ReleaseAutomatio
 const updateAutomation = `-- name: UpdateAutomation :execrows
 UPDATE automations
 SET display_name = ?, prompt = ?, kind = ?, harness = ?, model = ?, mode = ?, effort = ?, rrule_text = ?,
-    timezone = ?, enabled = ?, next_run_at = ?, last_run_at = ?, updated_at = ?, use_case = ?
+    timezone = ?, enabled = ?, next_run_at = ?, last_run_at = ?, updated_at = ?, use_case = ?, task_mode = ?
 WHERE id = ?
 `
 
@@ -765,6 +826,7 @@ type UpdateAutomationParams struct {
 	LastRunAt   sql.NullTime
 	UpdatedAt   time.Time
 	UseCase     string
+	TaskMode    string
 	ID          domain.AutomationID
 }
 
@@ -784,6 +846,7 @@ func (q *Queries) UpdateAutomation(ctx context.Context, arg UpdateAutomationPara
 		arg.LastRunAt,
 		arg.UpdatedAt,
 		arg.UseCase,
+		arg.TaskMode,
 		arg.ID,
 	)
 	if err != nil {

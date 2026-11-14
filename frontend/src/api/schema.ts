@@ -5753,6 +5753,8 @@ export interface components {
             prompt: string;
             rrule: string;
             /** @enum {string} */
+            taskMode: "direct" | "plan" | "auto";
+            /** @enum {string} */
             templateId: "custom" | "daily_pr_review_v1" | "daily_issue_triage_v1" | "weekly_release_notes_v1";
             timezone: string;
             /** Format: date-time */
@@ -5774,6 +5776,8 @@ export interface components {
             id: string;
             /** Format: date-time */
             leaseExpiresAt?: null | string;
+            /** @description The Task plan a plan or auto run created. */
+            planId?: string;
             /** Format: date-time */
             scheduledFor: string;
             sessionId?: string;
@@ -5789,6 +5793,8 @@ export interface components {
             /** Format: date-time */
             finishedAt?: null | string;
             id: string;
+            /** @description The Task plan a plan or auto run created. */
+            planId?: string;
             /** Format: date-time */
             scheduledFor: string;
             sessionId?: string;
@@ -6545,6 +6551,15 @@ export interface components {
             kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
             status: string;
         };
+        ControllersPlanTriage: {
+            /** Format: date-time */
+            decidedAt: string;
+            /** @enum {string} */
+            decidedBy: "orchestrator" | "human";
+            /** @enum {string} */
+            decision: "plan" | "direct";
+            reason: string;
+        };
         ControllersRemoteHostAccountTokenResponse: {
             hostId: string;
             hostKey: string;
@@ -7080,6 +7095,11 @@ export interface components {
             projectId: string;
             prompt: string;
             rrule?: string;
+            /**
+             * @description What each run creates: one worker session (direct, the default), a Task plan, or an auto Task the orchestrator triages. An orchestrator automation must be direct.
+             * @enum {string}
+             */
+            taskMode?: "direct" | "plan" | "auto";
             /** @enum {string} */
             templateId?: "custom" | "daily_pr_review_v1" | "daily_issue_triage_v1" | "weekly_release_notes_v1";
             timezone: string;
@@ -7100,6 +7120,11 @@ export interface components {
             brief: string;
             /** @description Most implementation workers running at once. Defaults to 3 when omitted. */
             maxParallel?: null | number;
+            /**
+             * @description plan (the default) plans the Task outright; auto lets the orchestrator decide between a plan and one worker. A direct Task is a session (POST /orchestrators/delegate), not a plan.
+             * @enum {string}
+             */
+            mode?: "plan" | "auto";
             /** @description Display-only ticket link or reference. */
             ticketRef?: string;
             /** @description Task title, 1-100 characters. */
@@ -7954,10 +7979,14 @@ export interface components {
             brief: string;
             /** Format: date-time */
             createdAt: string;
+            /** @description The worker a direct triage decision spawned. */
+            directSessionId?: string;
             displayStatus: string;
             /** Format: date-time */
             finishedAt?: null | string;
             id: string;
+            /** @enum {string} */
+            intakeMode: "plan" | "auto";
             /** @enum {string} */
             kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
             liveSessions: components["schemas"]["PlanSessionSummary"][];
@@ -7965,15 +7994,17 @@ export interface components {
             milestoneCounts: components["schemas"]["PlanMilestoneCounts"];
             orchestratorSessionId: string;
             /** @enum {string} */
-            phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
+            phase: "triage" | "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed" | "direct";
             projectId: string;
             /** @description Pull requests of every milestone session, de-duplicated, in milestone order. */
             prs: components["schemas"]["SessionPRFacts"][];
             specMarkdown: string;
             /** @enum {string} */
-            state: "planning" | "active" | "cancelled";
+            state: "triage" | "planning" | "active" | "cancelled" | "direct";
             ticketRef: string;
             title: string;
+            /** @description The triage decision of an auto Task, once made. */
+            triage?: components["schemas"]["ControllersPlanTriage"];
             /** Format: date-time */
             updatedAt: string;
         };
@@ -7992,10 +8023,14 @@ export interface components {
             activatedAt?: null | string;
             /** Format: date-time */
             createdAt: string;
+            /** @description The worker a direct triage decision spawned. */
+            directSessionId?: string;
             displayStatus: string;
             /** Format: date-time */
             finishedAt?: null | string;
             id: string;
+            /** @enum {string} */
+            intakeMode: "plan" | "auto";
             /** @enum {string} */
             kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
             liveSessions: components["schemas"]["PlanSessionSummary"][];
@@ -8003,14 +8038,16 @@ export interface components {
             milestoneCounts: components["schemas"]["PlanMilestoneCounts"];
             orchestratorSessionId: string;
             /** @enum {string} */
-            phase: "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed";
+            phase: "triage" | "planning" | "implementing" | "qa" | "fixing" | "done" | "cancelled" | "failed" | "direct";
             projectId: string;
             /** @description Pull requests of every milestone session, de-duplicated, in milestone order. */
             prs: components["schemas"]["SessionPRFacts"][];
             /** @enum {string} */
-            state: "planning" | "active" | "cancelled";
+            state: "triage" | "planning" | "active" | "cancelled" | "direct";
             ticketRef: string;
             title: string;
+            /** @description The triage decision of an auto Task, once made. */
+            triage?: components["schemas"]["ControllersPlanTriage"];
             /** Format: date-time */
             updatedAt: string;
         };
@@ -9575,6 +9612,8 @@ export interface components {
             model?: null | string;
             prompt?: null | string;
             rrule?: null | string;
+            /** @enum {null|string} */
+            taskMode?: "direct" | "plan" | "auto" | null;
             timezone?: null | string;
             /** @enum {null|string} */
             useCase?: "pr_review" | "issue_triage" | "repo_digest" | "ci_triage" | "release_notes" | "security_audit" | "dependency_maintenance" | "docs_maintenance" | "other" | "unknown" | null;

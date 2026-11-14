@@ -182,6 +182,10 @@ func TestDerivePlanPhase(t *testing.T) {
 			PlanPhaseCancelled, contract.KanbanArchive, contract.DisplayPlanCancelled},
 		{"planning", Plan{State: PlanStatePlanning}, nil,
 			PlanPhasePlanning, contract.KanbanBuilding, contract.DisplayPlanning},
+		{"triage", Plan{State: PlanStateTriage, IntakeMode: PlanIntakeAuto}, nil,
+			PlanPhaseTriage, contract.KanbanBuilding, contract.DisplayDeciding},
+		{"direct", Plan{State: PlanStateDirect, IntakeMode: PlanIntakeAuto, DirectSessionID: "w-1"}, nil,
+			PlanPhaseDirect, contract.KanbanArchive, contract.DisplayOneWorker},
 		{"blocked while implementing", active, []Milestone{ms("m1", impl, MilestoneStatusBlocked), ms("m2", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusPending)},
 			PlanPhaseImplementing, contract.KanbanBuilding, contract.DisplayBlocked},
 		{"qa failed", active, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusFailed)},
@@ -214,5 +218,33 @@ func TestDerivePlanPhase(t *testing.T) {
 				t.Fatalf("kanban = %q/%q, want %q/%q", col, display, tc.column, tc.display)
 			}
 		})
+	}
+}
+
+func TestPlanPhaseFinishedAndTaskCard(t *testing.T) {
+	for _, phase := range []PlanPhase{PlanPhaseTriage, PlanPhasePlanning, PlanPhaseImplementing, PlanPhaseQA, PlanPhaseFixing, PlanPhaseFailed} {
+		if phase.Finished() {
+			t.Errorf("%s reads as finished", phase)
+		}
+		if !phase.ShowsTaskCard() {
+			t.Errorf("%s hides its Task card", phase)
+		}
+	}
+	for _, phase := range []PlanPhase{PlanPhaseDone, PlanPhaseCancelled, PlanPhaseDirect} {
+		if !phase.Finished() {
+			t.Errorf("%s does not read as finished", phase)
+		}
+	}
+	if PlanPhaseDirect.ShowsTaskCard() {
+		t.Error("a direct Task shows a Task card; its worker card stands for it")
+	}
+}
+
+func TestTriageDecisionAndActorValid(t *testing.T) {
+	if !TriageDecisionPlan.Valid() || !TriageDecisionDirect.Valid() || TriageDecision("").Valid() || TriageDecision("maybe").Valid() {
+		t.Error("TriageDecision.Valid accepts the wrong set")
+	}
+	if !TriageActorOrchestrator.Valid() || !TriageActorHuman.Valid() || TriageActor("").Valid() {
+		t.Error("TriageActor.Valid accepts the wrong set")
 	}
 }

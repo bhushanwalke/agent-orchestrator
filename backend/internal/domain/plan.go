@@ -27,7 +27,56 @@ const (
 	PlanStatePlanning  PlanState = "planning"
 	PlanStateActive    PlanState = "active"
 	PlanStateCancelled PlanState = "cancelled"
+	// PlanStateTriage is an auto Task waiting for the plan-or-direct decision.
+	PlanStateTriage PlanState = "triage"
+	// PlanStateDirect is an auto Task handed to one worker; it is terminal.
+	PlanStateDirect PlanState = "direct"
 )
+
+// PlanIntakeMode is how a plan was created: planned outright, or triaged by
+// the orchestrator first. A direct Task is a session and has no plan row.
+type PlanIntakeMode string
+
+// Plan intake modes.
+const (
+	PlanIntakePlan PlanIntakeMode = "plan"
+	PlanIntakeAuto PlanIntakeMode = "auto"
+)
+
+// TriageDecision is how an auto Task is run.
+type TriageDecision string
+
+// Triage decisions.
+const (
+	TriageDecisionPlan   TriageDecision = "plan"
+	TriageDecisionDirect TriageDecision = "direct"
+)
+
+// Valid reports whether d is a known decision.
+func (d TriageDecision) Valid() bool { return d == TriageDecisionPlan || d == TriageDecisionDirect }
+
+// TriageActor is who made a triage decision.
+type TriageActor string
+
+// Triage actors.
+const (
+	TriageActorOrchestrator TriageActor = "orchestrator"
+	TriageActorHuman        TriageActor = "human"
+)
+
+// Valid reports whether a is a known actor.
+func (a TriageActor) Valid() bool { return a == TriageActorOrchestrator || a == TriageActorHuman }
+
+// TriageReasonMaxBytes bounds a triage decision's reason.
+const TriageReasonMaxBytes = 500
+
+// PlanTriage is the recorded decision of an auto Task.
+type PlanTriage struct {
+	Decision  TriageDecision
+	Reason    string
+	DecidedBy TriageActor
+	DecidedAt time.Time
+}
 
 // MilestoneKind distinguishes implementation milestones from the QA milestone.
 type MilestoneKind string
@@ -74,7 +123,19 @@ const (
 	PlanPhaseDone         PlanPhase = "done"
 	PlanPhaseCancelled    PlanPhase = "cancelled"
 	PlanPhaseFailed       PlanPhase = "failed"
+	PlanPhaseTriage       PlanPhase = "triage"
+	PlanPhaseDirect       PlanPhase = "direct"
 )
+
+// Finished reports whether a plan in this phase is over: the scheduler no
+// longer ticks it.
+func (p PlanPhase) Finished() bool {
+	return p == PlanPhaseDone || p == PlanPhaseCancelled || p == PlanPhaseDirect
+}
+
+// ShowsTaskCard reports whether the board shows a Task card for a plan in
+// this phase. A direct Task's worker session card stands for the work.
+func (p PlanPhase) ShowsTaskCard() bool { return p != PlanPhaseDirect }
 
 // Plan limits.
 const (
@@ -109,6 +170,14 @@ type Plan struct {
 	UpdatedAt             time.Time
 	ActivatedAt           *time.Time
 	FinishedAt            *time.Time
+	// IntakeMode is plan unless the Task was created in auto mode.
+	IntakeMode PlanIntakeMode
+	// DirectSessionID is the worker a direct triage decision spawned.
+	DirectSessionID SessionID
+	// Triage is the decision of an auto Task, nil until one is made.
+	Triage *PlanTriage
+	// TriageRemindedAt is when the orchestrator was reminded to decide.
+	TriageRemindedAt *time.Time
 }
 
 // Milestone is one unit of a plan, owned by at most one session at a time.
@@ -446,6 +515,10 @@ func DerivePlanPhase(plan Plan, ms []Milestone) PlanPhase {
 		return PlanPhaseCancelled
 	case PlanStatePlanning:
 		return PlanPhasePlanning
+	case PlanStateTriage:
+		return PlanPhaseTriage
+	case PlanStateDirect:
+		return PlanPhaseDirect
 	}
 	var qa *Milestone
 	for i := range ms {
@@ -485,6 +558,11 @@ func DerivePlanKanban(phase PlanPhase, ms []Milestone) (contract.KanbanColumn, c
 		return contract.KanbanArchive, contract.DisplayPlanCancelled
 	case PlanPhasePlanning:
 		return contract.KanbanBuilding, contract.DisplayPlanning
+	case PlanPhaseTriage:
+		return contract.KanbanBuilding, contract.DisplayDeciding
+	case PlanPhaseDirect:
+		// Never shown as a Task card (ShowsTaskCard); the plan is closed.
+		return contract.KanbanArchive, contract.DisplayOneWorker
 	case PlanPhaseDone:
 		return contract.KanbanReady, contract.DisplayQAPassed
 	}

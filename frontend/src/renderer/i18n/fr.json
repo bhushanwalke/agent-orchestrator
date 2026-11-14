@@ -4994,6 +4994,8 @@
 	"plan.phase.done": "Terminé",
 	"plan.phase.cancelled": "Annulée",
 	"plan.phase.failed": "Échec",
+	"plan.phase.triage": "Décision en cours",
+	"plan.phase.direct": "Un seul agent",
 	"plan.actions.label": "Actions",
 	"plan.actions.openOrchestrator": "Ouvrir le chat de l'orchestrateur",
 	"plan.actions.rerunQa": "Relancer la QA",

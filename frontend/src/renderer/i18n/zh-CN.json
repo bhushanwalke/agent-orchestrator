@@ -4856,6 +4856,8 @@
 	"plan.phase.done": "已完成",
 	"plan.phase.cancelled": "已取消",
 	"plan.phase.failed": "失败",
+	"plan.phase.triage": "决策中",
+	"plan.phase.direct": "单个执行者",
 	"plan.actions.label": "操作",
 	"plan.actions.openOrchestrator": "打开编排器聊天",
 	"plan.actions.rerunQa": "重新运行 QA",

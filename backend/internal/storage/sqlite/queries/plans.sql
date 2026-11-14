@@ -6,8 +6,10 @@
 -- name: InsertPlan :exec
 INSERT INTO plans (
     id, project_id, title, brief, ticket_ref, spec_markdown, state,
-    orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+    orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at,
+    intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by,
+    triage_decided_at, triage_reminded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 
 -- name: SelectPlanByID :one
 SELECT * FROM plans WHERE id = ?;
@@ -25,8 +27,17 @@ SELECT * FROM plans WHERE state = 'active' ORDER BY created_at, id;
 UPDATE plans
 SET title = ?, brief = ?, ticket_ref = ?, spec_markdown = ?, state = ?,
     orchestrator_session_id = ?, max_parallel = ?, updated_at = ?,
-    activated_at = ?, finished_at = ?
+    activated_at = ?, finished_at = ?, direct_session_id = ?, triage_decision = ?,
+    triage_reason = ?, triage_decided_by = ?, triage_decided_at = ?, triage_reminded_at = ?
 WHERE id = ?;
+
+-- name: DecidePlanTriage :execrows
+-- Records a triage decision only while the plan is still in triage, so two
+-- deciders can never both win.
+UPDATE plans
+SET state = ?, direct_session_id = ?, triage_decision = ?, triage_reason = ?,
+    triage_decided_by = ?, triage_decided_at = ?, finished_at = ?, updated_at = ?
+WHERE id = ? AND state = 'triage';
 
 -- name: InsertMilestone :exec
 INSERT INTO plan_milestones (

@@ -4874,6 +4874,8 @@
 	"plan.phase.done": "완료",
 	"plan.phase.cancelled": "취소됨",
 	"plan.phase.failed": "실패",
+	"plan.phase.triage": "결정 중",
+	"plan.phase.direct": "단일 워커",
 	"plan.actions.label": "작업",
 	"plan.actions.openOrchestrator": "오케스트레이터 채팅 열기",
 	"plan.actions.rerunQa": "QA 다시 실행",

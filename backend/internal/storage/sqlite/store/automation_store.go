@@ -111,6 +111,7 @@ func (s *Store) UpdateAutomation(ctx context.Context, rec domain.Automation) (bo
 		NextRunAt:   rec.NextRunAt,
 		LastRunAt:   timePtrToNullTime(rec.LastRunAt),
 		UpdatedAt:   rec.UpdatedAt,
+		TaskMode:    string(taskModeOrDefault(rec.TaskMode)),
 		ID:          rec.ID,
 	})
 	if err != nil {
@@ -240,7 +241,15 @@ func automationToInsert(rec domain.Automation) gen.InsertAutomationParams {
 		LastRunAt:   timePtrToNullTime(rec.LastRunAt),
 		CreatedAt:   rec.CreatedAt,
 		UpdatedAt:   rec.UpdatedAt,
+		TaskMode:    string(taskModeOrDefault(rec.TaskMode)),
 	}
+}
+
+func taskModeOrDefault(m domain.AutomationTaskMode) domain.AutomationTaskMode {
+	if m == "" {
+		return domain.AutomationTaskDirect
+	}
+	return m
 }
 
 func automationFromGen(row gen.Automation) domain.Automation {
@@ -258,6 +267,7 @@ func automationFromGen(row gen.Automation) domain.Automation {
 		Effort:      row.Effort,
 		RRuleText:   row.RruleText,
 		Timezone:    row.Timezone,
+		TaskMode:    domain.AutomationTaskMode(row.TaskMode),
 		Enabled:     row.Enabled,
 		NextRunAt:   row.NextRunAt,
 		LastRunAt:   nullTimeToTimePtr(row.LastRunAt),
@@ -331,6 +341,32 @@ func (s *Store) MarkAutomationRunRunning(ctx context.Context, id domain.Automati
 	return rows > 0, nil
 }
 
+// MarkAutomationRunPlan moves a spawning run to running on the Task plan it
+// created.
+func (s *Store) MarkAutomationRunPlan(ctx context.Context, id domain.AutomationRunID, planID domain.PlanID, now time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.MarkAutomationRunPlan(ctx, gen.MarkAutomationRunPlanParams{
+		PlanID: sql.NullString{String: string(planID), Valid: true}, StartedAt: timePtrToNullTime(&now), UpdatedAt: now, ID: id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("mark automation run %s on plan %s: %w", id, planID, err)
+	}
+	return rows > 0, nil
+}
+
+// AdoptAutomationRunSession links a running plan-backed run to the worker its
+// Task was handed to.
+func (s *Store) AdoptAutomationRunSession(ctx context.Context, id domain.AutomationRunID, sessionID domain.SessionID, now time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	rows, err := s.qw.AdoptAutomationRunSession(ctx, gen.AdoptAutomationRunSessionParams{SessionID: &sessionID, UpdatedAt: now, ID: id})
+	if err != nil {
+		return false, fmt.Errorf("adopt session %s for automation run %s: %w", sessionID, id, err)
+	}
+	return rows > 0, nil
+}
+
 // CompleteAutomationRun projects durable session termination into run history.
 func (s *Store) CompleteAutomationRun(ctx context.Context, id domain.AutomationRunID, now time.Time) (bool, error) {
 	s.writeMu.Lock()
@@ -385,7 +421,7 @@ func automationRunToInsert(rec domain.AutomationRun) gen.InsertAutomationRunPara
 }
 
 func automationRunFromGen(row gen.AutomationRun) domain.AutomationRun {
-	return domain.AutomationRun{
+	run := domain.AutomationRun{
 		ID:             row.ID,
 		AutomationID:   row.AutomationID,
 		ScheduledFor:   row.ScheduledFor,
@@ -400,6 +436,11 @@ func automationRunFromGen(row gen.AutomationRun) domain.AutomationRun {
 		CreatedAt:      row.CreatedAt,
 		UpdatedAt:      row.UpdatedAt,
 	}
+	if row.PlanID.Valid {
+		id := domain.PlanID(row.PlanID.String)
+		run.PlanID = &id
+	}
+	return run
 }
 
 // ListAutomationRuns returns newest-first history and its filtered total.

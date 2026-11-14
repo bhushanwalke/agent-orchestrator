@@ -19,6 +19,7 @@ func samplePlan(id, project string, at time.Time) domain.Plan {
 		Brief:       "Add X",
 		TicketRef:   "github:o/r#1",
 		State:       domain.PlanStatePlanning,
+		IntakeMode:  domain.PlanIntakePlan,
 		MaxParallel: domain.DefaultPlanMaxParallel,
 		CreatedAt:   at,
 		UpdatedAt:   at,

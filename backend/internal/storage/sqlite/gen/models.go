@@ -209,6 +209,7 @@ type Automation struct {
 	Effort      string
 	TemplateID  string
 	UseCase     string
+	TaskMode    string
 }
 
 type AutomationRun struct {
@@ -225,6 +226,7 @@ type AutomationRun struct {
 	ErrorMessage   sql.NullString
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	PlanID         sql.NullString
 }
 
 type AwakeState struct {
@@ -642,6 +644,13 @@ type Plan struct {
 	UpdatedAt             time.Time
 	ActivatedAt           sql.NullTime
 	FinishedAt            sql.NullTime
+	IntakeMode            string
+	DirectSessionID       string
+	TriageDecision        string
+	TriageReason          string
+	TriageDecidedBy       string
+	TriageDecidedAt       sql.NullTime
+	TriageRemindedAt      sql.NullTime
 }
 
 type PlanEvent struct {

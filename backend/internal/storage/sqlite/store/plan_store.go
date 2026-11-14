@@ -29,6 +29,13 @@ func (s *Store) InsertPlan(ctx context.Context, p domain.Plan) error {
 		UpdatedAt:             p.UpdatedAt,
 		ActivatedAt:           timePtrToNullTime(p.ActivatedAt),
 		FinishedAt:            timePtrToNullTime(p.FinishedAt),
+		IntakeMode:            string(intakeModeOrDefault(p.IntakeMode)),
+		DirectSessionID:       string(p.DirectSessionID),
+		TriageDecision:        string(triageOf(p).Decision),
+		TriageReason:          triageOf(p).Reason,
+		TriageDecidedBy:       string(triageOf(p).DecidedBy),
+		TriageDecidedAt:       triageDecidedAt(p),
+		TriageRemindedAt:      timePtrToNullTime(p.TriageRemindedAt),
 	})
 	if err != nil {
 		if isSQLiteForeignKey(err) {
@@ -92,6 +99,12 @@ func (s *Store) UpdatePlan(ctx context.Context, p domain.Plan) error {
 		UpdatedAt:             p.UpdatedAt,
 		ActivatedAt:           timePtrToNullTime(p.ActivatedAt),
 		FinishedAt:            timePtrToNullTime(p.FinishedAt),
+		DirectSessionID:       string(p.DirectSessionID),
+		TriageDecision:        string(triageOf(p).Decision),
+		TriageReason:          triageOf(p).Reason,
+		TriageDecidedBy:       string(triageOf(p).DecidedBy),
+		TriageDecidedAt:       triageDecidedAt(p),
+		TriageRemindedAt:      timePtrToNullTime(p.TriageRemindedAt),
 		ID:                    p.ID,
 	})
 	if err != nil {
@@ -101,6 +114,50 @@ func (s *Store) UpdatePlan(ctx context.Context, p domain.Plan) error {
 		return fmt.Errorf("update plan %s: %w", p.ID, sql.ErrNoRows)
 	}
 	return nil
+}
+
+// DecidePlanTriage writes a triage decision (state, decision, direct session,
+// finish time) only while the stored plan is still in triage. It reports
+// whether this call recorded the decision; false means another decider won.
+func (s *Store) DecidePlanTriage(ctx context.Context, p domain.Plan) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	n, err := s.qw.DecidePlanTriage(ctx, gen.DecidePlanTriageParams{
+		State:           p.State,
+		DirectSessionID: string(p.DirectSessionID),
+		TriageDecision:  string(triageOf(p).Decision),
+		TriageReason:    triageOf(p).Reason,
+		TriageDecidedBy: string(triageOf(p).DecidedBy),
+		TriageDecidedAt: triageDecidedAt(p),
+		FinishedAt:      timePtrToNullTime(p.FinishedAt),
+		UpdatedAt:       p.UpdatedAt,
+		ID:              p.ID,
+	})
+	if err != nil {
+		return false, fmt.Errorf("decide plan triage %s: %w", p.ID, err)
+	}
+	return n > 0, nil
+}
+
+func intakeModeOrDefault(m domain.PlanIntakeMode) domain.PlanIntakeMode {
+	if m == "" {
+		return domain.PlanIntakePlan
+	}
+	return m
+}
+
+func triageOf(p domain.Plan) domain.PlanTriage {
+	if p.Triage == nil {
+		return domain.PlanTriage{}
+	}
+	return *p.Triage
+}
+
+func triageDecidedAt(p domain.Plan) sql.NullTime {
+	if p.Triage == nil || p.Triage.DecidedAt.IsZero() {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: p.Triage.DecidedAt, Valid: true}
 }
 
 // DeletePlan removes a plan; its milestones, edges, and events cascade.
@@ -298,7 +355,7 @@ func plansFromGen(rows []gen.Plan) []domain.Plan {
 }
 
 func planFromGen(row gen.Plan) domain.Plan {
-	return domain.Plan{
+	p := domain.Plan{
 		ID:                    row.ID,
 		ProjectID:             row.ProjectID,
 		Title:                 row.Title,
@@ -312,7 +369,21 @@ func planFromGen(row gen.Plan) domain.Plan {
 		UpdatedAt:             row.UpdatedAt,
 		ActivatedAt:           nullTimeToTimePtr(row.ActivatedAt),
 		FinishedAt:            nullTimeToTimePtr(row.FinishedAt),
+		IntakeMode:            domain.PlanIntakeMode(row.IntakeMode),
+		DirectSessionID:       domain.SessionID(row.DirectSessionID),
+		TriageRemindedAt:      nullTimeToTimePtr(row.TriageRemindedAt),
 	}
+	if row.TriageDecision != "" {
+		p.Triage = &domain.PlanTriage{
+			Decision:  domain.TriageDecision(row.TriageDecision),
+			Reason:    row.TriageReason,
+			DecidedBy: domain.TriageActor(row.TriageDecidedBy),
+		}
+		if row.TriageDecidedAt.Valid {
+			p.Triage.DecidedAt = row.TriageDecidedAt.Time
+		}
+	}
+	return p
 }
 
 func milestoneFromGen(row gen.PlanMilestone) domain.Milestone {

@@ -13,6 +13,45 @@ import (
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
 
+const decidePlanTriage = `-- name: DecidePlanTriage :execrows
+UPDATE plans
+SET state = ?, direct_session_id = ?, triage_decision = ?, triage_reason = ?,
+    triage_decided_by = ?, triage_decided_at = ?, finished_at = ?, updated_at = ?
+WHERE id = ? AND state = 'triage'
+`
+
+type DecidePlanTriageParams struct {
+	State           domain.PlanState
+	DirectSessionID string
+	TriageDecision  string
+	TriageReason    string
+	TriageDecidedBy string
+	TriageDecidedAt sql.NullTime
+	FinishedAt      sql.NullTime
+	UpdatedAt       time.Time
+	ID              domain.PlanID
+}
+
+// Records a triage decision only while the plan is still in triage, so two
+// deciders can never both win.
+func (q *Queries) DecidePlanTriage(ctx context.Context, arg DecidePlanTriageParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, decidePlanTriage,
+		arg.State,
+		arg.DirectSessionID,
+		arg.TriageDecision,
+		arg.TriageReason,
+		arg.TriageDecidedBy,
+		arg.TriageDecidedAt,
+		arg.FinishedAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
+}
+
 const deleteMilestone = `-- name: DeleteMilestone :execrows
 DELETE FROM plan_milestones WHERE id = ?
 `
@@ -119,8 +158,10 @@ const insertPlan = `-- name: InsertPlan :exec
 
 INSERT INTO plans (
     id, project_id, title, brief, ticket_ref, spec_markdown, state,
-    orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at
-) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at,
+    intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by,
+    triage_decided_at, triage_reminded_at
+) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `
 
 type InsertPlanParams struct {
@@ -137,6 +178,13 @@ type InsertPlanParams struct {
 	UpdatedAt             time.Time
 	ActivatedAt           sql.NullTime
 	FinishedAt            sql.NullTime
+	IntakeMode            string
+	DirectSessionID       string
+	TriageDecision        string
+	TriageReason          string
+	TriageDecidedBy       string
+	TriageDecidedAt       sql.NullTime
+	TriageRemindedAt      sql.NullTime
 }
 
 // Task plans: a plan row, its milestones, the milestone dependency edges, and
@@ -158,6 +206,13 @@ func (q *Queries) InsertPlan(ctx context.Context, arg InsertPlanParams) error {
 		arg.UpdatedAt,
 		arg.ActivatedAt,
 		arg.FinishedAt,
+		arg.IntakeMode,
+		arg.DirectSessionID,
+		arg.TriageDecision,
+		arg.TriageReason,
+		arg.TriageDecidedBy,
+		arg.TriageDecidedAt,
+		arg.TriageRemindedAt,
 	)
 	return err
 }
@@ -192,7 +247,7 @@ func (q *Queries) InsertPlanEvent(ctx context.Context, arg InsertPlanEventParams
 }
 
 const selectActivePlans = `-- name: SelectActivePlans :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at FROM plans WHERE state = 'active' ORDER BY created_at, id
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE state = 'active' ORDER BY created_at, id
 `
 
 func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
@@ -218,6 +273,13 @@ func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
 			&i.UpdatedAt,
 			&i.ActivatedAt,
 			&i.FinishedAt,
+			&i.IntakeMode,
+			&i.DirectSessionID,
+			&i.TriageDecision,
+			&i.TriageReason,
+			&i.TriageDecidedBy,
+			&i.TriageDecidedAt,
+			&i.TriageRemindedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -233,7 +295,7 @@ func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
 }
 
 const selectAllPlans = `-- name: SelectAllPlans :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at FROM plans ORDER BY created_at DESC, id DESC
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) SelectAllPlans(ctx context.Context) ([]Plan, error) {
@@ -259,6 +321,13 @@ func (q *Queries) SelectAllPlans(ctx context.Context) ([]Plan, error) {
 			&i.UpdatedAt,
 			&i.ActivatedAt,
 			&i.FinishedAt,
+			&i.IntakeMode,
+			&i.DirectSessionID,
+			&i.TriageDecision,
+			&i.TriageReason,
+			&i.TriageDecidedBy,
+			&i.TriageDecidedAt,
+			&i.TriageRemindedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -425,7 +494,7 @@ func (q *Queries) SelectPlanAttachedSessionIDs(ctx context.Context, planID domai
 }
 
 const selectPlanByID = `-- name: SelectPlanByID :one
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at FROM plans WHERE id = ?
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE id = ?
 `
 
 func (q *Queries) SelectPlanByID(ctx context.Context, id domain.PlanID) (Plan, error) {
@@ -445,6 +514,13 @@ func (q *Queries) SelectPlanByID(ctx context.Context, id domain.PlanID) (Plan, e
 		&i.UpdatedAt,
 		&i.ActivatedAt,
 		&i.FinishedAt,
+		&i.IntakeMode,
+		&i.DirectSessionID,
+		&i.TriageDecision,
+		&i.TriageReason,
+		&i.TriageDecidedBy,
+		&i.TriageDecidedAt,
+		&i.TriageRemindedAt,
 	)
 	return i, err
 }
@@ -494,7 +570,7 @@ func (q *Queries) SelectPlanEventsAfter(ctx context.Context, arg SelectPlanEvent
 }
 
 const selectPlansByProject = `-- name: SelectPlansByProject :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at FROM plans WHERE project_id = ? ORDER BY created_at DESC, id DESC
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE project_id = ? ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) SelectPlansByProject(ctx context.Context, projectID domain.ProjectID) ([]Plan, error) {
@@ -520,6 +596,13 @@ func (q *Queries) SelectPlansByProject(ctx context.Context, projectID domain.Pro
 			&i.UpdatedAt,
 			&i.ActivatedAt,
 			&i.FinishedAt,
+			&i.IntakeMode,
+			&i.DirectSessionID,
+			&i.TriageDecision,
+			&i.TriageReason,
+			&i.TriageDecidedBy,
+			&i.TriageDecidedAt,
+			&i.TriageRemindedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -635,7 +718,8 @@ const updatePlan = `-- name: UpdatePlan :execrows
 UPDATE plans
 SET title = ?, brief = ?, ticket_ref = ?, spec_markdown = ?, state = ?,
     orchestrator_session_id = ?, max_parallel = ?, updated_at = ?,
-    activated_at = ?, finished_at = ?
+    activated_at = ?, finished_at = ?, direct_session_id = ?, triage_decision = ?,
+    triage_reason = ?, triage_decided_by = ?, triage_decided_at = ?, triage_reminded_at = ?
 WHERE id = ?
 `
 
@@ -650,6 +734,12 @@ type UpdatePlanParams struct {
 	UpdatedAt             time.Time
 	ActivatedAt           sql.NullTime
 	FinishedAt            sql.NullTime
+	DirectSessionID       string
+	TriageDecision        string
+	TriageReason          string
+	TriageDecidedBy       string
+	TriageDecidedAt       sql.NullTime
+	TriageRemindedAt      sql.NullTime
 	ID                    domain.PlanID
 }
 
@@ -665,6 +755,12 @@ func (q *Queries) UpdatePlan(ctx context.Context, arg UpdatePlanParams) (int64, 
 		arg.UpdatedAt,
 		arg.ActivatedAt,
 		arg.FinishedAt,
+		arg.DirectSessionID,
+		arg.TriageDecision,
+		arg.TriageReason,
+		arg.TriageDecidedBy,
+		arg.TriageDecidedAt,
+		arg.TriageRemindedAt,
 		arg.ID,
 	)
 	if err != nil {

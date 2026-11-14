@@ -5106,6 +5106,8 @@
 	"plan.phase.done": "Готово",
 	"plan.phase.cancelled": "Отменено",
 	"plan.phase.failed": "Ошибка",
+	"plan.phase.triage": "Принимается решение",
+	"plan.phase.direct": "Один исполнитель",
 	"plan.actions.label": "Действия",
 	"plan.actions.openOrchestrator": "Открыть чат оркестратора",
 	"plan.actions.rerunQa": "Повторить QA",

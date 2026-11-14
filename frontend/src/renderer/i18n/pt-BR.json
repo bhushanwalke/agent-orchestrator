@@ -4994,6 +4994,8 @@
 	"plan.phase.done": "Concluída",
 	"plan.phase.cancelled": "Cancelada",
 	"plan.phase.failed": "Falhou",
+	"plan.phase.triage": "Decidindo",
+	"plan.phase.direct": "Um único agente",
 	"plan.actions.label": "Ações",
 	"plan.actions.openOrchestrator": "Abrir chat do orchestrator",
 	"plan.actions.rerunQa": "Executar QA novamente",

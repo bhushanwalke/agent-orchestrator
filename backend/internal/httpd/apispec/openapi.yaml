@@ -17277,6 +17277,12 @@ components:
           type: string
         rrule:
           type: string
+        taskMode:
+          enum:
+          - direct
+          - plan
+          - auto
+          type: string
         templateId:
           enum:
           - custom
@@ -17316,6 +17322,7 @@ components:
       - nextRunAt
       - createdAt
       - updatedAt
+      - taskMode
       type: object
     AutomationRunResponse:
       properties:
@@ -17346,6 +17353,9 @@ components:
           type:
           - "null"
           - string
+        planId:
+          description: The Task plan a plan or auto run created.
+          type: string
         scheduledFor:
           format: date-time
           type: string
@@ -17386,6 +17396,9 @@ components:
           - "null"
           - string
         id:
+          type: string
+        planId:
+          description: The Task plan a plan or auto run created.
           type: string
         scheduledFor:
           format: date-time
@@ -19362,6 +19375,29 @@ components:
       - isTerminated
       - branch
       type: object
+    ControllersPlanTriage:
+      properties:
+        decidedAt:
+          format: date-time
+          type: string
+        decidedBy:
+          enum:
+          - orchestrator
+          - human
+          type: string
+        decision:
+          enum:
+          - plan
+          - direct
+          type: string
+        reason:
+          type: string
+      required:
+      - decision
+      - reason
+      - decidedBy
+      - decidedAt
+      type: object
     ControllersRemoteHostAccountTokenResponse:
       properties:
         hostId:
@@ -20791,6 +20827,15 @@ components:
           type: string
         rrule:
           type: string
+        taskMode:
+          description: 'What each run creates: one worker session (direct, the default),
+            a Task plan, or an auto Task the orchestrator triages. An orchestrator
+            automation must be direct.'
+          enum:
+          - direct
+          - plan
+          - auto
+          type: string
         templateId:
           enum:
           - custom
@@ -20854,6 +20899,14 @@ components:
           type:
           - "null"
           - integer
+        mode:
+          description: plan (the default) plans the Task outright; auto lets the orchestrator
+            decide between a plan and one worker. A direct Task is a session (POST
+            /orchestrators/delegate), not a plan.
+          enum:
+          - plan
+          - auto
+          type: string
         ticketRef:
           description: Display-only ticket link or reference.
           type: string
@@ -23145,6 +23198,9 @@ components:
         createdAt:
           format: date-time
           type: string
+        directSessionId:
+          description: The worker a direct triage decision spawned.
+          type: string
         displayStatus:
           type: string
         finishedAt:
@@ -23153,6 +23209,11 @@ components:
           - "null"
           - string
         id:
+          type: string
+        intakeMode:
+          enum:
+          - plan
+          - auto
           type: string
         kanbanColumn:
           enum:
@@ -23174,6 +23235,7 @@ components:
           type: string
         phase:
           enum:
+          - triage
           - planning
           - implementing
           - qa
@@ -23181,6 +23243,7 @@ components:
           - done
           - cancelled
           - failed
+          - direct
           type: string
         projectId:
           type: string
@@ -23194,14 +23257,19 @@ components:
           type: string
         state:
           enum:
+          - triage
           - planning
           - active
           - cancelled
+          - direct
           type: string
         ticketRef:
           type: string
         title:
           type: string
+        triage:
+          $ref: '#/components/schemas/ControllersPlanTriage'
+          description: The triage decision of an auto Task, once made.
         updatedAt:
           format: date-time
           type: string
@@ -23212,6 +23280,7 @@ components:
       - ticketRef
       - state
       - phase
+      - intakeMode
       - kanbanColumn
       - displayStatus
       - milestoneCounts
@@ -23263,6 +23332,9 @@ components:
         createdAt:
           format: date-time
           type: string
+        directSessionId:
+          description: The worker a direct triage decision spawned.
+          type: string
         displayStatus:
           type: string
         finishedAt:
@@ -23271,6 +23343,11 @@ components:
           - "null"
           - string
         id:
+          type: string
+        intakeMode:
+          enum:
+          - plan
+          - auto
           type: string
         kanbanColumn:
           enum:
@@ -23292,6 +23369,7 @@ components:
           type: string
         phase:
           enum:
+          - triage
           - planning
           - implementing
           - qa
@@ -23299,6 +23377,7 @@ components:
           - done
           - cancelled
           - failed
+          - direct
           type: string
         projectId:
           type: string
@@ -23310,14 +23389,19 @@ components:
           type: array
         state:
           enum:
+          - triage
           - planning
           - active
           - cancelled
+          - direct
           type: string
         ticketRef:
           type: string
         title:
           type: string
+        triage:
+          $ref: '#/components/schemas/ControllersPlanTriage'
+          description: The triage decision of an auto Task, once made.
         updatedAt:
           format: date-time
           type: string
@@ -23328,6 +23412,7 @@ components:
       - ticketRef
       - state
       - phase
+      - intakeMode
       - kanbanColumn
       - displayStatus
       - milestoneCounts
@@ -27288,6 +27373,14 @@ components:
           - "null"
           - string
         rrule:
+          type:
+          - "null"
+          - string
+        taskMode:
+          enum:
+          - direct
+          - plan
+          - auto
           type:
           - "null"
           - string

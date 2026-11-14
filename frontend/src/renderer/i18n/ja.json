@@ -4874,6 +4874,8 @@
 	"plan.phase.done": "完了",
 	"plan.phase.cancelled": "キャンセル済み",
 	"plan.phase.failed": "失敗",
+	"plan.phase.triage": "判断中",
+	"plan.phase.direct": "単一ワーカー",
 	"plan.actions.label": "アクション",
 	"plan.actions.openOrchestrator": "オーケストレーターのチャットを開く",
 	"plan.actions.rerunQa": "QA を再実行",

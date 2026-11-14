@@ -2599,6 +2599,7 @@ type CreateAutomationRequest struct {
 	Model       string `json:"model,omitempty"`
 	Mode        string `json:"mode,omitempty"`
 	Effort      string `json:"effort,omitempty"`
+	TaskMode    string `json:"taskMode,omitempty" enum:"direct,plan,auto" description:"What each run creates: one worker session (direct, the default), a Task plan, or an auto Task the orchestrator triages. An orchestrator automation must be direct."`
 }
 
 // UpdateAutomationRequest is the partial body accepted when updating an automation.
@@ -2615,6 +2616,7 @@ type UpdateAutomationRequest struct {
 	Model       *string `json:"model,omitempty"`
 	Mode        *string `json:"mode,omitempty"`
 	Effort      *string `json:"effort,omitempty"`
+	TaskMode    *string `json:"taskMode,omitempty" enum:"direct,plan,auto"`
 }
 
 // AutomationRunSummaryResponse is the latest-run projection attached to a definition.
@@ -2623,6 +2625,7 @@ type AutomationRunSummaryResponse struct {
 	Status       string     `json:"status" enum:"pending,spawning,running,completed,failed"`
 	ScheduledFor time.Time  `json:"scheduledFor"`
 	SessionID    string     `json:"sessionId,omitempty"`
+	PlanID       string     `json:"planId,omitempty" description:"The Task plan a plan or auto run created."`
 	ErrorMessage string     `json:"errorMessage,omitempty"`
 	StartedAt    *time.Time `json:"startedAt,omitempty"`
 	FinishedAt   *time.Time `json:"finishedAt,omitempty"`
@@ -2649,6 +2652,7 @@ type AutomationResponse struct {
 	Model       string                        `json:"model,omitempty"`
 	Mode        string                        `json:"mode,omitempty"`
 	Effort      string                        `json:"effort,omitempty"`
+	TaskMode    string                        `json:"taskMode" enum:"direct,plan,auto"`
 }
 
 // AutomationEnvelope wraps one automation response.
@@ -2668,6 +2672,7 @@ type AutomationRunResponse struct {
 	AutomationID   string     `json:"automationId"`
 	ScheduledFor   time.Time  `json:"scheduledFor"`
 	SessionID      string     `json:"sessionId,omitempty"`
+	PlanID         string     `json:"planId,omitempty" description:"The Task plan a plan or auto run created."`
 	Status         string     `json:"status" enum:"pending,spawning,running,completed,failed"`
 	AttemptCount   int64      `json:"attemptCount"`
 	ClaimedAt      *time.Time `json:"claimedAt,omitempty"`
@@ -4760,6 +4765,22 @@ type CreatePlanRequest struct {
 	Brief       string `json:"brief" description:"The ticket text as pasted, at most 100 KiB."`
 	TicketRef   string `json:"ticketRef,omitempty" description:"Display-only ticket link or reference."`
 	MaxParallel *int   `json:"maxParallel,omitempty" minimum:"1" maximum:"10" description:"Most implementation workers running at once. Defaults to 3 when omitted."`
+	Mode        string `json:"mode,omitempty" enum:"plan,auto" description:"plan (the default) plans the Task outright; auto lets the orchestrator decide between a plan and one worker. A direct Task is a session (POST /orchestrators/delegate), not a plan."`
+}
+
+// PlanTriageRequest is the body of POST /api/v1/plans/{planId}/triage.
+type PlanTriageRequest struct {
+	Decision  string `json:"decision" enum:"plan,direct" description:"plan continues as a planned Task; direct hands the Task to one worker."`
+	Reason    string `json:"reason,omitempty" description:"One sentence on why, at most 500 bytes."`
+	DecidedBy string `json:"decidedBy,omitempty" enum:"orchestrator,human" description:"Who decided. Defaults to human; ao plan triage sends orchestrator when run inside an AO session."`
+}
+
+// PlanTriage is the recorded decision of an auto Task.
+type PlanTriage struct {
+	Decision  string    `json:"decision" enum:"plan,direct"`
+	Reason    string    `json:"reason"`
+	DecidedBy string    `json:"decidedBy" enum:"orchestrator,human"`
+	DecidedAt time.Time `json:"decidedAt"`
 }
 
 // PlanPatchRequest is the body of PATCH /api/v1/plans/{planId}. Title and
@@ -4818,8 +4839,11 @@ type PlanSummary struct {
 	ProjectID             string               `json:"projectId"`
 	Title                 string               `json:"title"`
 	TicketRef             string               `json:"ticketRef"`
-	State                 string               `json:"state" enum:"planning,active,cancelled"`
-	Phase                 string               `json:"phase" enum:"planning,implementing,qa,fixing,done,cancelled,failed"`
+	State                 string               `json:"state" enum:"triage,planning,active,cancelled,direct"`
+	Phase                 string               `json:"phase" enum:"triage,planning,implementing,qa,fixing,done,cancelled,failed,direct"`
+	IntakeMode            string               `json:"intakeMode" enum:"plan,auto"`
+	DirectSessionID       string               `json:"directSessionId,omitempty" description:"The worker a direct triage decision spawned."`
+	Triage                *PlanTriage          `json:"triage,omitempty" description:"The triage decision of an auto Task, once made."`
 	KanbanColumn          string               `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
 	DisplayStatus         string               `json:"displayStatus"`
 	MilestoneCounts       PlanMilestoneCounts  `json:"milestoneCounts"`

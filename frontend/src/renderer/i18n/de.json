@@ -4874,6 +4874,8 @@
 	"plan.phase.done": "Fertig",
 	"plan.phase.cancelled": "Abgebrochen",
 	"plan.phase.failed": "Fehlgeschlagen",
+	"plan.phase.triage": "Entscheidung läuft",
+	"plan.phase.direct": "Ein Worker",
 	"plan.actions.label": "Aktionen",
 	"plan.actions.openOrchestrator": "Orchestrator-Chat öffnen",
 	"plan.actions.rerunQa": "QA erneut ausführen",

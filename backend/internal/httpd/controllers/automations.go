@@ -185,12 +185,15 @@ func automationResponse(rec domain.Automation) AutomationResponse {
 		response := automationRunSummaryResponse(*rec.LatestRun)
 		latest = &response
 	}
-	return AutomationResponse{ID: string(rec.ID), ProjectID: string(rec.ProjectID), DisplayName: rec.DisplayName, Prompt: rec.Prompt, TemplateID: rec.TemplateID, UseCase: rec.UseCase, Kind: string(rec.Kind), Harness: string(rec.Harness), Model: rec.Model, Mode: rec.Mode, Effort: rec.Effort, RRule: rec.RRuleText, Timezone: rec.Timezone, Enabled: rec.Enabled, NextRunAt: rec.NextRunAt, LastRunAt: rec.LastRunAt, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt, LatestRun: latest}
+	return AutomationResponse{ID: string(rec.ID), ProjectID: string(rec.ProjectID), DisplayName: rec.DisplayName, Prompt: rec.Prompt, TemplateID: rec.TemplateID, UseCase: rec.UseCase, Kind: string(rec.Kind), Harness: string(rec.Harness), Model: rec.Model, Mode: rec.Mode, Effort: rec.Effort, RRule: rec.RRuleText, Timezone: rec.Timezone, Enabled: rec.Enabled, NextRunAt: rec.NextRunAt, LastRunAt: rec.LastRunAt, CreatedAt: rec.CreatedAt, UpdatedAt: rec.UpdatedAt, LatestRun: latest, TaskMode: string(rec.TaskMode)}
 }
 func automationRunSummaryResponse(run domain.AutomationRun) AutomationRunSummaryResponse {
 	response := AutomationRunSummaryResponse{ID: string(run.ID), Status: string(run.Status), ScheduledFor: run.ScheduledFor, ErrorMessage: run.ErrorMessage, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt}
 	if run.SessionID != nil {
 		response.SessionID = string(*run.SessionID)
+	}
+	if run.PlanID != nil {
+		response.PlanID = string(*run.PlanID)
 	}
 	return response
 }
@@ -198,6 +201,9 @@ func automationRunResponse(run domain.AutomationRun) AutomationRunResponse {
 	response := AutomationRunResponse{ID: string(run.ID), AutomationID: string(run.AutomationID), ScheduledFor: run.ScheduledFor, Status: string(run.Status), AttemptCount: run.AttemptCount, ClaimedAt: run.ClaimedAt, LeaseExpiresAt: run.LeaseExpiresAt, StartedAt: run.StartedAt, FinishedAt: run.FinishedAt, ErrorMessage: run.ErrorMessage, CreatedAt: run.CreatedAt, UpdatedAt: run.UpdatedAt}
 	if run.SessionID != nil {
 		response.SessionID = string(*run.SessionID)
+	}
+	if run.PlanID != nil {
+		response.PlanID = string(*run.PlanID)
 	}
 	return response
 }

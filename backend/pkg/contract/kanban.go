@@ -254,6 +254,10 @@ const (
 	DisplayQAPassed         DisplayStatus = "QA passed"
 	DisplayNeedsYou         DisplayStatus = "Needs you"
 	DisplayPlanCancelled    DisplayStatus = "Cancelled"
+	// DisplayDeciding is an auto Task waiting for its triage decision;
+	// DisplayOneWorker is one the orchestrator handed to a single worker.
+	DisplayDeciding  DisplayStatus = "Deciding"
+	DisplayOneWorker DisplayStatus = "One worker"
 )
 
 // KanbanPresentation is a session's derived board presentation: the column it

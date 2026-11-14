@@ -24,6 +24,22 @@ const (
 	AutomationRunFailed AutomationRunStatus = "failed"
 )
 
+// AutomationTaskMode is what each run creates: one session (direct), a Task
+// plan, or an auto Task the orchestrator triages.
+type AutomationTaskMode string
+
+// Automation task modes.
+const (
+	AutomationTaskDirect AutomationTaskMode = "direct"
+	AutomationTaskPlan   AutomationTaskMode = "plan"
+	AutomationTaskAuto   AutomationTaskMode = "auto"
+)
+
+// Valid reports whether m is a known task mode.
+func (m AutomationTaskMode) Valid() bool {
+	return m == AutomationTaskDirect || m == AutomationTaskPlan || m == AutomationTaskAuto
+}
+
 // Automation is the durable user-authored recurring definition. RRuleText is
 // canonical; Timezone preserves the wall-clock intent used to advance it.
 type Automation struct {
@@ -38,13 +54,15 @@ type Automation struct {
 	Model       string       `json:"model,omitempty"`
 	Mode        string       `json:"mode,omitempty"`
 	Effort      string       `json:"effort,omitempty"`
-	RRuleText   string       `json:"rrule"`
-	Timezone    string       `json:"timezone"`
-	Enabled     bool         `json:"enabled"`
-	NextRunAt   time.Time    `json:"nextRunAt"`
-	LastRunAt   *time.Time   `json:"lastRunAt,omitempty"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	UpdatedAt   time.Time    `json:"updatedAt"`
+	// TaskMode is direct unless runs create a Task plan.
+	TaskMode  AutomationTaskMode `json:"taskMode"`
+	RRuleText string             `json:"rrule"`
+	Timezone  string             `json:"timezone"`
+	Enabled   bool               `json:"enabled"`
+	NextRunAt time.Time          `json:"nextRunAt"`
+	LastRunAt *time.Time         `json:"lastRunAt,omitempty"`
+	CreatedAt time.Time          `json:"createdAt"`
+	UpdatedAt time.Time          `json:"updatedAt"`
 	// LatestRun is populated by list/get service reads for API projection. It is
 	// derived from automation_runs and never persisted on the definition row.
 	LatestRun *AutomationRun `json:"-"`
@@ -94,10 +112,12 @@ type AutomationPage struct {
 
 // AutomationRun is the durable execution record for one scheduled occurrence.
 type AutomationRun struct {
-	ID             AutomationRunID     `json:"id"`
-	AutomationID   AutomationID        `json:"automationId"`
-	ScheduledFor   time.Time           `json:"scheduledFor"`
-	SessionID      *SessionID          `json:"sessionId,omitempty"`
+	ID           AutomationRunID `json:"id"`
+	AutomationID AutomationID    `json:"automationId"`
+	ScheduledFor time.Time       `json:"scheduledFor"`
+	SessionID    *SessionID      `json:"sessionId,omitempty"`
+	// PlanID is the Task plan a plan or auto run created.
+	PlanID         *PlanID             `json:"planId,omitempty"`
 	Status         AutomationRunStatus `json:"status"`
 	AttemptCount   int64               `json:"attemptCount"`
 	ClaimedAt      *time.Time          `json:"claimedAt,omitempty"`

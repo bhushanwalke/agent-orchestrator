@@ -4854,6 +4854,8 @@
 	"plan.phase.done": "Done",
 	"plan.phase.cancelled": "Cancelled",
 	"plan.phase.failed": "Failed",
+	"plan.phase.triage": "Deciding",
+	"plan.phase.direct": "One worker",
 	"plan.actions.label": "Actions",
 	"plan.actions.openOrchestrator": "Open orchestrator chat",
 	"plan.actions.rerunQa": "Re-run QA",

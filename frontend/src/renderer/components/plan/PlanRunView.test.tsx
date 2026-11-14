@@ -92,6 +92,7 @@ function detail(overrides: Partial<PlanDetail["plan"]> = {}): PlanDetail {
 			specMarkdown: "# Spec\n\nThe plan.",
 			state: "active",
 			phase: "implementing",
+			intakeMode: "plan",
 			kanbanColumn: "building",
 			displayStatus: "Implementing 0/2",
 			milestoneCounts: { total: 3, done: 0, running: 1, failed: 0, blocked: 0 },

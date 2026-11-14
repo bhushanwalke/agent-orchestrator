@@ -23,6 +23,7 @@ import { PlanGraph } from "./PlanGraph";
 
 /** One semantic tone per phase, from the board's status tokens. */
 const phaseDot: Record<PlanPhase, string> = {
+	triage: "bg-passive",
 	planning: "bg-passive",
 	implementing: "bg-status-working",
 	qa: "bg-status-validating",
@@ -30,6 +31,7 @@ const phaseDot: Record<PlanPhase, string> = {
 	done: "bg-status-ready",
 	cancelled: "bg-status-terminated",
 	failed: "bg-destructive",
+	direct: "bg-status-ready",
 };
 
 function isLink(ref: string): boolean {

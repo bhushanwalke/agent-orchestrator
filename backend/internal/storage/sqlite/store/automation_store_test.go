@@ -30,6 +30,7 @@ func TestAutomationCreateAndGetRoundTripsDefinition(t *testing.T) {
 		Model:       "gpt-5",
 		Mode:        "agent",
 		Effort:      "high",
+		TaskMode:    domain.AutomationTaskAuto,
 		RRuleText:   "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
 		Timezone:    "Asia/Calcutta",
 		Enabled:     true,
@@ -263,6 +264,7 @@ func TestAutomationUpdatePersistsAllMutableFields(t *testing.T) {
 	rec.UseCase = "repo_digest"
 	rec.Kind = domain.KindOrchestrator
 	rec.Harness = domain.HarnessClaudeCode
+	rec.TaskMode = domain.AutomationTaskDirect
 	rec.RRuleText = "FREQ=WEEKLY"
 	rec.Timezone = "Asia/Calcutta"
 	rec.Enabled = false
