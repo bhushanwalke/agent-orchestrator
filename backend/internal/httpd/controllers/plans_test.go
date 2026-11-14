@@ -26,7 +26,7 @@ type fakePlanService struct {
 	gotPlan    domain.PlanID
 	gotKey     string
 	gotCreate  plansvc.CreateInput
-	gotPatch   plansvc.PlanPatch
+	gotPatch   plansvc.Patch
 	gotMsIn    plansvc.MilestoneInput
 	gotMsPatch plansvc.MilestonePatch
 	gotQA      plansvc.QAResultInput
@@ -60,7 +60,7 @@ func (f *fakePlanService) List(_ context.Context, projectID domain.ProjectID) ([
 	f.gotProject = projectID
 	return f.summaries, f.err
 }
-func (f *fakePlanService) Update(_ context.Context, id domain.PlanID, p plansvc.PlanPatch) (plansvc.Summary, error) {
+func (f *fakePlanService) Update(_ context.Context, id domain.PlanID, p plansvc.Patch) (plansvc.Summary, error) {
 	f.record("update", id)
 	f.gotPatch = p
 	return f.summary, f.err

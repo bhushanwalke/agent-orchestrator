@@ -415,10 +415,10 @@ func TestActivateAddsQAAndLocksEditing(t *testing.T) {
 	wantCode(t, err, "PLAN_NOT_EDITABLE")
 	_, err = f.svc.Activate(ctx, p.ID)
 	wantCode(t, err, "PLAN_NOT_EDITABLE")
-	_, err = f.svc.Update(ctx, p.ID, plan.PlanPatch{Title: &title})
+	_, err = f.svc.Update(ctx, p.ID, plan.Patch{Title: &title})
 	wantCode(t, err, "PLAN_NOT_EDITABLE")
 	mp := 5
-	updated, err := f.svc.Update(ctx, p.ID, plan.PlanPatch{MaxParallel: &mp})
+	updated, err := f.svc.Update(ctx, p.ID, plan.Patch{MaxParallel: &mp})
 	if err != nil || updated.Plan.MaxParallel != 5 {
 		t.Fatalf("max parallel stays editable: %+v err=%v", updated, err)
 	}
@@ -662,7 +662,7 @@ func TestUpdateAndCancelReturnDerivedSummary(t *testing.T) {
 		t.Fatal(err)
 	}
 	mp := 4
-	sum, err := f.svc.Update(ctx, p.ID, plan.PlanPatch{MaxParallel: &mp})
+	sum, err := f.svc.Update(ctx, p.ID, plan.Patch{MaxParallel: &mp})
 	if err != nil || sum.Plan.MaxParallel != 4 || sum.Counts.Total != 3 || string(sum.DisplayStatus) != "Implementing 1/2" {
 		t.Fatalf("update summary = %+v err=%v", sum, err)
 	}
@@ -679,9 +679,9 @@ type countingSessions struct {
 }
 
 func (c *countingSessions) Send(ctx context.Context, id domain.SessionID, text string, opts ports.MessageDeliveryOptions) error {
-	c.fakeSessions.mu.Lock()
-	refuse := c.fakeSessions.sendErr != nil
-	c.fakeSessions.mu.Unlock()
+	c.mu.Lock()
+	refuse := c.sendErr != nil
+	c.mu.Unlock()
 	if !refuse {
 		select {
 		case c.inSend <- struct{}{}:
@@ -704,9 +704,9 @@ func TestConcurrentKickoffRetriesDeliverOnce(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sessions.fakeSessions.mu.Lock()
-	sessions.fakeSessions.sendErr = nil
-	sessions.fakeSessions.mu.Unlock()
+	sessions.mu.Lock()
+	sessions.sendErr = nil
+	sessions.mu.Unlock()
 	var wg sync.WaitGroup
 	for i := 0; i < 2; i++ {
 		wg.Add(1)
@@ -719,7 +719,7 @@ func TestConcurrentKickoffRetriesDeliverOnce(t *testing.T) {
 	time.Sleep(50 * time.Millisecond) // let the second retry reach its check
 	close(sessions.gate)
 	wg.Wait()
-	if n := len(sessions.fakeSessions.sent); n != 1 {
+	if n := len(sessions.sent); n != 1 {
 		t.Fatalf("kickoff delivered %d times", n)
 	}
 }

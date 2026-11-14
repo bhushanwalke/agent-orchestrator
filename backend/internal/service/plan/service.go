@@ -337,7 +337,7 @@ func (s *Service) List(ctx context.Context, projectID domain.ProjectID) ([]Summa
 
 // Update edits a plan. Title and spec change only while planning; the
 // parallel limit stays editable until the plan is cancelled.
-func (s *Service) Update(ctx context.Context, id domain.PlanID, patch PlanPatch) (Summary, error) {
+func (s *Service) Update(ctx context.Context, id domain.PlanID, patch Patch) (Summary, error) {
 	p, err := s.updateLocked(ctx, id, patch)
 	if err != nil {
 		return Summary{}, err
@@ -346,7 +346,7 @@ func (s *Service) Update(ctx context.Context, id domain.PlanID, patch PlanPatch)
 	return d.Summary, err
 }
 
-func (s *Service) updateLocked(ctx context.Context, id domain.PlanID, patch PlanPatch) (domain.Plan, error) {
+func (s *Service) updateLocked(ctx context.Context, id domain.PlanID, patch Patch) (domain.Plan, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var specChanged bool
@@ -390,7 +390,7 @@ func (s *Service) updateLocked(ctx context.Context, id domain.PlanID, patch Plan
 
 // SetSpec stores the orchestrator's plan document.
 func (s *Service) SetSpec(ctx context.Context, id domain.PlanID, markdown string) (Summary, error) {
-	return s.Update(ctx, id, PlanPatch{SpecMarkdown: &markdown})
+	return s.Update(ctx, id, Patch{SpecMarkdown: &markdown})
 }
 
 // AddMilestone appends a milestone to a plan that is still planning.
@@ -1148,11 +1148,11 @@ func normalizePaths(paths []string) []string {
 	return out
 }
 
-func truncateBytes(s string, max int) string {
-	if len(s) <= max {
+func truncateBytes(s string, limit int) string {
+	if len(s) <= limit {
 		return s
 	}
-	cut := max
+	cut := limit
 	for cut > 0 && !utf8.RuneStart(s[cut]) {
 		cut--
 	}

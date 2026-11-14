@@ -70,8 +70,8 @@ type CreateInput struct {
 	MaxParallel int
 }
 
-// PlanPatch edits a plan. Nil fields are left alone.
-type PlanPatch struct {
+// Patch edits a plan. Nil fields are left alone.
+type Patch struct {
 	Title        *string
 	MaxParallel  *int
 	SpecMarkdown *string

@@ -22,7 +22,7 @@ type PlanService interface {
 	Create(ctx context.Context, in plansvc.CreateInput) (domain.Plan, error)
 	Get(ctx context.Context, id domain.PlanID) (plansvc.Detail, error)
 	List(ctx context.Context, projectID domain.ProjectID) ([]plansvc.Summary, error)
-	Update(ctx context.Context, id domain.PlanID, patch plansvc.PlanPatch) (plansvc.Summary, error)
+	Update(ctx context.Context, id domain.PlanID, patch plansvc.Patch) (plansvc.Summary, error)
 	AddMilestone(ctx context.Context, id domain.PlanID, in plansvc.MilestoneInput) (domain.Milestone, error)
 	UpdateMilestone(ctx context.Context, id domain.PlanID, key string, patch plansvc.MilestonePatch) (domain.Milestone, error)
 	RemoveMilestone(ctx context.Context, id domain.PlanID, key string) error
@@ -130,7 +130,7 @@ func (c *PlansController) patch(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	sum, err := c.Svc.Update(r.Context(), id, plansvc.PlanPatch{Title: req.Title, MaxParallel: req.MaxParallel, SpecMarkdown: req.SpecMarkdown})
+	sum, err := c.Svc.Update(r.Context(), id, plansvc.Patch{Title: req.Title, MaxParallel: req.MaxParallel, SpecMarkdown: req.SpecMarkdown})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
