@@ -90,7 +90,7 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 				{t(`plan.phase.${plan.phase}`)}
 			</Badge>
 			<span className="hidden min-w-0 truncate text-sm text-muted-foreground md:inline">
-				{t("plan.run.started", { time: formatRelativeTime(started, new Date(), i18n.language), n: activeAgents })}
+				{t("plan.run.started", { time: formatRelativeTime(started, new Date(), i18n.language), count: activeAgents })}
 			</span>
 			{plan.ticketRef ? (
 				isLink(plan.ticketRef) ? (

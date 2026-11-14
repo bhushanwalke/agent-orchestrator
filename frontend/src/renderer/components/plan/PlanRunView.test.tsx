@@ -21,7 +21,7 @@ vi.mock("../../hooks/usePlans", async (importOriginal) => ({
 
 vi.mock("../../hooks/useWorkspaceQuery", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../../hooks/useWorkspaceQuery")>()),
-	useWorkspaceQuery: () => ({ data: [{ id: "p1", name: "radic", path: "/tmp/radic", kind: "single_repo", sessions }], isSuccess: true }),
+	useWorkspaceQuery: () => ({ data: [{ id: "p1", name: "radic", path: "/tmp/radic", kind: "single_repo", sessions: sessionsOverride ?? sessions }], isSuccess: true }),
 }));
 
 vi.mock("../../lib/api-client", async (importOriginal) => ({
@@ -49,6 +49,8 @@ function session(id: string, title: string): WorkspaceSession {
 		prs: [],
 	};
 }
+
+let sessionsOverride: WorkspaceSession[] | undefined;
 
 const sessions: WorkspaceSession[] = [
 	session("orch-1", "radic orchestrator"),
@@ -130,6 +132,7 @@ function renderView() {
 }
 
 beforeEach(() => {
+	sessionsOverride = undefined;
 	navigateMock.mockReset();
 	postMock.mockReset().mockResolvedValue({ data: {} });
 	planMock.mockReset().mockReturnValue(detail());
@@ -140,7 +143,7 @@ describe("PlanRunView", () => {
 		renderView();
 		expect(screen.getByRole("heading", { name: "TODO app" })).toBeInTheDocument();
 		expect(screen.getByTestId("plan-phase")).toHaveTextContent("Implementing");
-		expect(screen.getByText(/· 1 agents active$/)).toBeInTheDocument();
+		expect(screen.getByText(/· 1 agent active$/)).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: /Ticket/ })).toHaveAttribute("href", "https://example.com/T-1");
 	});
 
@@ -150,6 +153,15 @@ describe("PlanRunView", () => {
 		);
 		renderView();
 		expect(screen.getByText(/· 0 agents active$/)).toBeInTheDocument();
+	});
+
+	it("pluralises the active agent count", () => {
+		const live = (id: string) => ({ id, harness: "codex", status: "working", kanbanColumn: "building", displayStatus: "Working", isTerminated: false }) as const;
+		const busy = sessions.map((s) => (s.id === "w-2" ? { ...s, activity: { state: "active" } as WorkspaceSession["activity"] } : s));
+		sessionsOverride = busy;
+		planMock.mockReturnValue(detail({ liveSessions: [live("w-1"), live("w-2")] }));
+		renderView();
+		expect(screen.getByText(/· 2 agents active$/)).toBeInTheDocument();
 	});
 
 	it("lists the orchestrator first, then each milestone's agent, and opens a session from its card", async () => {
