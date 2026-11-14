@@ -5561,3 +5561,16 @@ func TestSessionsAPI_DeleteSessionRefusal(t *testing.T) {
 		t.Fatalf("delete = %d %s, want 409 WORKSPACE_NOT_RELEASED", status, body)
 	}
 }
+
+func TestSessionsAPI_SpawnPassesSparsePaths(t *testing.T) {
+	svc := newFakeSessionService()
+	srv := newSessionTestServer(t, svc)
+	body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/sessions",
+		`{"projectId":"ao","kind":"worker","harness":"codex","prompt":"go","sparsePaths":["backend/internal/cli"," scripts "]}`)
+	if status != http.StatusCreated {
+		t.Fatalf("status = %d body=%s", status, body)
+	}
+	if got := svc.lastSpawn.SparsePaths; len(got) != 2 || got[0] != "backend/internal/cli" || got[1] != "scripts" {
+		t.Fatalf("spawn sparse paths = %#v", got)
+	}
+}

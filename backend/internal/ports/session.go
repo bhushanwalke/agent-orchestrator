@@ -107,6 +107,25 @@ type SpawnConfig struct {
 	TaskPreparation domain.TaskPreparationToken
 	// Fork makes this spawn a copy of another session. Nil for ordinary spawns.
 	Fork *SpawnFork
+	// PlanContext links a spawn to a plan milestone. Nil for ordinary spawns.
+	PlanContext *PlanSpawnContext
+	// SparsePaths requests a cone-mode sparse checkout containing only these
+	// repo-relative directories (root files are always present). Empty is a
+	// full checkout. The project must enable sparseCheckout.
+	SparsePaths []string
+}
+
+// PlanSpawnContext links a worker spawn to the plan milestone it implements
+// or verifies.
+type PlanSpawnContext struct {
+	PlanID       domain.PlanID
+	MilestoneID  domain.MilestoneID
+	MilestoneKey string
+	// Role is "implementer" or "qa".
+	Role string
+	// PromptSection is built by the plan service and appended to the worker
+	// system prompt.
+	PromptSection string
 }
 
 // SpawnFork describes a fork of an existing session. The source's worktree and

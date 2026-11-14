@@ -397,7 +397,7 @@ func (c *SessionsController) spawn(w http.ResponseWriter, r *http.Request) {
 	}
 	// A standalone worker has no project to start in the background.
 	async := in.Async && in.ProjectID != ""
-	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, ParentSessionID: in.ParentSessionID, TrackerProvider: in.TrackerProvider, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, BaseBranch: strings.TrimSpace(in.BaseBranch), RequestedMode: in.Mode, Prompt: in.Prompt, RequestedOutput: in.RequestedOutput, DisplayName: displayName, DisplayNameExplicit: in.DisplayNameExplicit && displayName != "", Attachments: attachments, AgentConfig: ports.AgentConfig{Model: in.Model, Effort: in.Effort, Permissions: in.ApprovalMode}, EffortOverride: strings.TrimSpace(in.Effort) != "", AgentAccountID: strings.TrimSpace(in.AccountID), ClientRequestID: in.ClientRequestID, ClientRequestHash: requestHash, Async: async})
+	sess, promptBytes, systemPromptBytes, err := c.Svc.Spawn(r.Context(), ports.SpawnConfig{ProjectID: in.ProjectID, IssueID: in.IssueID, ParentSessionID: in.ParentSessionID, TrackerProvider: in.TrackerProvider, Kind: in.Kind, Harness: in.Harness, Branch: in.Branch, BaseBranch: strings.TrimSpace(in.BaseBranch), SparsePaths: trimmedSparsePaths(in.SparsePaths), RequestedMode: in.Mode, Prompt: in.Prompt, RequestedOutput: in.RequestedOutput, DisplayName: displayName, DisplayNameExplicit: in.DisplayNameExplicit && displayName != "", Attachments: attachments, AgentConfig: ports.AgentConfig{Model: in.Model, Effort: in.Effort, Permissions: in.ApprovalMode}, EffortOverride: strings.TrimSpace(in.Effort) != "", AgentAccountID: strings.TrimSpace(in.AccountID), ClientRequestID: in.ClientRequestID, ClientRequestHash: requestHash, Async: async})
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return
@@ -3346,4 +3346,17 @@ func workspaceSnapshotQuery(query url.Values) (sessionsvc.WorkspaceSelectionRevi
 // Source selectors must never be silently answered with mutable worktree data.
 func workspaceSnapshotRequested(query url.Values) bool {
 	return query.Get("snapshot") == "true" || query.Has("branch") || query.Has("prNumber") || query.Has("sourceUrl") || query.Has("expectedTipSha") || query.Has("expectedBaseSha") || query.Has("commitShas")
+}
+
+// trimmedSparsePaths drops surrounding whitespace from each requested sparse
+// directory; validation of what remains is the session manager's.
+func trimmedSparsePaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(paths))
+	for _, p := range paths {
+		out = append(out, strings.TrimSpace(p))
+	}
+	return out
 }

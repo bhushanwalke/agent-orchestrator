@@ -23463,6 +23463,8 @@ components:
           type: array
         sessionPrefix:
           type: string
+        sparseCheckout:
+          $ref: '#/components/schemas/SparseCheckoutConfig'
         symlinks:
           items:
             type: string
@@ -26357,6 +26359,15 @@ components:
       - state
       - createdAt
       type: object
+    SparseCheckoutConfig:
+      properties:
+        alwaysInclude:
+          items:
+            type: string
+          type: array
+        enabled:
+          type: boolean
+      type: object
     SpawnOrchestratorRequest:
       properties:
         approvalMode:
@@ -26486,6 +26497,13 @@ components:
           enum:
           - artifact
           type: string
+        sparsePaths:
+          description: Repo-relative directories for a cone-mode sparse checkout;
+            root files are always present. Requires the project's sparseCheckout.enabled.
+          items:
+            type: string
+          maxItems: 50
+          type: array
         trackerProvider:
           enum:
           - github

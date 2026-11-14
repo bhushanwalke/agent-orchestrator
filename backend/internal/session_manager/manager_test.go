@@ -12468,3 +12468,78 @@ func (f *fakeStore) SetSessionImportWorkspace(_ context.Context, id domain.Sessi
 	f.sessions[id] = rec
 	return true, nil
 }
+
+func sparseProject(kind domain.ProjectKind, enabled bool, include ...string) domain.ProjectRecord {
+	config := testRoleAgents()
+	config.SparseCheckout = domain.SparseCheckoutConfig{Enabled: enabled, AlwaysInclude: include}
+	return domain.ProjectRecord{ID: "mer", Path: "/repo/mer", Kind: kind, Config: config}
+}
+
+func TestSpawn_SparsePathsReachTheWorkspaceAndTheSession(t *testing.T) {
+	m, st, _, ws := newManager()
+	st.projects["mer"] = sparseProject("", true, "scripts", "pkg/shared")
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, SparsePaths: []string{"src/api/", "pkg/shared"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"pkg/shared", "scripts", "src/api"}
+	if !reflect.DeepEqual(ws.lastCfg.SparsePaths, want) {
+		t.Fatalf("workspace sparse paths = %#v", ws.lastCfg.SparsePaths)
+	}
+	if !reflect.DeepEqual(rec.SparsePaths, want) || !reflect.DeepEqual(st.sessions[rec.ID].SparsePaths, want) {
+		t.Fatalf("session sparse paths = %#v stored %#v", rec.SparsePaths, st.sessions[rec.ID].SparsePaths)
+	}
+}
+
+func TestSpawn_WithoutSparsePathsIsAFullCheckout(t *testing.T) {
+	m, st, _, ws := newManager()
+	st.projects["mer"] = sparseProject("", true, "scripts")
+	rec, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ws.lastCfg.SparsePaths) != 0 || len(rec.SparsePaths) != 0 {
+		t.Fatalf("full checkout got sparse paths %#v / %#v", ws.lastCfg.SparsePaths, rec.SparsePaths)
+	}
+}
+
+func TestSpawn_SparseRefusals(t *testing.T) {
+	cases := []struct {
+		name    string
+		project domain.ProjectRecord
+		paths   []string
+		want    error
+	}{
+		{"disabled", sparseProject("", false), []string{"src"}, ErrSparseCheckoutDisabled},
+		{"scratch", sparseProject(domain.ProjectKindScratch, true), []string{"src"}, ports.ErrWorkspaceSparseUnsupported},
+		{"workspace", sparseProject(domain.ProjectKindWorkspace, true), []string{"src"}, ports.ErrWorkspaceSparseUnsupported},
+		{"escaping path", sparseProject("", true), []string{"../x"}, ErrInvalidSparsePaths},
+		{"too many", sparseProject("", true), manyDirs(domain.MaxSparsePaths + 1), ErrInvalidSparsePaths},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			m, st, _, ws := newManager()
+			st.projects["mer"] = tc.project
+			_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{ProjectID: "mer", Kind: domain.KindWorker, SparsePaths: tc.paths})
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("err = %v, want %v", err, tc.want)
+			}
+			if ws.createCount != 0 || len(st.sessions) != 0 {
+				t.Fatalf("refused spawn left state: creates=%d sessions=%d", ws.createCount, len(st.sessions))
+			}
+		})
+	}
+	m, _, _, _ := newManager()
+	_, _, _, err := m.Spawn(ctx, ports.SpawnConfig{Kind: domain.KindWorker, Harness: domain.HarnessClaudeCode, SparsePaths: []string{"src"}})
+	if !errors.Is(err, ports.ErrWorkspaceSparseUnsupported) {
+		t.Fatalf("standalone err = %v", err)
+	}
+}
+
+func manyDirs(n int) []string {
+	out := make([]string, n)
+	for i := range out {
+		out[i] = fmt.Sprintf("d%d", i)
+	}
+	return out
+}

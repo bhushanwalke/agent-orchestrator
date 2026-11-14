@@ -2036,6 +2036,14 @@ func mapSessionError(err error) error {
 		return apierr.Invalid("BASE_BRANCH_UNSUPPORTED", "Base branches need a repository project", nil)
 	case errors.Is(err, sessionmanager.ErrScratchBranchUnsupported):
 		return apierr.Invalid("SCRATCH_BRANCH_UNSUPPORTED", err.Error(), nil)
+	case errors.Is(err, sessionmanager.ErrSparseCheckoutDisabled):
+		return apierr.Invalid("SPARSE_CHECKOUT_DISABLED", "Sparse checkouts are disabled for this project; enable sparseCheckout in the project config", nil)
+	case errors.Is(err, ports.ErrWorkspaceSparseUnsupported):
+		return apierr.Invalid("SPARSE_UNSUPPORTED", "Sparse checkouts need a single-repository project", nil)
+	case errors.Is(err, sessionmanager.ErrInvalidSparsePaths):
+		return apierr.Invalid("INVALID_SPARSE_PATHS", err.Error(), nil)
+	case errors.Is(err, ports.ErrWorkspaceSparseCheckoutFailed):
+		return apierr.InternalCause("WORKSPACE_SPARSE_FAILED", "Creating the sparse checkout failed; the partial worktree was removed", err)
 	case errors.Is(err, ports.ErrWorkspaceBranchCheckedOutElsewhere):
 		return apierr.Conflict("BRANCH_CHECKED_OUT_ELSEWHERE", err.Error(), nil)
 	case errors.Is(err, ports.ErrWorkspaceBranchAlreadyExists):

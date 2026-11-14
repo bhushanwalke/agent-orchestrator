@@ -1251,3 +1251,48 @@ func TestSpawnReportsBackgroundStartFailure(t *testing.T) {
 		t.Fatalf("err = %v, want the start failure reason", err)
 	}
 }
+
+func TestSpawnSparseSendsEveryDirectory(t *testing.T) {
+	cfg := setConfigEnv(t)
+	t.Setenv("AO_SESSION_ID", "")
+	var req spawnRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/projects/demo":
+			_, _ = io.WriteString(w, `{"status":"ok","project":{"id":"demo","kind":"single_repo","config":{"worker":{"agent":"codex"}}}}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/agents/readiness/ensure":
+			_, _ = io.WriteString(w, authorizedAgentsJSON("codex"))
+		case r.Method == http.MethodPost && r.URL.Path == "/api/v1/sessions":
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				t.Fatal(err)
+			}
+			_, _ = io.WriteString(w, `{"session":{"id":"demo-1","status":"idle"}}`)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	writeRunFileFor(t, cfg, srv)
+
+	_, errOut, err := executeCLI(t, Deps{ProcessAlive: func(int) bool { return true }}, "spawn", "--project", "demo", "--name", "Sparse", "--prompt", "go",
+		"--sparse", "backend/internal/cli", "--sparse", "scripts")
+	if err != nil {
+		t.Fatalf("spawn failed: %v stderr=%s", err, errOut)
+	}
+	if !reflect.DeepEqual(req.SparsePaths, []string{"backend/internal/cli", "scripts"}) {
+		t.Fatalf("sparse paths = %#v", req.SparsePaths)
+	}
+}
+
+func TestSpawnSparseRejectsStandaloneAndEmpty(t *testing.T) {
+	for _, args := range [][]string{
+		{"spawn", "--standalone", "--agent", "codex", "--name", "Notes", "--sparse", "src"},
+		{"spawn", "--project", "demo", "--agent", "codex", "--name", "Notes", "--sparse", " "},
+	} {
+		_, _, err := executeCLI(t, Deps{}, args...)
+		if err == nil || ExitCode(err) != 2 || !strings.Contains(err.Error(), "--sparse") {
+			t.Fatalf("%v: err=%v exit=%d", args, err, ExitCode(err))
+		}
+	}
+}

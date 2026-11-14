@@ -756,3 +756,22 @@ func TestProjectRemove_YesSkipsConfirmationAndSupportsBackendRemoveEnvelope(t *t
 		t.Fatalf("--yes output should skip prompt and print removal:\n%s", out)
 	}
 }
+
+func TestBuildProjectConfigSparseFlags(t *testing.T) {
+	current := func() (projectConfig, error) {
+		return projectConfig{DefaultBranch: "main", SparseCheckout: sparseCheckoutConfig{AlwaysInclude: []string{"old"}}}, nil
+	}
+	got, err := buildProjectConfig(projectSetConfigOptions{sparseEnabled: true, sparseInclude: []string{"scripts", "pkg/shared"}},
+		func(name string) bool { return name == "sparse-enabled" || name == "sparse-include" }, current)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.SparseCheckout.Enabled || !reflect.DeepEqual(got.SparseCheckout.AlwaysInclude, []string{"scripts", "pkg/shared"}) || got.DefaultBranch != "main" {
+		t.Fatalf("config = %#v", got)
+	}
+	got, err = buildProjectConfig(projectSetConfigOptions{sparseEnabled: false},
+		func(name string) bool { return name == "sparse-enabled" }, current)
+	if err != nil || got.SparseCheckout.Enabled || !reflect.DeepEqual(got.SparseCheckout.AlwaysInclude, []string{"old"}) {
+		t.Fatalf("disable keeps includes: %#v err=%v", got, err)
+	}
+}

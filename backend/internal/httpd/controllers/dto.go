@@ -688,6 +688,9 @@ type SpawnSessionRequest struct {
 	// BaseBranch starts the session's branch from this branch instead of the
 	// project's default, to stack its work on another pull request.
 	BaseBranch string `json:"baseBranch,omitempty" maxLength:"255"`
+	// SparsePaths makes the worktree a cone-mode sparse checkout of these
+	// repo-relative directories. The project must enable sparseCheckout.
+	SparsePaths []string `json:"sparsePaths,omitempty" maxItems:"50" description:"Repo-relative directories for a cone-mode sparse checkout; root files are always present. Requires the project's sparseCheckout.enabled."`
 	// Mode picks the conversation controller: chat talks to the agent over a
 	// structured connection, tui opens the agent's native terminal interface.
 	// Omitted resolves to the daemon-owned preference, which defaults to Chat for

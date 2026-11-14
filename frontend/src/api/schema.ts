@@ -8068,6 +8068,7 @@ export interface components {
             preRemove?: string[];
             reviewers?: components["schemas"]["DomainReviewerConfig"][];
             sessionPrefix?: string;
+            sparseCheckout?: components["schemas"]["SparseCheckoutConfig"];
             symlinks?: string[];
             trackerIntake?: components["schemas"]["TrackerIntakeConfig"];
             worker?: components["schemas"]["RoleOverride"];
@@ -9225,6 +9226,10 @@ export interface components {
             state: string;
             text: string;
         };
+        SparseCheckoutConfig: {
+            alwaysInclude?: string[];
+            enabled?: boolean;
+        };
         SpawnOrchestratorRequest: {
             /** @enum {string} */
             approvalMode?: "default" | "accept-edits" | "auto" | "bypass-permissions";
@@ -9261,6 +9266,8 @@ export interface components {
             prompt?: string;
             /** @enum {string} */
             requestedOutput?: "artifact";
+            /** @description Repo-relative directories for a cone-mode sparse checkout; root files are always present. Requires the project's sparseCheckout.enabled. */
+            sparsePaths?: string[];
             /** @enum {string} */
             trackerProvider?: "github" | "gitlab";
         };

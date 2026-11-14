@@ -71,6 +71,12 @@ var (
 	// ErrBaseBranchUnsupported means a caller asked for a base branch in a
 	// project that doesn't have one repository to take it from.
 	ErrBaseBranchUnsupported = errors.New("session: base branches need a repository project")
+	// ErrSparseCheckoutDisabled means a spawn asked for a sparse checkout in
+	// a project that has not enabled sparseCheckout.
+	ErrSparseCheckoutDisabled = errors.New("session: sparse checkouts are disabled for this project; enable sparseCheckout in the project config")
+	// ErrInvalidSparsePaths means a spawn's sparse paths are not repo-relative
+	// directories inside the repository, or there are too many of them.
+	ErrInvalidSparsePaths = errors.New("session: invalid sparse paths")
 	// ErrNotResumable means a terminated session cannot be relaunched: its adapter
 	// cannot natively resume it AND it has no prompt to fresh-launch from, and it is
 	// not an orchestrator (orchestrators are promptless by design and relaunch fresh
@@ -1111,6 +1117,14 @@ func (m *Manager) Spawn(ctx context.Context, cfg ports.SpawnConfig) (result doma
 		if strings.TrimSpace(cfg.Branch) != "" {
 			cfg.RequireNewBranch = true
 		}
+	}
+	if len(cfg.SparsePaths) > 0 {
+		if err := checkSparseSpawn(projectKind, project.Config.SparseCheckout, cfg.SparsePaths); err != nil {
+			return domain.SessionRecord{}, 0, 0, fmt.Errorf("spawn: %w", err)
+		}
+		cfg.SparsePaths = domain.EffectiveSparsePaths(cfg.SparsePaths, project.Config.SparseCheckout.AlwaysInclude)
+		// A prepared worktree is a full checkout already.
+		cfg.TaskPreparation = ""
 	}
 	if cfg.ParentSessionID != "" && cfg.AgentConfig.Permissions == "" {
 		permissions, err := m.inheritedSpawnPermissions(ctx, cfg.ProjectID, cfg.ParentSessionID)
@@ -2237,6 +2251,7 @@ func (m *Manager) createSessionWorkspaceAt(ctx context.Context, project domain.P
 			RequireNewBranch: cfg.RequireNewBranch,
 			BaseBranch:       baseBranch,
 			BaseRef:          baseRefs[filepath.Clean(project.Path)],
+			SparsePaths:      cfg.SparsePaths,
 		}
 		if cfg.Fork != nil {
 			return m.createForkWorkspace(ctx, cfg.Fork, workspaceCfg)
@@ -6113,7 +6128,36 @@ func normalizeWorkspacePath(p string) string {
 
 // ---- helpers ----
 
+// checkSparseSpawn refuses a sparse checkout the project cannot have: only a
+// single-repository project with sparseCheckout enabled, and only valid
+// repo-relative directories.
+func checkSparseSpawn(kind domain.ProjectKind, sparse domain.SparseCheckoutConfig, paths []string) error {
+	if kind != domain.ProjectKindSingleRepo {
+		return ports.ErrWorkspaceSparseUnsupported
+	}
+	if len(paths) > domain.MaxSparsePaths {
+		return fmt.Errorf("%w: at most %d paths", ErrInvalidSparsePaths, domain.MaxSparsePaths)
+	}
+	if err := domain.ValidateSparsePaths(paths); err != nil {
+		return fmt.Errorf("%w: %s", ErrInvalidSparsePaths, err.Error())
+	}
+	if !sparse.Enabled {
+		return ErrSparseCheckoutDisabled
+	}
+	return nil
+}
+
 func seedRecord(cfg ports.SpawnConfig, projectConfig domain.ProjectConfig, now time.Time) domain.SessionRecord {
+	rec := seedRecordBase(cfg, projectConfig, now)
+	rec.SparsePaths = append([]string(nil), cfg.SparsePaths...)
+	if cfg.PlanContext != nil {
+		rec.PlanID = cfg.PlanContext.PlanID
+		rec.PlanMilestoneID = cfg.PlanContext.MilestoneID
+	}
+	return rec
+}
+
+func seedRecordBase(cfg ports.SpawnConfig, projectConfig domain.ProjectConfig, now time.Time) domain.SessionRecord {
 	return domain.SessionRecord{
 		ProjectID:           cfg.ProjectID,
 		IssueID:             cfg.IssueID,

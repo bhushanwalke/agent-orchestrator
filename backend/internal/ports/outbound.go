@@ -507,6 +507,12 @@ var (
 	// leftover of one. The adapter never moves or deletes such a path; the
 	// user has to clear it before the workspace can be created.
 	ErrWorkspacePathOccupied = errors.New("workspace: worktree path is occupied")
+	// ErrWorkspaceSparseUnsupported means a sparse checkout was requested for
+	// a workspace kind that cannot have one (Scratch, multi-repo workspaces).
+	ErrWorkspaceSparseUnsupported = errors.New("workspace: sparse checkouts need a single-repository project")
+	// ErrWorkspaceSparseCheckoutFailed means git refused a sparse checkout
+	// step; the half-created worktree was removed.
+	ErrWorkspaceSparseCheckoutFailed = errors.New("workspace: sparse checkout failed")
 	// ErrWorkspaceUnsafePath reports a workspace path that is not a clean
 	// absolute path inside the adapter's managed root. Adapters never create,
 	// move or remove such a path, so teardown leaves it for the user.
@@ -588,6 +594,10 @@ type WorkspaceConfig struct {
 	// StartPoint creates a fresh branch at this commit instead of the base
 	// branch. Session forks use it to start at the source's HEAD.
 	StartPoint string
+	// SparsePaths makes a new worktree a cone-mode sparse checkout of these
+	// repo-relative directories. Empty is a full checkout. Restore of an
+	// existing worktree keeps whatever checkout it already has.
+	SparsePaths []string
 }
 
 // WorkspaceInfo describes a created workspace — where it lives and its branch.

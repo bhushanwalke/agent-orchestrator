@@ -154,6 +154,8 @@ ao project set-config <id> [flags]
 | `--post-create stringArray` | Command to run after workspace creation (repeatable) | - |
 | `--pre-remove stringArray` | Command to run before workspace removal (repeatable) | - |
 | `--session-prefix string` | Displayed session-id prefix | - |
+| `--sparse-enabled` | Allow cone-mode sparse worktrees for plan milestones and `ao spawn --sparse`; `--sparse-enabled=false` turns them off | Disabled |
+| `--sparse-include stringArray` | Repo-relative directory added to every sparse checkout (repeatable) | - |
 | `--symlink stringArray` | Repo-relative path to symlink into workspaces (repeatable) | - |
 | `--tracker-assignee string` | Issue assignee required for tracker intake eligibility | - |
 | `--tracker-intake` | Opt this project into GitHub or GitLab issue intake; inert unless the daemon also has `AO_TRACKER_INTAKE=on` | Disabled |

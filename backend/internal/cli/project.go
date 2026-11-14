@@ -130,8 +130,15 @@ type projectConfig struct {
 	AutoReview            bool                 `json:"autoReview,omitempty"`
 	// WorkersRequestReview must round-trip through set-config so a CLI edit
 	// of another field never silently turns it off.
-	WorkersRequestReview bool             `json:"workersRequestReview,omitempty"`
-	Reviewers            []reviewerConfig `json:"reviewers,omitempty"`
+	WorkersRequestReview bool                 `json:"workersRequestReview,omitempty"`
+	Reviewers            []reviewerConfig     `json:"reviewers,omitempty"`
+	SparseCheckout       sparseCheckoutConfig `json:"sparseCheckout,omitempty"`
+}
+
+// sparseCheckoutConfig mirrors domain.SparseCheckoutConfig.
+type sparseCheckoutConfig struct {
+	Enabled       bool     `json:"enabled,omitempty"`
+	AlwaysInclude []string `json:"alwaysInclude,omitempty"`
 }
 
 // setConfigRequest mirrors the daemon's SetConfigInput body for
@@ -157,6 +164,8 @@ type projectSetConfigOptions struct {
 	postCreate            []string
 	preRemove             []string
 	trackerIntake         bool
+	sparseEnabled         bool
+	sparseInclude         []string
 	trackerRepo           string
 	trackerAssignee       string
 	reviewers             []string
@@ -360,6 +369,8 @@ func newProjectSetConfigCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.trackerRepo, "tracker-repo", "", "Provider-native repo for issue intake (owner/repo or group/subgroup/repo; default: derive from git origin)")
 	f.StringVar(&opts.trackerAssignee, "tracker-assignee", "", "Issue assignee required for intake eligibility")
 	f.StringArrayVar(&opts.reviewers, "reviewer", nil, "Reviewer harness that reviews worker PRs (repeatable; e.g. claude-code)")
+	f.BoolVar(&opts.sparseEnabled, "sparse-enabled", false, "Allow sparse worktrees for plan milestones and `ao spawn --sparse` (--sparse-enabled=false turns it off)")
+	f.StringArrayVar(&opts.sparseInclude, "sparse-include", nil, "Repo-relative directory added to every sparse checkout (repeatable)")
 	f.StringVar(&opts.configJSON, "config-json", "", "Full config as a JSON object (overrides field flags)")
 	f.BoolVar(&opts.clear, "clear", false, "Clear all config")
 	f.BoolVar(&opts.json, "json", false, "Output the updated project as JSON")
@@ -372,6 +383,7 @@ var projectConfigFlags = []string{
 	"worker-agent", "orchestrator-agent", "agent-rules", "agent-rules-file",
 	"orchestrator-rules", "orchestrator-rules-file", "env", "symlink", "post-create",
 	"pre-remove", "tracker-intake", "tracker-repo", "tracker-assignee", "reviewer",
+	"sparse-enabled", "sparse-include",
 }
 
 // buildProjectConfig turns the set-config flags into the typed config sent to
@@ -437,6 +449,12 @@ func buildProjectConfig(opts projectSetConfigOptions, changed func(name string) 
 	}
 	if changed("reviewer") {
 		cfg.Reviewers = reviewersForFlags(opts.reviewers)
+	}
+	if changed("sparse-enabled") {
+		cfg.SparseCheckout.Enabled = opts.sparseEnabled
+	}
+	if changed("sparse-include") {
+		cfg.SparseCheckout.AlwaysInclude = opts.sparseInclude
 	}
 	return cfg, nil
 }

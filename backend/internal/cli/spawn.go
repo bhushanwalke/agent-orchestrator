@@ -28,6 +28,7 @@ type spawnOptions struct {
 	mode            string
 	branch          string
 	baseBranch      string
+	sparse          []string
 	prompt          string
 	issue           string
 	name            string
@@ -44,22 +45,23 @@ type spawnOptions struct {
 // spawnRequest mirrors the daemon's SpawnSessionRequest body for
 // POST /api/v1/sessions. The CLI keeps its own copy so it need not import httpd.
 type spawnRequest struct {
-	ProjectID           string `json:"projectId,omitempty"`
-	IssueID             string `json:"issueId,omitempty"`
-	ParentSessionID     string `json:"parentSessionId,omitempty"`
-	TrackerProvider     string `json:"trackerProvider,omitempty"`
-	Kind                string `json:"kind,omitempty"`
-	Mode                string `json:"mode,omitempty"`
-	Harness             string `json:"harness,omitempty"`
-	Branch              string `json:"branch,omitempty"`
-	BaseBranch          string `json:"baseBranch,omitempty"`
-	Prompt              string `json:"prompt,omitempty"`
-	Model               string `json:"model,omitempty"`
-	Effort              string `json:"effort,omitempty"`
-	AccountID           string `json:"accountId,omitempty"`
-	RequestedOutput     string `json:"requestedOutput,omitempty"`
-	DisplayName         string `json:"displayName"`
-	DisplayNameExplicit bool   `json:"displayNameExplicit,omitempty"`
+	ProjectID           string   `json:"projectId,omitempty"`
+	IssueID             string   `json:"issueId,omitempty"`
+	ParentSessionID     string   `json:"parentSessionId,omitempty"`
+	TrackerProvider     string   `json:"trackerProvider,omitempty"`
+	Kind                string   `json:"kind,omitempty"`
+	Mode                string   `json:"mode,omitempty"`
+	Harness             string   `json:"harness,omitempty"`
+	Branch              string   `json:"branch,omitempty"`
+	BaseBranch          string   `json:"baseBranch,omitempty"`
+	SparsePaths         []string `json:"sparsePaths,omitempty"`
+	Prompt              string   `json:"prompt,omitempty"`
+	Model               string   `json:"model,omitempty"`
+	Effort              string   `json:"effort,omitempty"`
+	AccountID           string   `json:"accountId,omitempty"`
+	RequestedOutput     string   `json:"requestedOutput,omitempty"`
+	DisplayName         string   `json:"displayName"`
+	DisplayNameExplicit bool     `json:"displayNameExplicit,omitempty"`
 	// Async publishes a Chat session as starting, with its prompt queued, before
 	// the worktree and agent are up, as the desktop's new task does. The CLI
 	// then waits for the start to settle so failures still reach the caller.
@@ -118,6 +120,14 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 			}
 			if opts.output != "" && opts.kind == "orchestrator" {
 				return usageError{fmt.Errorf("--output is supported for worker sessions only")}
+			}
+			for _, dir := range opts.sparse {
+				if strings.TrimSpace(dir) == "" {
+					return usageError{fmt.Errorf("--sparse needs a repo-relative directory")}
+				}
+			}
+			if opts.standalone && len(opts.sparse) > 0 {
+				return usageError{fmt.Errorf("--sparse is not supported with --standalone")}
 			}
 			if opts.standalone {
 				if opts.kind == "orchestrator" {
@@ -191,6 +201,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 				Mode:                opts.mode,
 				Branch:              opts.branch,
 				BaseBranch:          strings.TrimSpace(opts.baseBranch),
+				SparsePaths:         opts.sparse,
 				Prompt:              opts.prompt,
 				Model:               strings.TrimSpace(opts.model),
 				Effort:              strings.TrimSpace(opts.effort),
@@ -263,6 +274,7 @@ func newSpawnCommand(ctx *commandContext) *cobra.Command {
 	f.StringVar(&opts.mode, "mode", "", "Initial session interface: chat (structured agent connection) or tui (the agent's native terminal). Omitted uses the daemon default; compatible sessions can switch later.")
 	f.StringVar(&opts.branch, "branch", "", "Branch for git project sessions (default: ao/<session-id>/root; unsupported for standalone or Scratch sessions)")
 	f.StringVar(&opts.baseBranch, "base", "", "Start the session's branch from this branch, to stack on its pull request (default: the project's default branch); with --branch, that branch must be new")
+	f.StringArrayVar(&opts.sparse, "sparse", nil, "Check out only this repo-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's sparseCheckout.enabled")
 	f.StringVar(&opts.prompt, "prompt", "", "Initial prompt for the agent")
 	f.StringVar(&opts.model, "model", "", "Agent model override for this session only (e.g. sonnet, gpt-5.6-sol); overrides project/role config without changing it")
 	f.StringVar(&opts.output, "output", "", "Deliverable for the session: artifact asks the agent to write a file in its artifact directory instead of opening a PR (default: ordinary task)")

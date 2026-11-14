@@ -344,6 +344,7 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"DomainTrackerIntakeConfig":       "TrackerIntakeConfig",
 	"ControllersTriggerReviewRequest": "TriggerReviewRequest",
 	"DomainContainerReapConfig":       "ContainerReapConfig",
+	"DomainSparseCheckoutConfig":      "SparseCheckoutConfig",
 	"DomainAgentConfig":               "AgentConfig",
 	"DomainRoleOverride":              "RoleOverride",
 	// httpd/controllers (wire envelopes)
