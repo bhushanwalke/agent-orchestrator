@@ -155,6 +155,12 @@ surface (`npm run sqlc`, `npm run api`).
   kill/restore; worker reports with attention state and artifact/PR outputs.
 - Project `autoReview` defaults copied into sessions, with per-session controls
   and idle/eligible-head gating. Workspace/PR/commit inspection is separate from merge.
+- Task plans (`/api/v1/plans`, `ao plan`): the project orchestrator plans a
+  ticket into milestones; a daemon scheduler spawns a worker per milestone in
+  dependency order up to `maxParallel`, records each milestone's branch at done,
+  retries up to 3 attempts, blocks workers whose agent turns keep failing, and
+  runs a QA worker whose per-milestone defects route back to the owning worker.
+  Optional cone-mode sparse worktrees (`sparseCheckout`, `ao spawn --sparse`).
 
 ### Frontend (Electron + React)
 
@@ -223,6 +229,9 @@ surface (`npm run sqlc`, `npm run api`).
   connection and port-rebind on daemon restart.
 - Chat history uses bounded pages and targeted CDC/SSE invalidation rather than
   polling and transferring the full lifetime of a conversation.
+- Tasks: Plan mode in New Task, Task cards on the board (agent sessions folded
+  behind **Show agent sessions**), and a run view with the milestone graph,
+  agents, recent events, and Re-run QA / Cancel / Show spec actions.
 - In-app notification center with click access, paginated REST catch-up, live
   notification stream updates, separate PR/session target actions, persistent
   read history, and Electron app toasts while the app is running. The desktop

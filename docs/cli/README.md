@@ -108,12 +108,26 @@ See the [command reference](../../backend/internal/skillassets/using-ao/commands
 | `ao session fork <id> [--check]` | `POST /api/v1/sessions/{id}/fork`             |
 | `ao orchestrator ls`                | `GET /api/v1/orchestrators`                    |
 | `ao send`                           | `POST /api/v1/sessions/{id}/send`              |
+| `ao plan create`                    | `POST /api/v1/projects/{id}/plans`             |
+| `ao plan ls`                        | `GET /api/v1/projects/{id}/plans`              |
+| `ao plan get [<plan-id>]`           | `GET /api/v1/plans/{id}`                       |
+| `ao plan set-spec [<plan-id>] --file` | `PATCH /api/v1/plans/{id}` (`specMarkdown`)  |
+| `ao plan milestone add/update/rm`   | `POST/PATCH/DELETE /api/v1/plans/{id}/milestones[/{key}]` |
+| `ao plan milestone retry [<plan-id>] <key>` | `POST /api/v1/plans/{id}/milestones/{key}/retry` |
+| `ao plan activate [<plan-id>]`      | `POST /api/v1/plans/{id}/activate`             |
+| `ao plan cancel [<plan-id>]`        | `POST /api/v1/plans/{id}/cancel`               |
+| `ao plan qa-result [<plan-id>]`     | `POST /api/v1/plans/{id}/qa-result` (QA sessions only) |
+| `ao plan events [<plan-id>]`        | `GET /api/v1/plans/{id}/events`                |
 | `ao report ...`                     | `POST /api/v1/reports`                         |
 | `ao preview [url]`                  | `POST /api/v1/sessions/{id}/preview`           |
 | `ao preview start/status/stop`      | `POST/GET/DELETE /api/v1/sessions/{id}/preview/server` |
 | `ao browser ...`                    | `GET /api/v1/browser/status`, `POST /api/v1/browser/commands` |
 | `ao browser chrome status\|setup\|remove` | `GET`, `POST`, `DELETE /api/v1/browser/chrome` |
 | `ao hooks <agent> <event>`          | `POST /api/v1/sessions/{id}/activity` (hidden) |
+
+Inside a Task milestone or QA session, `ao plan` commands may omit `<plan-id>`:
+`AO_PLAN_ID` supplies it. `ao report --done --branch <name>` names the branch a
+milestone's work is on (default: the worktree's current branch).
 
 `ao agent ls` asks the daemon to ensure display readiness, then prints the
 existing table or legacy JSON projection. The daemon alone decides whether a

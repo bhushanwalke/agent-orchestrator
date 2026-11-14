@@ -21,6 +21,8 @@ ao
 ├── automation                    create, list, get, update, delete, runs
 ├── cue                           create, list
 ├── report                        Report worker progress or artifacts
+├── plan                          create, ls, get, set-spec, milestone, activate,
+│                                 cancel, qa-result, events
 ├── orchestrator ls               List orchestrator sessions
 ├── send                           Send a message to a session
 ├── pr                             merge, resolve-comments
@@ -131,6 +133,7 @@ Important flags include:
 | `--claim-pr <ref>` | Claim an existing pull request after spawning. |
 | `--no-takeover` | Refuse a PR already owned by another active session. |
 | `--skip-agent-check` | Skip only the CLI-side install/auth preflight. |
+| `--sparse <dir>` | Check out only this repository-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's `sparseCheckout.enabled`. |
 
 Orchestrator chooses a project in this order: `--project`, `AO_PROJECT_ID`, the project for `AO_SESSION_ID`, then the closest registered project containing the current directory. Before spawning, Orchestrator refreshes the selected agent's readiness unless you use `--skip-agent-check`. Readiness is advisory.
 
@@ -186,6 +189,27 @@ ao report --done --note "Focused tests passed"
 ```
 
 `ao report` must run in a worker environment that provides `AO_SESSION_ID`.
+
+In a Task milestone, `--branch <name>` names the branch holding the milestone's work; without it AO records the branch checked out in the worktree when the done report arrives.
+
+### `ao plan`
+
+Tasks: the orchestrator plans a ticket into milestones, AO runs a worker per milestone, and a QA worker checks the result. See [Task plans](/guides/task-plans).
+
+| Command | Purpose |
+| --- | --- |
+| `ao plan create --title <t> --brief <text>` | Create a Task and ask the project orchestrator to plan it. `--brief-file`, `--ticket`, `--max-parallel` (1 to 10, default 3), `--project`. |
+| `ao plan ls` | List a project's Tasks, newest first. |
+| `ao plan get [<plan-id>]` | Show the phase, milestones, and latest events. |
+| `ao plan set-spec [<plan-id>] --file <plan.md>` | Store the plan document while the Task is planning. |
+| `ao plan milestone add\|update\|rm [<plan-id>] ...` | Edit milestones while the Task is planning: `--key`, `--title`, `--description` or `--description-file`, `--depends-on`, `--sparse <dir>` (repeatable). |
+| `ao plan milestone retry [<plan-id>] <key>` | Retry a failed milestone, or re-run QA, with a fresh three attempts. |
+| `ao plan activate [<plan-id>]` | Check the milestone graph, add QA, and start scheduling. |
+| `ao plan cancel [<plan-id>]` | Stop starting work; running agents keep going. |
+| `ao plan qa-result [<plan-id>] --pass\|--fail --milestone <key> --note <text>` | Record the QA verdict. QA sessions only. |
+| `ao plan events [<plan-id>]` | Print the activity log, oldest first. |
+
+Inside a milestone or QA session, `<plan-id>` can be omitted: `AO_PLAN_ID` supplies it.
 
 ## Pull requests and reviews
 

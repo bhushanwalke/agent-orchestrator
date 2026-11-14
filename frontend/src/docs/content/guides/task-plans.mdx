@@ -1,0 +1,99 @@
+---
+title: Task plans
+description: Hand a ticket to the orchestrator, which plans it into milestones, runs a worker per milestone in dependency order, and has a QA worker check the whole feature.
+---
+
+A **Task** turns one ticket into a plan. The project's orchestrator reads the ticket, investigates the repository, writes a plan, and splits it into **milestones** with dependencies. AO then starts a worker for each milestone as soon as the milestones it depends on are done, runs independent milestones in parallel, and starts a **QA worker** once every milestone is built. QA merges the milestone branches, tests the whole feature, and sends any defect back to the worker whose change caused it. When QA passes, the orchestrator tells you what was built and links the pull requests.
+
+Tasks work in local single-repository projects. Scratch, multi-repo workspaces, and cloud projects keep ordinary sessions only.
+
+## Create a Task
+
+In the app, open **New task**, pick the project, and switch the control at the top from **Task** to **Plan**. Give it a title, paste the ticket or describe the work in **Brief**, and optionally add a **Ticket link**. **Plan with orchestrator** creates the Task and opens its run view. The app remembers the last mode per project.
+
+From the CLI:
+
+```bash
+ao plan create --project my-app --title "TODO app MVP" --brief-file ticket.md --ticket https://github.com/acme/my-app/issues/42
+```
+
+`--max-parallel` (1 to 10, default 3) caps how many implementation workers run at once.
+
+## What the orchestrator does
+
+Creating a Task sends the project orchestrator a plan request, starting the orchestrator if none is running. If it can't start (for example the project has no orchestrator agent configured), AO keeps retrying and the run view shows **Waiting for the orchestrator**. The orchestrator then:
+
+1. Investigates the repository. For a broad ticket it spawns two to four **research workers** in parallel, each with one focused question, and waits for their reports.
+2. Writes the plan document: `ao plan set-spec <plan-id> --file plan.md`. **Show spec** in the run view's **Actions** menu displays it.
+3. Registers the milestones: `ao plan milestone add <plan-id> --key m1 --title "API" --description-file m1.md --depends-on ...`.
+4. Starts the plan: `ao plan activate <plan-id>`. AO checks the graph (no cycles, no missing dependencies, at most 20 milestones), adds the QA milestone, and starts scheduling.
+
+The spec and milestones can be edited only while the Task is still planning.
+
+## Milestones, dependencies, and parallelism
+
+Each milestone is implemented by its own worker session in its own worktree. A milestone becomes ready when every milestone it depends on is done. Ready milestones start in plan order, up to the Task's `maxParallel`. A worker whose dependencies are done is told their branches and merges them before it starts.
+
+Workers report through `ao report`:
+
+- `--checkpoint` for progress.
+- `--stuck` when blocked: the milestone shows **Blocked** until the worker reports again.
+- `--done --note "..."` when the milestone is built and its tests pass.
+
+The plan advances only on `done` reports. When a milestone is done, AO records the branch its work is on: the branch named with `ao report --done --branch <name>`, otherwise the branch checked out in the worker's worktree. Dependent milestones and QA merge that branch. A worker that creates a topic branch should stay on it when it reports done.
+
+A worker whose agent keeps failing (the provider reports a system error, or its last two turns failed) is marked **Blocked** with the reason. Its next checkpoint or done report sets it running again.
+
+## Sparse checkouts
+
+In a large repository a milestone can be limited to the directories it touches. The orchestrator adds `--sparse <dir>` (repeatable) to a milestone, and AO creates that worker's worktree as a cone-mode sparse checkout. Files at the repository root are always present.
+
+Sparse checkouts are off until the project enables them:
+
+```json
+{
+  "sparseCheckout": {
+    "enabled": true,
+    "alwaysInclude": ["packages/shared", "tools"]
+  }
+}
+```
+
+From the CLI: `ao project set-config <project> --sparse-enabled --sparse-include packages/shared`. `alwaysInclude` lists directories added to every sparse checkout, such as shared libraries and tooling. While sparse checkouts are off, a milestone's sparse paths are ignored and it gets a full checkout (the run view records this). `ao spawn --sparse <dir>` uses the same setting for ordinary workers.
+
+## The QA loop
+
+When every implementation milestone is done, AO starts the QA worker. It merges each milestone branch, builds the project, runs the full test suite, and exercises the feature against the ticket and the plan. It then records a verdict:
+
+```bash
+ao plan qa-result <plan-id> --fail --milestone m2 --note "Steps to reproduce, expected, actual, file hints"
+ao plan qa-result <plan-id> --pass --note "What was verified"
+```
+
+- A **fail** against a milestone sends the defect back to that milestone's worker: to the same session if it is still running, otherwise to a fresh worker on the same branch. QA waits until every fix is done, then runs again.
+- A **fail** that names no milestone blocks QA and forwards the note to the orchestrator, which decides what to change.
+- A **pass** finishes the Task. The orchestrator gets a summary of every milestone, its branch, and its pull requests, and reports to you.
+
+A QA worker that reports done without a verdict is asked for one. A done report alone never counts as a pass.
+
+## Watch, retry, and cancel
+
+Tasks appear on the board as one card in the lane for their phase, with the agents working on them and a milestone count. Their worker sessions are folded into the card; **Show agent sessions** in the board toolbar shows them again. Click the card to open the run view:
+
+- The **graph** shows each milestone's state and what a pending milestone is waiting for. Select a milestone with a click or the arrow keys; double-click or Enter opens its session.
+- **Agents** lists the orchestrator and every milestone's session. **Recent events** lists what happened, newest first.
+- **Actions** opens the orchestrator chat, shows the spec, re-runs QA, or cancels the Task.
+
+A milestone gets up to **3 attempts**: if its session ends without reporting done, AO starts a new worker. After the third failure the milestone stays failed until you retry it with `ao plan milestone retry <plan-id> <key>`, which gives it a fresh three attempts.
+
+**Re-run QA** starts a new QA worker after QA passed (or retries a failed QA), for example after you changed something by hand.
+
+**Cancel plan** (or `ao plan cancel <plan-id>`) stops AO from starting more work. Running agents keep going; archive them from their cards.
+
+## Limits and operational notes
+
+- Local single-repository projects only.
+- At most 20 milestones per Task, and 1 to 10 implementation workers at once.
+- 3 automatic attempts per milestone.
+- Restarting or upgrading AO resumes every active Task when the daemon starts, including starting milestones that became ready while it was down.
+- Codex plan workers need full-access permissions, because their sandbox otherwise blocks the `ao report` call back to AO. Use full access for the project's worker, or use Claude Code.
