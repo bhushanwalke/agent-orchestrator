@@ -63,10 +63,19 @@ export function layoutPlan(milestones: readonly PlanLayoutInput[]): PlanLayout {
 			nodes.push({ key: m.key, layer: at, x: at * PLAN_LAYER_GAP, y: offset + index * PLAN_NODE_GAP });
 		});
 	}
+	// Draw only direct dependencies: QA depends on every milestone, and an
+	// edge it already reaches through another dependency would cross nodes.
+	const reaches = (from: string, to: string, seen = new Set<string>()): boolean => {
+		if (seen.has(from)) return false;
+		seen.add(from);
+		const deps = byKey.get(from)?.dependsOn ?? [];
+		return deps.includes(to) || deps.some((dep) => reaches(dep, to, seen));
+	};
 	const edges: PlanLayoutEdge[] = [];
 	for (const m of milestones) {
-		for (const dep of m.dependsOn) {
-			if (byKey.has(dep)) edges.push({ from: dep, to: m.key });
+		const deps = m.dependsOn.filter((dep) => byKey.has(dep));
+		for (const dep of deps) {
+			if (!deps.some((other) => other !== dep && reaches(other, dep))) edges.push({ from: dep, to: m.key });
 		}
 	}
 	const layers = columns.size ? Math.max(...columns.keys()) + 1 : 0;

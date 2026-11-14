@@ -40,3 +40,19 @@ describe("layoutPlan", () => {
 		expect(planNodeOrder(layout)).toEqual(["m1", "m2", "m3"]);
 	});
 });
+
+describe("layoutPlan edges", () => {
+	it("draws only direct dependencies, not ones reached through another dependency", () => {
+		const layout = layoutPlan([
+			ms("m1", [], "implement", 1),
+			ms("m2", [], "implement", 2),
+			ms("m3", ["m1", "m2"], "implement", 3),
+			ms("qa", ["m1", "m2", "m3"], "qa", 4),
+		]);
+		expect(layout.edges).toEqual([
+			{ from: "m1", to: "m3" },
+			{ from: "m2", to: "m3" },
+			{ from: "m3", to: "qa" },
+		]);
+	});
+});
