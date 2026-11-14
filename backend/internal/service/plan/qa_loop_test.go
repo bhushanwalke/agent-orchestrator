@@ -218,3 +218,32 @@ func TestUnownedQAFailureWaitsForAPerson(t *testing.T) {
 		t.Fatalf("retried qa = %+v", qa)
 	}
 }
+
+// The done notice names the branch QA merged and verified, read from the QA
+// worktree like a milestone's work branch.
+func TestQAPassNoticeNamesTheQABranch(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		setup func(f fixture, qaPath string)
+		want  string
+	}{
+		{"checked out", func(f fixture, qaPath string) { f.workspaces.checkedOut[qaPath] = "qa/combined" }, "QA branch: qa/combined (every milestone merged"},
+		{"probe fails", func(f fixture, qaPath string) { f.workspaces.failFor[qaPath] = true }, "(unresolved: the QA worktree's branch could not be read"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			f := flowFixture(t, domain.ProjectConfig{})
+			ctx := context.Background()
+			id, qaSess := toQA(t, f)
+			tc.setup(f, "/wt/"+string(qaSess))
+			if _, err := f.svc.RecordQAResult(ctx, id, planQAPass(qaSess)); err != nil {
+				t.Fatal(err)
+			}
+			tick(t, f)
+			msgs := sentTo(f, "orch-1")
+			done := msgs[len(msgs)-1]
+			if !strings.Contains(done, tc.want) {
+				t.Fatalf("done message missing %q:\n%s", tc.want, done)
+			}
+		})
+	}
+}

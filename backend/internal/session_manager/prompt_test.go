@@ -456,7 +456,7 @@ func TestOrchestratorPromptTeachesPlans(t *testing.T) {
 		"3. Write the plan as Markdown", "`ao plan set-spec PLAN --file <path>`",
 		"4. Register milestones: `ao plan milestone add PLAN --key m1 --title \"<title>\" --description-file <file> [--depends-on m0,m2] [--sparse src/api --sparse src/shared]`",
 		"5. Activate with `ao plan activate PLAN`", "<ao-plan-done>", "`ao plan get PLAN`", "`ao plan events PLAN`",
-		"6. When the plan is done, summarise the outcome and PR links for the human.",
+		"6. When you receive <ao-plan-done>, hand the human the QA branch it names as the verified combined result (every milestone merged and tested by QA), then list the milestone branches and PR links beneath it. Do not present a milestone branch as the combined result.",
 		"When you receive <ao-milestone-blocked>, act on it in that turn:",
 		"Use `--sparse` when the repository has more than roughly 200 tracked files or is a monorepo, listing the directories the milestone edits plus those it must read or build; for small repositories leave it off.",
 		"When you receive <ao-milestone-failed>, act on it in that turn:",

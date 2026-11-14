@@ -696,10 +696,10 @@ func (s *Service) finishIfDone(ctx context.Context, id domain.PlanID, facts map[
 		s.mu.Unlock()
 		return nil
 	}
-	var qaNote string
+	var qaMilestone domain.Milestone
 	for _, m := range ms {
 		if m.Kind == domain.MilestoneKindQA {
-			qaNote = m.QANote
+			qaMilestone = m
 		}
 	}
 	if p.FinishedAt == nil {
@@ -729,7 +729,8 @@ func (s *Service) finishIfDone(ctx context.Context, id domain.PlanID, facts map[
 	if err != nil {
 		return err
 	}
-	if err := s.sessions.Send(ctx, p.OrchestratorSessionID, planDoneMessage(p, built, qaNote), ports.MessageDeliveryOptions{}); err != nil {
+	qa := s.qaOutcome(ctx, qaMilestone)
+	if err := s.sessions.Send(ctx, p.OrchestratorSessionID, planDoneMessage(p, built, qa), ports.MessageDeliveryOptions{}); err != nil {
 		s.logger.Info("plan done notice deferred", "plan", id, "error", err)
 		return nil
 	}

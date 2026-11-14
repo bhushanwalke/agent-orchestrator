@@ -61,7 +61,7 @@ Only the plan's QA session may run `ao plan qa-result`, and the session id comes
 
 A done report without a recorded verdict is not a pass: AO asks the session for a verdict until one is recorded. Use `--fail --milestone ""` only when no milestone owns the failure; that blocks QA and forwards the note to the orchestrator.
 
-After per-milestone failures, each failing milestone goes back to its worker (the same session if it is still running, otherwise a fresh worker on the milestone's branch), and a new QA session runs once every fix is done. When QA passes, the orchestrator receives `<ao-plan-done id="PLAN">` with each milestone's branch and PRs; summarise them for the human.
+After per-milestone failures, each failing milestone goes back to its worker (the same session if it is still running, otherwise a fresh worker on the milestone's branch), and a new QA session runs once every fix is done. When QA passes, the orchestrator receives `<ao-plan-done id="PLAN">` naming the QA branch (every milestone merged and verified) and each milestone's branch and PRs. Hand the human the QA branch as the verified combined result, with the milestone branches and PR links beneath it.
 
 ## Watching, retrying, cancelling
 

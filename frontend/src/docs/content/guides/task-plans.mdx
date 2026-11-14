@@ -72,7 +72,7 @@ ao plan qa-result <plan-id> --pass --note "What was verified"
 
 - A **fail** against a milestone sends the defect back to that milestone's worker: to the same session if it is still running, otherwise to a fresh worker on the same branch. QA waits until every fix is done, then runs again.
 - A **fail** that names no milestone blocks QA and forwards the note to the orchestrator, which decides what to change. QA stays blocked until someone retries it with `ao plan milestone retry <plan-id> qa` (or **Re-run QA**).
-- A **pass** finishes the Task. The orchestrator gets a summary of every milestone, its branch, and its pull requests, and reports to you.
+- A **pass** finishes the Task. The orchestrator gets the QA branch, where QA merged and verified every milestone, plus each milestone's branch and pull requests. It reports the QA branch to you as the combined result, with the milestone branches and pull requests beneath it.
 
 A QA worker that reports done without a verdict is asked for one. A done report alone never counts as a pass.
 

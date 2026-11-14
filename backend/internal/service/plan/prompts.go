@@ -176,11 +176,30 @@ Fix them on your current branch, rebuild, rerun the relevant tests, push the fix
 </ao-qa-defect>`, string(p.ID), m.Key, m.Title, strings.TrimSpace(m.QANote))
 }
 
-// planDoneMessage tells the orchestrator the plan's QA passed.
-func planDoneMessage(p domain.Plan, built []builtInfo, qaNote string) string {
+// qaOutcome is the passed QA round as the plan done notice reports it.
+type qaOutcome struct {
+	Note string
+	// Branch is the QA worktree's branch, which merges every milestone.
+	// Unresolved marks the QA session's recorded branch used as a fallback.
+	Branch     string
+	Unresolved bool
+	SessionID  domain.SessionID
+}
+
+// planDoneMessage tells the orchestrator the plan's QA passed. The QA branch
+// comes first: it is the combined result QA verified.
+func planDoneMessage(p domain.Plan, built []builtInfo, qa qaOutcome) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "<ao-plan-done id=%q>\nQA passed for Task %q (plan %s).\n", string(p.ID), p.Title, p.ID)
-	if note := clipNote(strings.TrimSpace(qaNote), PromptNoteMaxBytes); note != "" {
+	switch {
+	case qa.Branch == "":
+		fmt.Fprintf(&b, "QA branch: (unresolved; ask the QA session %s which branch it merged into)\n", qa.SessionID)
+	case qa.Unresolved:
+		fmt.Fprintf(&b, "QA branch: %s (unresolved: the QA worktree's branch could not be read; this is the QA session's recorded branch)\n", qa.Branch)
+	default:
+		fmt.Fprintf(&b, "QA branch: %s (every milestone merged and verified by QA, session %s)\n", qa.Branch, qa.SessionID)
+	}
+	if note := clipNote(strings.TrimSpace(qa.Note), PromptNoteMaxBytes); note != "" {
 		fmt.Fprintf(&b, "QA verified: %s\n", note)
 	}
 	b.WriteString("\nMilestones:\n")
@@ -195,7 +214,11 @@ func planDoneMessage(p domain.Plan, built []builtInfo, qaNote string) string {
 		}
 		fmt.Fprintf(&b, "- %s: %s — session %s, branch %s, %s\n", m.Key, m.Title, m.SessionID, branch, prs)
 	}
-	b.WriteString("\nSummarise the outcome and the PR links for the human.\n</ao-plan-done>")
+	handoff := "the QA branch"
+	if qa.Branch != "" {
+		handoff += " " + qa.Branch
+	}
+	fmt.Fprintf(&b, "\nHand the human %s as the verified combined result, then list each milestone's branch and PR links beneath it.\n</ao-plan-done>", handoff)
 	return b.String()
 }
 

@@ -106,3 +106,35 @@ func TestQAPromptFallsBackWhenTheBrowserIsUnavailable(t *testing.T) {
 		t.Fatalf("qa prompt lacks the browser fallback:\n%s", got)
 	}
 }
+
+func TestPlanDoneMessageNamesTheQABranchFirst(t *testing.T) {
+	p := domain.Plan{ID: "plan_1", Title: "TODO app"}
+	built := []builtInfo{
+		{Key: "m1", Title: "API", Branch: "ao/todo-api/root", SessionID: "w-1", PRs: []string{"https://github.com/o/r/pull/1"}},
+		{Key: "m3", Title: "Integration docs", Branch: "ao/todo-integration-docs/root", SessionID: "w-3"},
+	}
+	got := planDoneMessage(p, built, qaOutcome{Note: "all green", Branch: "ao/todo-app-qa/root", SessionID: "w-qa"})
+	for _, want := range []string{
+		"QA passed for Task \"TODO app\" (plan plan_1).\nQA branch: ao/todo-app-qa/root (every milestone merged and verified by QA, session w-qa)\n",
+		"QA verified: all green",
+		"- m3: Integration docs — session w-3, branch ao/todo-integration-docs/root, no PRs",
+		"Hand the human the QA branch ao/todo-app-qa/root as the verified combined result, then list each milestone's branch and PR links beneath it.",
+	} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("done message missing %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "(unresolved") {
+		t.Fatalf("resolved branch marked unresolved:\n%s", got)
+	}
+
+	fallback := planDoneMessage(p, built, qaOutcome{Branch: "ao/w-qa/root", Unresolved: true, SessionID: "w-qa"})
+	if !strings.Contains(fallback, "QA branch: ao/w-qa/root (unresolved: the QA worktree's branch could not be read; this is the QA session's recorded branch)\n") {
+		t.Fatalf("fallback branch line:\n%s", fallback)
+	}
+	none := planDoneMessage(p, built, qaOutcome{SessionID: "w-qa"})
+	if !strings.Contains(none, "QA branch: (unresolved; ask the QA session w-qa which branch it merged into)\n") ||
+		!strings.Contains(none, "Hand the human the QA branch as the verified combined result") {
+		t.Fatalf("unresolved branch line:\n%s", none)
+	}
+}

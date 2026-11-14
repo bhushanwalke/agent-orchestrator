@@ -179,14 +179,8 @@ func (s *Service) resolveWorkBranch(ctx context.Context, rec domain.ReportRecord
 	if err != nil || !found {
 		return workBranch{}
 	}
-	if s.workspaces != nil && sess.Metadata.WorkspacePath != "" {
-		probeCtx, cancel := context.WithTimeout(ctx, branchProbeTimeout)
-		b, err := s.workspaces.CurrentBranch(probeCtx, sess.Metadata.WorkspacePath)
-		cancel()
-		if b = strings.TrimSpace(b); err == nil && b != "" && b != "HEAD" {
-			return workBranch{branch: b}
-		}
-		s.logger.Info("plan milestone branch probe failed", "session", rec.SessionID, "error", err)
+	if b := s.checkedOutBranch(ctx, sess); b != "" {
+		return workBranch{branch: b}
 	}
 	for _, out := range rec.Outputs {
 		if out.Kind != domain.ReportOutputPRCreated {
@@ -199,4 +193,42 @@ func (s *Service) resolveWorkBranch(ctx context.Context, rec domain.ReportRecord
 		}
 	}
 	return workBranch{branch: sess.Metadata.Branch, unresolved: true}
+}
+
+// checkedOutBranch reads the branch checked out in a session's worktree, or
+// "" when it cannot be read.
+func (s *Service) checkedOutBranch(ctx context.Context, sess domain.Session) string {
+	if s.workspaces == nil || sess.Metadata.WorkspacePath == "" {
+		return ""
+	}
+	probeCtx, cancel := context.WithTimeout(ctx, branchProbeTimeout)
+	b, err := s.workspaces.CurrentBranch(probeCtx, sess.Metadata.WorkspacePath)
+	cancel()
+	if b = strings.TrimSpace(b); err == nil && b != "" && b != "HEAD" {
+		return b
+	}
+	s.logger.Info("plan branch probe failed", "session", sess.ID, "error", err)
+	return ""
+}
+
+// qaOutcome resolves the passed QA round's branch the way a milestone's work
+// branch is: the QA worktree's checked-out branch, else the QA session's
+// recorded branch (unresolved).
+func (s *Service) qaOutcome(ctx context.Context, qa domain.Milestone) qaOutcome {
+	out := qaOutcome{Note: qa.QANote, Branch: qa.Branch, SessionID: qa.SessionID}
+	if out.Branch != "" || qa.SessionID == "" {
+		return out
+	}
+	sess, found, err := s.sessions.Get(ctx, qa.SessionID)
+	if err != nil || !found {
+		return out
+	}
+	if b := s.checkedOutBranch(ctx, sess); b != "" {
+		out.Branch = b
+		return out
+	}
+	if sess.Metadata.Branch != "" {
+		out.Branch, out.Unresolved = sess.Metadata.Branch, true
+	}
+	return out
 }
