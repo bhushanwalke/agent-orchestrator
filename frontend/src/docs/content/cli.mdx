@@ -133,7 +133,7 @@ Important flags include:
 | `--claim-pr <ref>` | Claim an existing pull request after spawning. |
 | `--no-takeover` | Refuse a PR already owned by another active session. |
 | `--skip-agent-check` | Skip only the CLI-side install/auth preflight. |
-| `--sparse <dir>` | Check out only this repository-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's `sparseCheckout.enabled`. |
+| `--sparse <dir>` | Check out only this repository-relative directory (repeatable) as a cone-mode sparse worktree; root files are always present. Needs the project's `sparseCheckout.enabled` (otherwise 400). A usage error with `--standalone`. |
 
 Orchestrator chooses a project in this order: `--project`, `AO_PROJECT_ID`, the project for `AO_SESSION_ID`, then the closest registered project containing the current directory. Before spawning, Orchestrator refreshes the selected agent's readiness unless you use `--skip-agent-check`. Readiness is advisory.
 
@@ -203,9 +203,9 @@ Tasks: the orchestrator plans a ticket into milestones, AO runs a worker per mil
 | `ao plan get [<plan-id>]` | Show the phase, milestones, and latest events. |
 | `ao plan set-spec [<plan-id>] --file <plan.md>` | Store the plan document while the Task is planning. |
 | `ao plan milestone add\|update\|rm [<plan-id>] ...` | Edit milestones while the Task is planning: `--key`, `--title`, `--description` or `--description-file`, `--depends-on`, `--sparse <dir>` (repeatable). |
-| `ao plan milestone retry [<plan-id>] <key>` | Retry a failed milestone, or re-run QA, with a fresh three attempts. |
+| `ao plan milestone retry [<plan-id>] <key>` | Retry a failed milestone or a blocked QA, or re-run QA after it passed (key `qa`), with a fresh three attempts. |
 | `ao plan activate [<plan-id>]` | Check the milestone graph, add QA, and start scheduling. |
-| `ao plan cancel [<plan-id>]` | Stop starting work; running agents keep going. |
+| `ao plan cancel [<plan-id>]` | Stop starting work; running agents keep going. Asks to confirm; pass `--yes` when stdin is not a terminal. |
 | `ao plan qa-result [<plan-id>] --pass\|--fail --milestone <key> --note <text>` | Record the QA verdict. QA sessions only. |
 | `ao plan events [<plan-id>]` | Print the activity log, oldest first. |
 

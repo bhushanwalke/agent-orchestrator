@@ -21,18 +21,18 @@ ao plan create --project my-app --title "TODO app MVP" --brief-file ticket.md --
 
 ## What the orchestrator does
 
-Creating a Task sends the project orchestrator a plan request, starting the orchestrator if none is running. If it can't start (for example the project has no orchestrator agent configured), AO keeps retrying and the run view shows **Waiting for the orchestrator**. The orchestrator then:
+Creating a Task sends the project orchestrator a plan request, starting the orchestrator if none is running. If it can't start or is busy (for example the project has no orchestrator agent configured), the run view shows **Waiting for the orchestrator**: AO retries every few seconds for about five minutes, then the scheduler keeps retrying on each pass until the request lands. The orchestrator then:
 
 1. Investigates the repository. For a broad ticket it spawns two to four **research workers** in parallel, each with one focused question, and waits for their reports.
 2. Writes the plan document: `ao plan set-spec <plan-id> --file plan.md`. **Show spec** in the run view's **Actions** menu displays it.
 3. Registers the milestones: `ao plan milestone add <plan-id> --key m1 --title "API" --description-file m1.md --depends-on ...`.
-4. Starts the plan: `ao plan activate <plan-id>`. AO checks the graph (no cycles, no missing dependencies, at most 20 milestones), adds the QA milestone, and starts scheduling.
+4. Starts the plan: `ao plan activate <plan-id>`. AO checks the graph (no cycles, no missing dependencies, at most 20 milestones including QA, so 19 implementation milestones), adds the QA milestone, and starts scheduling.
 
 The spec and milestones can be edited only while the Task is still planning.
 
 ## Milestones, dependencies, and parallelism
 
-Each milestone is implemented by its own worker session in its own worktree. A milestone becomes ready when every milestone it depends on is done. Ready milestones start in plan order, up to the Task's `maxParallel`. A worker whose dependencies are done is told their branches and merges them before it starts.
+Each milestone is implemented by its own worker session in its own worktree. A milestone becomes ready when every milestone it depends on is done. Ready milestones start in plan order, up to the Task's `maxParallel`. A worker whose dependencies are done is told their branches. A milestone with exactly one dependency starts from that dependency's branch, so its pull request stacks on it; a milestone with several merges each of them before it starts.
 
 Workers report through `ao report`:
 
@@ -40,7 +40,7 @@ Workers report through `ao report`:
 - `--stuck` when blocked: the milestone shows **Blocked** until the worker reports again.
 - `--done --note "..."` when the milestone is built and its tests pass.
 
-The plan advances only on `done` reports. When a milestone is done, AO records the branch its work is on: the branch named with `ao report --done --branch <name>`, otherwise the branch checked out in the worker's worktree. Dependent milestones and QA merge that branch. A worker that creates a topic branch should stay on it when it reports done.
+The plan advances only on `done` reports. When a milestone is done, AO records the branch its work is on, trying in order: the branch named with `ao report --done --branch <name>`, the branch checked out in the worker's worktree, the head branch of a pull request the done report attached, and finally the session's own branch (the run view then records that the branch could not be read). Dependent milestones and QA merge that branch. A worker that creates a topic branch should stay on it when it reports done.
 
 A worker whose agent keeps failing (the provider reports a system error, or its last two turns failed) is marked **Blocked** with the reason. Its next checkpoint or done report sets it running again. Whenever a milestone becomes blocked, or fails with no attempts left, AO tells the orchestrator, which clarifies the task with the worker, cancels the Task, or asks you.
 
@@ -59,7 +59,7 @@ Sparse checkouts are off until the project enables them:
 }
 ```
 
-From the CLI: `ao project set-config <project> --sparse-enabled --sparse-include packages/shared`. `alwaysInclude` lists directories added to every sparse checkout, such as shared libraries and tooling. While sparse checkouts are off, a milestone's sparse paths are ignored and it gets a full checkout (the run view records this). `ao spawn --sparse <dir>` uses the same setting for ordinary workers.
+From the CLI: `ao project set-config <project> --sparse-enabled --sparse-include packages/shared`. `alwaysInclude` lists directories added to every sparse checkout, such as shared libraries and tooling. While sparse checkouts are off, a milestone's sparse paths are ignored and it gets a full checkout (the run view records this). `ao spawn --sparse <dir>` uses the same setting for ordinary workers, but there it is an error (400) rather than a fallback when the project has sparse checkouts off. The QA worker always gets a full checkout, and a restored session whose worktree has to be re-created gets a full checkout too.
 
 ## The QA loop
 
@@ -71,7 +71,7 @@ ao plan qa-result <plan-id> --pass --note "What was verified"
 ```
 
 - A **fail** against a milestone sends the defect back to that milestone's worker: to the same session if it is still running, otherwise to a fresh worker on the same branch. QA waits until every fix is done, then runs again.
-- A **fail** that names no milestone blocks QA and forwards the note to the orchestrator, which decides what to change.
+- A **fail** that names no milestone blocks QA and forwards the note to the orchestrator, which decides what to change. QA stays blocked until someone retries it with `ao plan milestone retry <plan-id> qa` (or **Re-run QA**).
 - A **pass** finishes the Task. The orchestrator gets a summary of every milestone, its branch, and its pull requests, and reports to you.
 
 A QA worker that reports done without a verdict is asked for one. A done report alone never counts as a pass.
@@ -88,12 +88,12 @@ A milestone gets up to **3 attempts**: if its session ends without reporting don
 
 **Re-run QA** starts a new QA worker after QA passed (or retries a failed QA), for example after you changed something by hand.
 
-**Cancel plan** (or `ao plan cancel <plan-id>`) stops AO from starting more work. Running agents keep going; archive them from their cards.
+**Cancel plan** (or `ao plan cancel <plan-id>`, which needs `--yes` when not run from an interactive terminal) stops AO from starting more work. Running agents keep going; archive them from their cards.
 
 ## Limits and operational notes
 
 - Local single-repository projects only.
-- At most 20 milestones per Task, and 1 to 10 implementation workers at once.
+- At most 20 milestones per Task including QA (19 implementation milestones), and 1 to 10 implementation workers at once.
 - 3 automatic attempts per milestone.
 - The sidebar still lists every worker session of a Task under its project; only the board folds them into the Task card.
 - Restarting or upgrading AO resumes every active Task when the daemon starts, including starting milestones that became ready while it was down.

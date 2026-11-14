@@ -28,22 +28,23 @@ After activation, act in the same turn on `<ao-milestone-blocked>` (a worker is 
 
 Milestones can be edited only while the plan is `planning`; later edits return `PLAN_NOT_EDITABLE`. Limits:
 
-- 20 milestones per plan.
+- 20 milestones per plan, including the `qa` milestone (so 19 implementation milestones).
+- Title up to 100 characters; `--brief` up to 100 KiB; a milestone `--description` up to 32 KiB; a QA `--note` up to 8 KiB.
 - Keys match `^[a-z0-9][a-z0-9-]{0,31}$`, and `qa` is reserved.
 - Up to 50 sparse paths per milestone.
 - `--max-parallel` is 1-10 and defaults to 3. It stays editable through `PATCH /api/v1/plans/{id}`.
 
-Removing a milestone that another one depends on returns `MILESTONE_HAS_DEPENDENTS`.
+Removing a milestone that another one depends on returns `MILESTONE_HAS_DEPENDENTS`. The `qa` milestone takes no explicit dependencies (it depends on every implementation milestone): `--kind qa --depends-on ...` returns 400 `INVALID_MILESTONE`, and no milestone may depend on `qa`.
 
 ## Milestone workers
 
 A milestone worker has `AO_PLAN_ID` and `AO_MILESTONE_KEY` set, and its prompt lists the dependencies that are already done with their branches.
 
-1. Merge each dependency's branch into your branch before you start (`git merge <branch>`).
+1. Merge each dependency's branch into your branch before you start (`git merge <branch>`). A milestone with exactly one dependency already starts from that dependency's branch, so its PR stacks on it and the merge is a no-op.
 2. Stay inside your milestone. Ask the orchestrator with `ao send` when the plan needs changing.
 3. Report `ao report --checkpoint` for progress and `ao report --stuck` when blocked; the milestone shows blocked until your next checkpoint or done report.
 4. Build and run the tests that cover your change, commit, open the PR as the project rules allow, then `ao report --done --note "<what you built, how you verified it>" [--pr-created <url>]`. The scheduler advances only on done reports.
-5. When you report done, AO records the branch your work is on: `--branch <name>` if you pass it, otherwise the branch checked out in your worktree. Dependent milestones and QA merge that branch, so stay on the branch you committed to.
+5. When you report done, AO records the branch your work is on, in this order: `--branch <name>` if you pass it, the branch checked out in your worktree, the head branch of a PR the done report attached with `--pr-created`, and last your session's own branch (recorded with a `milestone_branch_unresolved` event). Dependent milestones and QA merge that branch, so stay on the branch you committed to.
 
 A message wrapped in `<ao-qa-defect>` is QA's findings for your milestone: fix them on your current branch, rerun the tests, push to your PR if one exists, and report done again.
 

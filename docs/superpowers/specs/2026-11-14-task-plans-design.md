@@ -173,12 +173,12 @@ type Sessions interface {
 
 ### 5.1 Create and kickoff
 
-`Create(ctx, CreateInput{ProjectID, Title, Brief, TicketRef, MaxParallel, Attachments}) (domain.Plan, error)`:
+`Create(ctx, CreateInput{ProjectID, Title, Brief, TicketRef, MaxParallel}) (domain.Plan, error)` (attachments: not yet):
 1. Validate (title 1–100, brief 1–102400 bytes, maxParallel 1–10 default 3).
 2. Insert plan `state=planning`.
 3. `EnsureOrchestrator(projectID)`; store its id on the plan.
 4. Record event `plan_created`.
-5. Send the orchestrator the kickoff message (below) via `Send` with `SenderSessionID=""`, `AuthoredByUser=false`. If delivery is refused because the orchestrator is busy, retry from the scheduler tick (event `kickoff_deferred`); the plan stays `planning` and the UI shows "Waiting for orchestrator".
+5. Send the orchestrator the kickoff message (below) via `Send` with `SenderSessionID=""`, `AuthoredByUser=false`. If the orchestrator cannot start or refuses delivery (busy, still starting), record `kickoff_deferred`; a background retry (every 5 s for about 5 minutes) keeps trying, and after that the scheduler tick's sweep delivers it. The plan stays `planning` and the UI shows "Waiting for the orchestrator".
 
 Kickoff message (exact wrapper so the prompt hook and tests can recognise it):
 
@@ -200,7 +200,7 @@ write the plan with `ao plan set-spec {planId} --file <plan.md>`, register miles
 
 ### 5.2 Milestone editing (state = planning only)
 
-`AddMilestone(ctx, planID, MilestoneInput{Key, Kind, Title, Description, DependsOn, SparsePaths})`, `UpdateMilestone(ctx, planID, key, MilestoneInput)`, `RemoveMilestone(ctx, planID, key)`, `SetSpec(ctx, planID, markdown)`, `Update(ctx, planID, PlanPatch{Title, MaxParallel})`. All return `PLAN_NOT_EDITABLE` (409) when state ≠ planning. Codes: `PLAN_NOT_FOUND` (404), `MILESTONE_NOT_FOUND` (404), `INVALID_MILESTONE` (400, with `details.field`), `MILESTONE_KEY_EXISTS` (409), `PLAN_TOO_MANY_MILESTONES` (400).
+`AddMilestone(ctx, planID, MilestoneInput{Key, Kind, Title, Description, DependsOn, SparsePaths})`, `UpdateMilestone(ctx, planID, key, MilestoneInput)`, `RemoveMilestone(ctx, planID, key)`, `SetSpec(ctx, planID, markdown)`, `Update(ctx, planID, PlanPatch{Title, MaxParallel, SpecMarkdown})`. All return `PLAN_NOT_EDITABLE` (409) when state ≠ planning, except `maxParallel`, which stays editable after activation (refused only for a cancelled plan). Codes: `PLAN_NOT_FOUND` (404), `MILESTONE_NOT_FOUND` (404), `INVALID_MILESTONE` (400, with `details.field`), `MILESTONE_KEY_EXISTS` (409), `PLAN_TOO_MANY_MILESTONES` (400).
 
 ### 5.3 Activate
 
@@ -404,7 +404,7 @@ Controller `controllers/plans.go` (`PlansController{Svc PlanService}`), register
 
 | Method & path | Body → Response | Notes |
 |---|---|---|
-| `POST /projects/{projectId}/plans` | `CreatePlanRequest{title, brief, ticketRef?, maxParallel?, attachments?, clientRequestId?}` → 201 `PlanEnvelope` | Kicks off planning. Attachments reuse `AttachmentInput`; they are written into the orchestrator's worktree under `.ao-attachments/{planId}/` and listed in the kickoff message. |
+| `POST /projects/{projectId}/plans` | `CreatePlanRequest{title, brief, ticketRef?, maxParallel?}` → 201 `PlanEnvelope` | Kicks off planning. Not yet: `attachments` (written into the orchestrator's worktree and listed in the kickoff) and `clientRequestId` idempotency; the New Task attach button is disabled in Plan mode. |
 | `GET /projects/{projectId}/plans` | → `ListPlansResponse{plans: []PlanSummary}` | Newest first. |
 | `GET /plans/{planId}` | → `PlanDetailResponse{plan, milestones, events}` | `events` = last 100. |
 | `PATCH /plans/{planId}` | `PlanPatchRequest{title?, maxParallel?, specMarkdown?}` → `PlanEnvelope` | planning only, except `maxParallel` which is always editable. |
@@ -413,7 +413,7 @@ Controller `controllers/plans.go` (`PlansController{Svc PlanService}`), register
 | `DELETE /plans/{planId}/milestones/{key}` | → 204 | |
 | `POST /plans/{planId}/activate` | → `PlanDetailResponse` | |
 | `POST /plans/{planId}/cancel` | → `PlanEnvelope` | |
-| `POST /plans/{planId}/qa-result` | `QAResultRequest{verdict: pass|fail, milestoneKey?, note, sessionId}` → `PlanDetailResponse` | `sessionId` comes from `AO_SESSION_ID`. |
+| `POST /plans/{planId}/qa-result` | `QAResultRequest{verdict: pass|fail, milestoneKey?, note, sessionId}` → `PlanDetailResponse` | `sessionId` comes from `AO_SESSION_ID`. Another session: 403 `PLAN_QA_SESSION_REQUIRED`; no current QA round: 409 `PLAN_QA_NOT_RUNNING`; pass after a fail this round: 409 `PLAN_QA_HAS_FAILURES`. |
 | `POST /plans/{planId}/milestones/{key}/retry` | → `PlanDetailResponse` | Human action: sets a `failed` milestone, a `blocked` qa milestone, or (Re-run QA) a `done` qa milestone once every implement milestone is done back to `ready` with a fresh budget (`retry_base = attempt`). Re-running a passed QA clears its verdict and the plan's `finished_at`. |
 | `GET /plans/{planId}/events?after={id}&limit=` | → `PlanEventsResponse{events, nextAfter}` | |
 
@@ -483,7 +483,7 @@ ao plan events <plan-id> [--after N]
 ### 11.3 Run view: `/projects/$projectId/plans/$planId`
 New route file `_shell.projects.$projectId_.plans.$planId.tsx` rendering `PlanRunView` inside `CenterPanelShell` with the page topbar. Layout: center column (graph) and the existing right inspector rail width (320px) for agents and events; below 900px the rail stacks under the graph.
 
-Header (page topbar): back to board; title; phase chip (semantic status colours from tokens, sentence case); "Started {relative} · {n} agents active" ({n} counts live sessions whose agent activity is active, so a finished Task reads 0); ticket link if any; **Actions** menu: Open orchestrator chat, Cancel plan, Re-run QA (enabled when phase = done or fixing; retries the qa milestone, see the retry route in §8), Show spec (opens the spec Markdown in a sheet using `ChatMarkdown`).
+Header (page topbar): back to board; title; phase chip (semantic status colours from tokens, sentence case); "Started {relative} · {n} agents active" ({n} counts live sessions whose agent activity is active, so a finished Task reads 0); ticket link if any; **Actions** menu: Open orchestrator chat, Cancel plan, Re-run QA (enabled when phase = done or fixing; retries the qa milestone, see the retry route in §8; while QA is still pending behind fixes the daemon refuses it with `MILESTONE_NOT_RETRYABLE` and the view shows the message), Show spec (opens the spec Markdown in a sheet using `ChatMarkdown`).
 
 Graph (`PlanGraph.tsx`, pure SVG, no new dependency):
 - Layered layout: longest-path layering from sources; nodes in a layer spaced 96px vertically, layers 220px apart, centered; edges as cubic curves from node right to node left; QA node always last layer.

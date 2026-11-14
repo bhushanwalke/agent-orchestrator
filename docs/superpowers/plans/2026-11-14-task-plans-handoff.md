@@ -125,7 +125,7 @@ Project config `sparseCheckout`:
 { "sparseCheckout": { "enabled": true, "alwaysInclude": ["packages/shared"] } }
 ```
 
-Off by default. Per Task: `maxParallel` (1 to 10, default 3). Limits: 20 milestones per Task, 3 automatic attempts per milestone, 50 sparse paths, local single-repository projects only.
+Off by default. Per Task: `maxParallel` (1 to 10, default 3). Limits: 20 milestones per Task including QA (19 implementation), 3 automatic attempts per milestone, 50 sparse paths, local single-repository projects only.
 
 ## Deferred minors (all milestones)
 
