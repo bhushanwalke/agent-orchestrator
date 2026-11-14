@@ -192,7 +192,8 @@ Ticket: {ticketRef or "(none)"}
 {brief}
 
 Plan it now. Follow the "Plans (Tasks)" section of your standing instructions:
-investigate the repository, spawn research workers in parallel if the ticket is broad,
+investigate the repository, spawn research workers in parallel if the ticket is broad
+(attach each with `ao spawn --plan {planId} ...`, and kill them once their findings are in the plan),
 write the plan with `ao plan set-spec {planId} --file <plan.md>`, register milestones with
 `ao plan milestone add {planId} ...`, then `ao plan activate {planId}`.
 </ao-plan-request>
@@ -213,7 +214,7 @@ write the plan with `ao plan set-spec {planId} --file <plan.md>`, register miles
 1. **Promote**: every `pending` milestone whose dependencies are all `done` becomes `ready` (event `milestone_ready`). A `qa` milestone's dependencies are all `implement` milestones.
 2. **Reconcile running**: for each `running` or `blocked` milestone, read its session. Session terminated, activity `exited`, or provisioning failed without a done report → status `failed`, `attempt` unchanged, event `milestone_failed` with note `session {id} ended without reporting done`. While attempts used (`attempt - retry_base`) < 3, the next tick re-spawns it (it goes back to `ready`); at 3 it stays `failed` and the plan phase becomes `failed` (human needed). A live `running` milestone whose Chat thread is in `system_error`, or whose last two turns failed, becomes `blocked` with event `milestone_blocked` "agent turns are failing: <reason>"; its next `checkpoint` or `done` sets it `running` again.
 3. **Spawn**: count `running` implement milestones; while count < `max_parallel`, take the next `ready` implement milestone (by ordinal) and spawn it (§6). For `qa`: spawn when `ready` regardless of the cap. Each spawn: `attempt++`, `status=running`, `session_id`, `started_at`, event `milestone_started`. A spawn error → `status=failed` with the error note; retried next tick up to 3 attempts.
-4. **Finish**: when the QA milestone is `done` with verdict `pass`, set `finished_at`, event `plan_done`, and send the orchestrator `<ao-plan-done id="…">` summary (titles, session ids, PR URLs from report outputs). The plan stays `active` (state) and reads as phase `done`.
+4. **Finish**: when the QA milestone is `done` with verdict `pass`, set `finished_at`, event `plan_done`, and send the orchestrator `<ao-plan-done id="…">` summary. Its first line after the verdict is `QA branch: <branch>`: the QA worktree's checked-out branch (every milestone merged and verified), else the QA session's recorded branch marked `(unresolved: …)`, else `QA branch: (unresolved; ask the QA session …)`. Then the QA note, each milestone's title, session id, branch, and PR URLs from report outputs, and an instruction to hand the human the QA branch as the verified combined result with the milestone branches and PR links beneath it. The plan stays `active` (state) and reads as phase `done`.
 
 Idempotency: every spawn carries `ClientRequestID = "plan:" + milestoneID + ":" + attempt` so a crashed tick cannot double-spawn (existing replay logic). `attempt` only grows; a human retry sets `retry_base = attempt` (a fresh budget of 3) instead of resetting `attempt`, so a retried spawn never reuses an earlier request id.
 
@@ -271,6 +272,8 @@ type PlanSpawnContext struct {
 ```
 
 The session manager persists `plan_id`, `plan_milestone_id`, `sparse_paths` on the session row and exports `AO_PLAN_ID` and `AO_MILESTONE_KEY` into the agent environment next to `AO_SESSION_ID`.
+
+**Research workers.** `ao spawn --plan <planId>` (`planId` on `POST /sessions`) attaches an ordinary worker to a plan without a milestone: `PlanSpawnContext{PlanID}` only, so the row has `plan_id` set and `plan_milestone_id = ''`, and the agent gets `AO_PLAN_ID` but no `AO_MILESTONE_KEY`. The sessions controller checks the plan through `PlanService.Lookup`: unknown → 404 `PLAN_NOT_FOUND`; a plan of another project, or no project → 400 `PLAN_PROJECT_MISMATCH`; `kind=orchestrator` → 400 `PLAN_ATTACH_WORKER_ONLY`. The CLI rejects `--plan` with `--standalone` or `--kind orchestrator` (exit 2). The service never kills these sessions; the orchestrator does once their findings are in the plan. `GET /plans/{id}` lists them as `researchSessions` (index `sessions_plan_idx` on `sessions(plan_id)`).
 
 Spawn parameters per milestone:
 
@@ -349,11 +352,11 @@ Fix them on your current branch, rebuild, rerun the relevant tests, push the fix
 When you receive a message wrapped in <ao-plan-request id="PLAN">, the human created a Task in the app and you are its planner. Do this, in order:
 
 1. Investigate: read the ticket, inspect the relevant code, tests, and docs. You may read anything; you still must not edit code.
-2. If the ticket is broad, spawn research workers in parallel with `ao spawn --project {projectId} --name "Research: <topic>" --output artifact --prompt "<question>"` and wait for their `done` reports before planning. Prefer two to four focused questions over one vague one.
+2. If the ticket is broad, spawn research workers in parallel with `ao spawn --project {projectId} --plan PLAN --name "Research: <topic>" --output artifact --prompt "<question>"` and wait for their `done` reports before planning. Prefer two to four focused questions over one vague one. `--plan PLAN` (the id from <ao-plan-request>) attaches each one to the Task, so it shows on the Task's run view. Once their findings are in the plan, end each research worker with `ao session kill <id>` so it does not linger on the board.
 3. Write the plan as Markdown: goal, approach, the milestone list with what each one changes and how it is verified, risks. Save it with `ao plan set-spec PLAN --file <path>`.
 4. Register milestones: `ao plan milestone add PLAN --key m1 --title "<title>" --description-file <file> [--depends-on m0,m2] [--sparse src/api --sparse src/shared]`. Keep milestones manageable: each should be one PR a careful engineer finishes in a few hours; split anything larger, merge anything trivial into a neighbour. Declare a dependency only when one milestone needs another's code. Use `--sparse` when the repository has more than roughly 200 tracked files or is a monorepo, listing the directories the milestone edits plus those it must read or build; for small repositories leave it off (QA always gets a full checkout).
 5. Activate with `ao plan activate PLAN`. AO then spawns implementation workers (in parallel up to the plan's limit), then a QA worker, routes QA failures back to workers, and tells you with <ao-plan-done> when QA passes. Watch `ao plan get PLAN` and worker reports; intervene with `ao send` only when a worker is stuck or the plan needs changing.
-6. When the plan is done, summarise the outcome and PR links for the human.
+6. When you receive <ao-plan-done>, hand the human the QA branch it names as the verified combined result (every milestone merged and tested by QA), then list the milestone branches and PR links beneath it. Do not present a milestone branch as the combined result.
 
 When you receive <ao-milestone-blocked>, act on it in that turn: clarify the task for that worker with `ao send`, cancel the plan, or tell the human what decision is needed. When you receive <ao-milestone-failed>, act on it in that turn: find the cause, then retry it with `ao plan milestone retry PLAN <key>`, cancel the plan, or tell the human.
 
@@ -396,7 +399,7 @@ This worktree is a cone-mode sparse checkout. Present directories: {paths}. Root
 ```
 
 ### 7.4 CLI
-`ao spawn --sparse <dir>` (repeatable, `StringArrayVar`). Rejected with a usage error together with `--standalone`. Added to the `using-ao` skill `spawn.md`.
+`ao spawn --sparse <dir>` (repeatable, `StringArrayVar`). Rejected with a usage error together with `--standalone`. Added to the `using-ao` skill `spawn.md`. `ao spawn --plan <planId>` is documented next to it (§6, research workers).
 
 ## 8. HTTP API (code-first; edit `controllers/dto.go` and `apispec/specgen/build.go`, then `npm run api`)
 
@@ -406,7 +409,7 @@ Controller `controllers/plans.go` (`PlansController{Svc PlanService}`), register
 |---|---|---|
 | `POST /projects/{projectId}/plans` | `CreatePlanRequest{title, brief, ticketRef?, maxParallel?}` → 201 `PlanEnvelope` | Kicks off planning. Not yet: `attachments` (written into the orchestrator's worktree and listed in the kickoff) and `clientRequestId` idempotency; the New Task attach button is disabled in Plan mode. |
 | `GET /projects/{projectId}/plans` | → `ListPlansResponse{plans: []PlanSummary}` | Newest first. |
-| `GET /plans/{planId}` | → `PlanDetailResponse{plan, milestones, events}` | `events` = last 100. |
+| `GET /plans/{planId}` | → `PlanDetailResponse{plan, milestones, researchSessions, events}` | `events` = last 100. `researchSessions`: sessions attached with `ao spawn --plan` (no milestone), oldest first, each a `PlanSessionSummary` plus `branch`; `[]` when none. |
 | `PATCH /plans/{planId}` | `PlanPatchRequest{title?, maxParallel?, specMarkdown?}` → `PlanEnvelope` | planning only, except `maxParallel` which is always editable. |
 | `POST /plans/{planId}/milestones` | `MilestoneRequest{key, kind, title, description, dependsOn[], sparsePaths[]}` → 201 `MilestoneEnvelope` | |
 | `PATCH /plans/{planId}/milestones/{key}` | `MilestoneRequest` (all optional) → `MilestoneEnvelope` | |
@@ -476,14 +479,14 @@ ao plan events <plan-id> [--after N]
 `SessionsBoard` gets plan cards. Data: `usePlansQuery(projectId)` on `GET /projects/{id}/plans`, invalidated by SSE `plan_updated` and `session_updated`. Rules:
 
 - A plan renders as one card in the lane given by its `kanbanColumn`, using `SessionCardView` with: title = plan title; avatar strip = up to 4 `AgentAvatar`s of `liveSessions` (harness icons) and a `+n` overflow; status line = `displayStatus`; metadata = `MilestoneCounts.Done/Total` (implementation milestones only; QA is conveyed by the phase) as a compact metric (checklist icon and "3/5", "3 of 5 milestones done" in its title and accessible label, so the status phrase keeps its width) and `updatedAt`. A plan card has no branch line and no PR progress footer; PR chips show the union of milestone PRs (max 3, then `+n`).
-- Sessions whose `planId` is set are **not** rendered as their own board cards (they live inside the plan). A board toolbar toggle **Show agent sessions** (persisted in `ui-store`) reveals them again.
+- Sessions whose `planId` is set, milestone workers and research workers alike, are **not** rendered as their own board cards (they live inside the plan). A board toolbar toggle **Show agent sessions** (persisted in `ui-store`) reveals them again.
 - Clicking a plan card navigates to the run view. The card's context menu offers: Open orchestrator, Cancel plan (confirm dialog), Copy plan id.
 - Lane headers count plans + visible sessions.
 
 ### 11.3 Run view: `/projects/$projectId/plans/$planId`
 New route file `_shell.projects.$projectId_.plans.$planId.tsx` rendering `PlanRunView` inside `CenterPanelShell` with the page topbar. Layout: center column (graph) and the existing right inspector rail width (320px) for agents and events; below 900px the rail stacks under the graph.
 
-Header (page topbar): back to board; title; phase chip (semantic status colours from tokens, sentence case); "Started {relative} · {n} agents active" ({n} counts live sessions whose agent activity is active, so a finished Task reads 0); ticket link if any; **Actions** menu: Open orchestrator chat, Cancel plan, Re-run QA (enabled when phase = done or fixing; retries the qa milestone, see the retry route in §8; while QA is still pending behind fixes the daemon refuses it with `MILESTONE_NOT_RETRYABLE` and the view shows the message), Show spec (opens the spec Markdown in a sheet using `ChatMarkdown`).
+Header (page topbar): back to board; title; phase chip (semantic status colours from tokens, sentence case); "Started {relative} · {n} agent(s) active" (an i18next plural on `count`: "1 agent active", "2 agents active"; {n} counts live sessions whose agent activity is active, so a finished Task reads 0); ticket link if any; **Actions** menu: Open orchestrator chat, Cancel plan, Re-run QA (enabled when phase = done or fixing; retries the qa milestone, see the retry route in §8; while QA is still pending behind fixes the daemon refuses it with `MILESTONE_NOT_RETRYABLE` and the view shows the message), Show spec (opens the spec Markdown in a sheet using `ChatMarkdown`).
 
 Graph (`PlanGraph.tsx`, pure SVG, no new dependency):
 - Layered layout: longest-path layering from sources; nodes in a layer spaced 96px vertically, layers 220px apart, centered; edges as cubic curves from node right to node left; QA node always last layer.
@@ -491,7 +494,7 @@ Graph (`PlanGraph.tsx`, pure SVG, no new dependency):
 - Click selects the node and highlights its agent card; double-click or Enter opens the session when one exists. Keyboard: arrow keys move selection in layer order. No zoom, pan, or minimap.
 - Legend row under the graph: Done, Running, Pending, Blocked, Failed.
 
-Right rail: **Agents** section lists one compact `SessionCardView` per milestone that has a session (reusing `BoardSessionCardAdapter` in `compact` mode, same context menu). The orchestrator appears first with an "Orchestrator" label. Clicking a card navigates to the existing session route. **Recent events** section: last 20 `plan_events` newest first as rows (glyph, "{milestone title} {verb}", relative time); "View all" expands to 100.
+Right rail: **Agents** section lists one compact `SessionCardView` per milestone that has a session (reusing `BoardSessionCardAdapter` in `compact` mode, same context menu). The orchestrator appears first with an "Orchestrator" label. Clicking a card navigates to the existing session route. Below it, a **Research** section (shown only when there are any) lists the plan's `researchSessions` that are still on the board, one compact card each; a killed research worker drops off. **Recent events** section: last 20 `plan_events` newest first as rows (glyph, "{milestone title} {verb}", relative time); "View all" expands to 100.
 
 Live updates: SSE `plan_updated` and `session_updated` invalidate `['plan', planId]` and `['plans', projectId]`.
 

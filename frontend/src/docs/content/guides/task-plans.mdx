@@ -23,7 +23,7 @@ ao plan create --project my-app --title "TODO app MVP" --brief-file ticket.md --
 
 Creating a Task sends the project orchestrator a plan request, starting the orchestrator if none is running. If it can't start or is busy (for example the project has no orchestrator agent configured), the run view shows **Waiting for the orchestrator**: AO retries every few seconds for about five minutes, then the scheduler keeps retrying on each pass until the request lands. The orchestrator then:
 
-1. Investigates the repository. For a broad ticket it spawns two to four **research workers** in parallel, each with one focused question, and waits for their reports.
+1. Investigates the repository. For a broad ticket it spawns two to four **research workers** in parallel, each with one focused question, and waits for their reports. It attaches them to the Task with `ao spawn --plan <plan-id>`, so they appear in the run view under **Research** and fold into the Task card on the board, and ends them with `ao session kill` once their findings are in the plan.
 2. Writes the plan document: `ao plan set-spec <plan-id> --file plan.md`. **Show spec** in the run view's **Actions** menu displays it.
 3. Registers the milestones: `ao plan milestone add <plan-id> --key m1 --title "API" --description-file m1.md --depends-on ...`.
 4. Starts the plan: `ao plan activate <plan-id>`. AO checks the graph (no cycles, no missing dependencies, at most 20 milestones including QA, so 19 implementation milestones), adds the QA milestone, and starts scheduling.
@@ -81,7 +81,7 @@ A QA worker that reports done without a verdict is asked for one. A done report 
 Tasks appear on the board as one card in the lane for their phase, with the agents working on them and a milestone count. Their worker sessions are folded into the card; **Show agent sessions** in the board toolbar shows them again. Click the card to open the run view:
 
 - The **graph** shows each milestone's state and what a pending milestone is waiting for. Select a milestone with a click or the arrow keys; double-click or Enter opens its session.
-- **Agents** lists the orchestrator and every milestone's session. **Recent events** lists what happened, newest first.
+- **Agents** lists the orchestrator and every milestone's session; **Research** lists the research workers still running. **Recent events** lists what happened, newest first.
 - **Actions** opens the orchestrator chat, shows the spec, re-runs QA, or cancels the Task.
 
 A milestone gets up to **3 attempts**: if its session ends without reporting done, AO starts a new worker. After the third failure the milestone stays failed until you retry it with `ao plan milestone retry <plan-id> <key>`, which gives it a fresh three attempts.

@@ -66,6 +66,20 @@ A **Task** (internally a *plan*) turns one ticket into coordinated work. You cre
 - `80fd9fc360` fix(plans): count only implementation milestones in a Task's summary
 - `a7a6225a1c` fix(plans): say "using no branch" when a done milestone has none
 - `c4511855de` fix(app): keep an event's verb visible in the run view
+- `f7b046d2ce` docs(plans): branch handoff summary
+- `851ee0da61` fix(plans): include the provider's message in a failing-turns block
+- `cef1a96be3` docs(plans): correct limits and semantics after verification
+
+**M6: end-to-end runs and tunings**
+- `af68d0911c` fix(plans): clip report notes at a sentence boundary
+- `773e764ef7` fix(prompts): QA falls back when the AO browser is unavailable
+- `f4c044f60a` fix(prompts): orchestrator uses sparse checkouts for larger repos
+- `7302b98621` fix(plans): a fresh orchestrator's first kickoff is not a deferral
+- `4ed32c1978` fix(app): agent cards show the milestone's recorded work branch
+- `a213dbca58` docs(plans): note the dev daemon's missing agent browser in the handoff
+- `0abc397a1e` feat(plans): attach research workers to a Task with ao spawn --plan
+- `e070a2306b` feat(plans): name the QA branch in the plan done notice
+- `04adc9b260` fix(plans): pluralise the run view's active agent count
 
 ## Migrations (all new; none on `main` modified)
 
@@ -74,6 +88,7 @@ A **Task** (internally a *plan*) turns one ticket into coordinated work. You cre
 | `20261114092547622_task_plans.sql` | `plans`, `plan_milestones`, `plan_milestone_deps`, `plan_events`; `sessions.plan_id`, `plan_milestone_id`, `sparse_paths`; CDC triggers writing `plan_updated` rows; widens the `change_log.event_type` CHECK in place (writable_schema, guarded). |
 | `20261114111138604_task_plan_session_context.sql` | `sessions.plan_milestone_key`, `plan_prompt` (so restore keeps a worker's plan context). |
 | `20261114112602243_task_plan_milestone_retry_base.sql` | `plan_milestones.retry_base` (fresh attempt budget on human retry) and `branch` (the work branch recorded at done). |
+| `20261114161310228_task_plan_attached_sessions.sql` | Partial index `sessions_plan_idx` on `sessions(plan_id)` for listing a plan's research sessions. |
 
 ## CLI
 
@@ -94,9 +109,11 @@ ao plan qa-result [<plan-id>] (--pass | --fail --milestone <key>) --note <text> 
 ao plan events [<plan-id>] [--after N] [--limit N] [--json]
 ```
 
-Changed: `ao spawn --sparse <dir>` (repeatable), `ao report --done --branch <name>`, `ao project set-config --sparse-enabled[=false] --sparse-include <dir>`.
+Changed: `ao spawn --sparse <dir>` (repeatable), `ao spawn --plan <plan-id>`, `ao report --done --branch <name>`, `ao project set-config --sparse-enabled[=false] --sparse-include <dir>`.
 
-Worker env: `AO_PLAN_ID`, `AO_MILESTONE_KEY`.
+`ao spawn --project <id> --plan <plan-id> --name "Research: <topic>" --output artifact --prompt "<question>"` attaches a research worker to a Task without a milestone. Unknown plan: 404 `PLAN_NOT_FOUND`; plan of another project (or no project): 400 `PLAN_PROJECT_MISMATCH`; `--kind orchestrator` or `--standalone`: usage error (the API answers 400 `PLAN_ATTACH_WORKER_ONLY` for an orchestrator). The orchestrator kills research workers with `ao session kill <id>` once their findings are in the plan; the service never does.
+
+Worker env: `AO_PLAN_ID`, `AO_MILESTONE_KEY` (research workers get `AO_PLAN_ID` only).
 
 ## API routes (`/api/v1`)
 
@@ -104,7 +121,7 @@ Worker env: `AO_PLAN_ID`, `AO_MILESTONE_KEY`.
 |---|---|
 | `POST /projects/{projectId}/plans` | Create a Task and send the orchestrator its plan request |
 | `GET /projects/{projectId}/plans` | List a project's Tasks (summaries: phase, kanban column, display status, implement-milestone counts, live sessions, PRs) |
-| `GET /plans/{planId}` | Plan, milestones (with recorded branch, session, PRs), latest 100 events |
+| `GET /plans/{planId}` | Plan, milestones (with recorded branch, session, PRs), `researchSessions` (sessions attached with `ao spawn --plan`: id, displayName, status, branch, ...), latest 100 events |
 | `PATCH /plans/{planId}` | Title, `maxParallel`, `specMarkdown` (spec only while planning) |
 | `POST /plans/{planId}/milestones` | Add a milestone (planning only) |
 | `PATCH /plans/{planId}/milestones/{key}` | Edit a milestone (planning only) |
@@ -115,7 +132,7 @@ Worker env: `AO_PLAN_ID`, `AO_MILESTONE_KEY`.
 | `POST /plans/{planId}/qa-result` | QA verdict (only the plan's current QA session) |
 | `GET /plans/{planId}/events` | Activity log, oldest first (paged) |
 
-Also: `POST /reports` accepts `branch`; session views carry `planId`, `planMilestoneId`, `sparsePaths`; SSE emits `plan_updated`.
+Also: `POST /sessions` accepts `planId`; `POST /reports` accepts `branch`; session views carry `planId`, `planMilestoneId`, `sparsePaths`; SSE emits `plan_updated`.
 
 ## Config
 
@@ -194,3 +211,7 @@ Stop it by killing the `Electron.app/.../MacOS/Electron` main process (killing f
 5. Workers report done; dependents start with the recorded branches merged; QA merges everything, tests, and records its verdict. A fail routes back to the owning worker and QA re-runs.
 6. On pass the card moves to Ready, the plan reads done, and the orchestrator receives `<ao-plan-done>`. Check the QA worktree (`$AO_DATA_DIR/worktrees/<project>/<qa-session>`) contains every milestone's commits.
 7. Exercise Actions: Re-run QA, Show spec, Cancel plan (confirm dialog). Have a worker `ao report --stuck --note …` and confirm the orchestrator receives `<ao-milestone-blocked>` once.
+
+## Orchestrator notices
+
+`<ao-plan-done>` leads with `QA branch: <branch>`, the branch QA merged every milestone into and verified, resolved like a milestone's work branch (the QA worktree's checked-out branch, else the QA session's recorded branch marked `(unresolved: …)`, else `QA branch: (unresolved; ask the QA session …)`). The notice and the orchestrator prompt tell it to hand the human the QA branch as the combined result, with the milestone branches and PR links beneath it. `<ao-milestone-blocked>` and `<ao-milestone-failed>` are unchanged.
