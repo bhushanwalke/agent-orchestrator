@@ -260,7 +260,7 @@ func TestCreateValidation(t *testing.T) {
 		{plan.CreateInput{ProjectID: "mer", Title: strings.Repeat("t", 101), Brief: "b"}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: ""}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: strings.Repeat("b", domain.PlanBriefMaxBytes+1)}, "INVALID_PLAN"},
-		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b", MaxParallel: 11}, "INVALID_PLAN"},
+		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b", MaxParallel: intPtr(11)}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "nope", Title: "t", Brief: "b"}, "PROJECT_NOT_FOUND"},
 	}
 	for _, tc := range cases {
@@ -776,3 +776,50 @@ func TestQADependsOnIsRejectedAndDerivedOnRead(t *testing.T) {
 		t.Fatalf("list = %+v", list)
 	}
 }
+
+func TestCreateMaxParallelExplicitZeroIsInvalid(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	for _, n := range []int{0, 11} {
+		v := n
+		_, err := f.svc.Create(ctx, plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b", MaxParallel: &v})
+		if ae := wantCode(t, err, "INVALID_PLAN"); ae.Details["field"] != "maxParallel" {
+			t.Fatalf("%d: details = %+v", n, ae.Details)
+		}
+	}
+	p, err := f.svc.Create(ctx, plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b"})
+	if err != nil || p.MaxParallel != 3 {
+		t.Fatalf("nil max parallel = %+v err=%v", p, err)
+	}
+}
+
+func TestCancelSetsFinishedAtAndEventNotesCarryTitles(t *testing.T) {
+	f := newFixture(t, domain.ProjectKindSingleRepo)
+	ctx := context.Background()
+	p := createPlan(t, f)
+	if _, err := f.svc.AddMilestone(ctx, p.ID, plan.MilestoneInput{Key: "m1", Title: "Build the API", Description: "x"}); err != nil {
+		t.Fatal(err)
+	}
+	title := "Build the REST API"
+	if _, err := f.svc.UpdateMilestone(ctx, p.ID, "m1", plan.MilestonePatch{Title: &title}); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.svc.RemoveMilestone(ctx, p.ID, "m1"); err != nil {
+		t.Fatal(err)
+	}
+	evs, _ := f.store.ListPlanEvents(ctx, p.ID, 0, 100)
+	notes := map[string]string{}
+	for _, e := range evs {
+		notes[e.Kind] = e.Note
+	}
+	if notes["milestone_added"] != "Build the API" || notes["milestone_updated"] != "Build the REST API" ||
+		notes["milestone_removed"] != "m1: Build the REST API" {
+		t.Fatalf("notes = %+v", notes)
+	}
+	sum, err := f.svc.Cancel(ctx, p.ID)
+	if err != nil || sum.Plan.FinishedAt == nil {
+		t.Fatalf("cancelled plan finishedAt = %v err=%v", sum.Plan.FinishedAt, err)
+	}
+}
+
+func intPtr(n int) *int { return &n }

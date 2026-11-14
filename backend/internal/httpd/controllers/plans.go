@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 
@@ -344,6 +345,7 @@ func writePlanDetail(w http.ResponseWriter, r *http.Request, d plansvc.Detail, e
 
 func decodePlanBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, planBodyLimit))
+	decoder.DisallowUnknownFields()
 	err := decoder.Decode(dst)
 	if err == nil {
 		var trailing any
@@ -359,6 +361,9 @@ func decodePlanBody(w http.ResponseWriter, r *http.Request, dst any) bool {
 	var tooLarge *http.MaxBytesError
 	if errors.As(err, &tooLarge) {
 		envelope.WriteAPIError(w, r, http.StatusRequestEntityTooLarge, "bad_request", "PLAN_BODY_TOO_LARGE", "Plan request body is too large", nil)
+	} else if field, ok := strings.CutPrefix(err.Error(), "json: unknown field "); ok {
+		field = strings.Trim(field, `"`)
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Unknown field "+field, map[string]any{"field": field})
 	} else {
 		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
 	}

@@ -63,11 +63,12 @@ type Deps struct {
 
 // CreateInput is a new plan as the person typed it.
 type CreateInput struct {
-	ProjectID   domain.ProjectID
-	Title       string
-	Brief       string
-	TicketRef   string
-	MaxParallel int
+	ProjectID domain.ProjectID
+	Title     string
+	Brief     string
+	TicketRef string
+	// MaxParallel nil uses DefaultPlanMaxParallel; any value must be 1-10.
+	MaxParallel *int
 }
 
 // Patch edits a plan. Nil fields are left alone.

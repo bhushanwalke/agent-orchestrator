@@ -7083,8 +7083,8 @@ export interface components {
         CreatePlanRequest: {
             /** @description The ticket text as pasted, at most 100 KiB. */
             brief: string;
-            /** @description Most implementation workers running at once. Defaults to 3. */
-            maxParallel?: number;
+            /** @description Most implementation workers running at once. Defaults to 3 when omitted. */
+            maxParallel?: null | number;
             /** @description Display-only ticket link or reference. */
             ticketRef?: string;
             /** @description Task title, 1-100 characters. */

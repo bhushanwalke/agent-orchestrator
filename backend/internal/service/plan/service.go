@@ -119,9 +119,9 @@ func (s *Service) Create(ctx context.Context, in CreateInput) (domain.Plan, erro
 	if len(ticket) > TicketRefMaxBytes {
 		return domain.Plan{}, invalidPlan("ticketRef", fmt.Sprintf("Ticket reference must be at most %d bytes", TicketRefMaxBytes))
 	}
-	maxParallel := in.MaxParallel
-	if maxParallel == 0 {
-		maxParallel = domain.DefaultPlanMaxParallel
+	maxParallel := domain.DefaultPlanMaxParallel
+	if in.MaxParallel != nil {
+		maxParallel = *in.MaxParallel
 	}
 	if err := validateMaxParallel(maxParallel); err != nil {
 		return domain.Plan{}, err
@@ -444,7 +444,7 @@ func (s *Service) AddMilestone(ctx context.Context, id domain.PlanID, in Milesto
 	if err := s.store.SetMilestoneDeps(ctx, m.ID, depIDs(m.DependsOn, ms)); err != nil {
 		return domain.Milestone{}, err
 	}
-	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneAdded, m.Key)
+	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneAdded, m.Title)
 	s.touchPlan(ctx, p.ID)
 	return withDerivedQADeps(m, append(ms, m)), nil
 }
@@ -523,7 +523,7 @@ func (s *Service) UpdateMilestone(ctx context.Context, id domain.PlanID, key str
 			return domain.Milestone{}, err
 		}
 	}
-	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneUpdated, m.Key)
+	s.recordEvent(ctx, p.ID, m.ID, "", EventMilestoneUpdated, m.Title)
 	s.touchPlan(ctx, p.ID)
 	return withDerivedQADeps(m, append(others, m)), nil
 }
@@ -561,7 +561,7 @@ func (s *Service) RemoveMilestone(ctx context.Context, id domain.PlanID, key str
 	if err := s.store.DeleteMilestone(ctx, ms[idx].ID); err != nil {
 		return err
 	}
-	s.recordEvent(ctx, p.ID, "", "", EventMilestoneRemoved, key)
+	s.recordEvent(ctx, p.ID, "", "", EventMilestoneRemoved, key+": "+ms[idx].Title)
 	s.touchPlan(ctx, p.ID)
 	return nil
 }
@@ -619,7 +619,7 @@ func (s *Service) activateLocked(ctx context.Context, id domain.PlanID) (domain.
 		if err := s.store.InsertMilestone(ctx, *qa); err != nil {
 			return domain.Plan{}, storeError(err)
 		}
-		s.recordEvent(ctx, p.ID, qa.ID, "", EventMilestoneAdded, qa.Key)
+		s.recordEvent(ctx, p.ID, qa.ID, "", EventMilestoneAdded, qa.Title)
 	}
 	for _, m := range ms {
 		if m.Status == domain.MilestoneStatusPending {
@@ -682,6 +682,7 @@ func (s *Service) cancelLocked(ctx context.Context, id domain.PlanID) (domain.Pl
 	}
 	p, err = s.mutatePlan(ctx, p.ID, func(p *domain.Plan) error {
 		p.State = domain.PlanStateCancelled
+		p.FinishedAt = &now
 		return nil
 	})
 	if err != nil {

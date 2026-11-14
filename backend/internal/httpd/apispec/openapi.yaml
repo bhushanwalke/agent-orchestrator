@@ -20804,10 +20804,13 @@ components:
           description: The ticket text as pasted, at most 100 KiB.
           type: string
         maxParallel:
-          description: Most implementation workers running at once. Defaults to 3.
+          description: Most implementation workers running at once. Defaults to 3
+            when omitted.
           maximum: 10
           minimum: 1
-          type: integer
+          type:
+          - "null"
+          - integer
         ticketRef:
           description: Display-only ticket link or reference.
           type: string

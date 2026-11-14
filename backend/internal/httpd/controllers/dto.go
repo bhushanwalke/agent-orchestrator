@@ -4746,7 +4746,7 @@ type CreatePlanRequest struct {
 	Title       string `json:"title" description:"Task title, 1-100 characters."`
 	Brief       string `json:"brief" description:"The ticket text as pasted, at most 100 KiB."`
 	TicketRef   string `json:"ticketRef,omitempty" description:"Display-only ticket link or reference."`
-	MaxParallel int    `json:"maxParallel,omitempty" minimum:"1" maximum:"10" description:"Most implementation workers running at once. Defaults to 3."`
+	MaxParallel *int   `json:"maxParallel,omitempty" minimum:"1" maximum:"10" description:"Most implementation workers running at once. Defaults to 3 when omitted."`
 }
 
 // PlanPatchRequest is the body of PATCH /api/v1/plans/{planId}. Title and

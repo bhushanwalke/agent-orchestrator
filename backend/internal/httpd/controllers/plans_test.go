@@ -163,7 +163,8 @@ func TestPlansAPI_CreateReturns201WithPlan(t *testing.T) {
 	if status != http.StatusCreated {
 		t.Fatalf("status = %d body=%s", status, body)
 	}
-	if svc.gotCreate != (plansvc.CreateInput{ProjectID: "mer", Title: "Demo", Brief: "Add X", TicketRef: "github:o/r#1", MaxParallel: 2}) {
+	if in := svc.gotCreate; in.ProjectID != "mer" || in.Title != "Demo" || in.Brief != "Add X" || in.TicketRef != "github:o/r#1" ||
+		in.MaxParallel == nil || *in.MaxParallel != 2 {
 		t.Fatalf("create input = %+v", svc.gotCreate)
 	}
 	var resp struct {
@@ -365,5 +366,24 @@ func TestPlansAPI_PatchAcceptsLargeSpec(t *testing.T) {
 	mustJSON(t, body, &env)
 	if env.Plan.DisplayStatus != "Implementing 0/1" || env.Plan.MilestoneCounts.Total != 2 || len(env.Plan.LiveSessions) != 1 {
 		t.Fatalf("patch response derived fields = %+v", env.Plan.PlanSummary)
+	}
+}
+
+func TestPlansAPI_CreateMaxParallelPointerAndUnknownFields(t *testing.T) {
+	p := samplePlanDomain()
+	svc := &fakePlanService{plan: p}
+	srv := newPlanTestServer(t, svc)
+	if _, status, _ := doRequest(t, srv, "POST", "/api/v1/projects/mer/plans", `{"title":"t","brief":"b","maxParallel":0}`); status != http.StatusCreated ||
+		svc.gotCreate.MaxParallel == nil || *svc.gotCreate.MaxParallel != 0 {
+		t.Fatalf("explicit 0 must reach the service: status=%d in=%+v", status, svc.gotCreate)
+	}
+	if _, status, _ := doRequest(t, srv, "POST", "/api/v1/projects/mer/plans", `{"title":"t","brief":"b"}`); status != http.StatusCreated ||
+		svc.gotCreate.MaxParallel != nil {
+		t.Fatalf("omitted maxParallel must be nil: status=%d in=%+v", status, svc.gotCreate)
+	}
+	body, status, _ := doRequest(t, srv, "POST", "/api/v1/plans/plan_1/milestones", `{"key":"m1","title":"t","description":"d","dependencies":["x"]}`)
+	assertErrorCode(t, body, status, http.StatusBadRequest, "INVALID_JSON")
+	if !strings.Contains(string(body), "dependencies") {
+		t.Fatalf("unknown field not named: %s", body)
 	}
 }
