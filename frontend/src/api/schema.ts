@@ -7706,6 +7706,7 @@ export interface components {
         };
         MilestoneResponse: {
             attempt: number;
+            /** @description The branch holding the milestone's work: the one recorded when it reported done, else its session's branch. */
             branch: string;
             /** Format: date-time */
             createdAt: string;

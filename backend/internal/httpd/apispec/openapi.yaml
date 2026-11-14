@@ -22483,6 +22483,8 @@ components:
         attempt:
           type: integer
         branch:
+          description: 'The branch holding the milestone''s work: the one recorded
+            when it reported done, else its session''s branch.'
           type: string
         createdAt:
           format: date-time

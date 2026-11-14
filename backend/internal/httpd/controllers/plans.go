@@ -478,6 +478,7 @@ func milestoneResponse(v plansvc.MilestoneView) MilestoneResponse {
 		QAVerdict:   string(m.QAVerdict),
 		QANote:      m.QANote,
 		Attempt:     m.Attempt,
+		Branch:      m.Branch,
 		PRs:         []SessionPRFacts{},
 		CreatedAt:   m.CreatedAt,
 		UpdatedAt:   m.UpdatedAt,
@@ -487,7 +488,10 @@ func milestoneResponse(v plansvc.MilestoneView) MilestoneResponse {
 	if v.Session != nil {
 		summary := planSessionSummary(*v.Session)
 		resp.Session = &summary
-		resp.Branch = v.Session.Metadata.Branch
+		// Before the milestone's work reports done, its branch is the session's.
+		if resp.Branch == "" {
+			resp.Branch = v.Session.Metadata.Branch
+		}
 		resp.PRs = sessionPRFacts(v.Session.PRs)
 	}
 	return resp

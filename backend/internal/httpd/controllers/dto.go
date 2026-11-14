@@ -4851,7 +4851,7 @@ type MilestoneResponse struct {
 	QANote      string              `json:"qaNote"`
 	Attempt     int                 `json:"attempt"`
 	Session     *PlanSessionSummary `json:"session,omitempty"`
-	Branch      string              `json:"branch"`
+	Branch      string              `json:"branch" description:"The branch holding the milestone's work: the one recorded when it reported done, else its session's branch."`
 	PRs         []SessionPRFacts    `json:"prs"`
 	CreatedAt   time.Time           `json:"createdAt"`
 	UpdatedAt   time.Time           `json:"updatedAt"`
