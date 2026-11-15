@@ -5043,6 +5043,7 @@
 	"plan.events.viewAll": "Ver todos",
 	"plan.events.kind.plan_created": "Tarefa criada",
 	"plan.events.kind.kickoff_sent": "Planejamento pedido ao orchestrator",
+	"plan.events.kind.kickoff_sent_auto": "Orchestrator solicitado a decidir",
 	"plan.events.kind.kickoff_deferred": "Aguardando o orchestrator",
 	"plan.events.kind.spec_set": "Plano escrito",
 	"plan.events.kind.milestone_added": "{{title}} adicionado",

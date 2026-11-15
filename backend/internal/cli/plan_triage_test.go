@@ -136,3 +136,9 @@ func TestPlanTriageLine(t *testing.T) {
 		t.Fatalf("direct line = %q", got)
 	}
 }
+
+func TestPlanTriageLineForATaskCancelledWhileDeciding(t *testing.T) {
+	if got := planTriageLine(planDTO{ID: "plan_1", IntakeMode: "auto", State: "cancelled"}); got != "triage: cancelled before a decision" {
+		t.Fatalf("cancelled-in-triage line = %q", got)
+	}
+}

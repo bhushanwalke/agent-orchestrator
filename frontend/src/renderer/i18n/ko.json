@@ -4923,6 +4923,7 @@
 	"plan.events.viewAll": "모두 보기",
 	"plan.events.kind.plan_created": "작업 생성됨",
 	"plan.events.kind.kickoff_sent": "오케스트레이터에 계획 요청",
+	"plan.events.kind.kickoff_sent_auto": "오케스트레이터에 결정 요청",
 	"plan.events.kind.kickoff_deferred": "오케스트레이터 대기 중",
 	"plan.events.kind.spec_set": "계획 작성됨",
 	"plan.events.kind.milestone_added": "{{title}} 추가됨",

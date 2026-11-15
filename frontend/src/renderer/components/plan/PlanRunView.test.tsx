@@ -317,6 +317,14 @@ describe("PlanRunView triage", () => {
 		expect(screen.queryByRole("menuitem", { name: "Send to one worker" })).toBeNull();
 	});
 
+	it("says the orchestrator was asked to decide, not to plan, for an auto Task", () => {
+		planMock.mockReturnValue(triageDetail({}, [
+			{ id: 4, kind: "kickoff_sent", milestoneKey: "", sessionId: "orch-1", note: "", createdAt: "2026-01-01T00:01:00Z" },
+		]));
+		renderView();
+		expect(screen.getAllByTestId("plan-event")[0]).toHaveTextContent(/^Orchestrator asked to decide/);
+	});
+
 	it("names the triage events in sentence case", () => {
 		planMock.mockReturnValue(triageDetail({ triage: { decision: "plan", reason: "API and UI both change", decidedBy: "orchestrator", decidedAt: "2026-01-01T00:02:00Z" } }, [
 			{ id: 6, kind: "direct_spawn_failed", milestoneKey: "", sessionId: "", note: "worktree busy", createdAt: "2026-01-01T00:05:00Z" },

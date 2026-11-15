@@ -4923,6 +4923,7 @@
 	"plan.events.viewAll": "すべて表示",
 	"plan.events.kind.plan_created": "タスクを作成",
 	"plan.events.kind.kickoff_sent": "オーケストレーターに計画を依頼",
+	"plan.events.kind.kickoff_sent_auto": "オーケストレーターに判断を依頼",
 	"plan.events.kind.kickoff_deferred": "オーケストレーターを待機中",
 	"plan.events.kind.spec_set": "計画を作成",
 	"plan.events.kind.milestone_added": "{{title}} を追加",

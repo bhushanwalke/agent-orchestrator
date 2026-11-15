@@ -207,7 +207,7 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 						selectedKey={selectedKey}
 						sessions={sessions}
 					/>
-					<PlanEvents events={events} milestones={milestones} triage={plan.triage} />
+					<PlanEvents events={events} intakeMode={plan.intakeMode} milestones={milestones} triage={plan.triage} />
 				</aside>
 			</div>
 			<CancelPlanDialog onOpenChange={setCancelOpen} open={cancelOpen} planId={planId} projectId={projectId} title={plan.title} />

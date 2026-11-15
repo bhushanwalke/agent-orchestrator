@@ -4903,6 +4903,7 @@
 	"plan.events.viewAll": "View all",
 	"plan.events.kind.plan_created": "Task created",
 	"plan.events.kind.kickoff_sent": "Orchestrator asked to plan",
+	"plan.events.kind.kickoff_sent_auto": "Orchestrator asked to decide",
 	"plan.events.kind.kickoff_deferred": "Waiting for the orchestrator",
 	"plan.events.kind.spec_set": "Plan written",
 	"plan.events.kind.milestone_added": "{{title}} added",

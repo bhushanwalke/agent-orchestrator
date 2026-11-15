@@ -5043,6 +5043,7 @@
 	"plan.events.viewAll": "Ver todos",
 	"plan.events.kind.plan_created": "Tarea creada",
 	"plan.events.kind.kickoff_sent": "Se pidió al orquestador que planifique",
+	"plan.events.kind.kickoff_sent_auto": "Se pidió al orquestador que decida",
 	"plan.events.kind.kickoff_deferred": "Esperando al orquestador",
 	"plan.events.kind.spec_set": "Plan redactado",
 	"plan.events.kind.milestone_added": "{{title}} añadido",

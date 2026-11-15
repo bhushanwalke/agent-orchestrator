@@ -35,7 +35,7 @@ const knownKinds = new Set([
 ]);
 
 /** The Task's latest events, newest first (the daemon's order). */
-export function PlanEvents({ events, milestones, triage }: { events: readonly PlanEvent[]; milestones: readonly PlanMilestone[]; triage?: Plan["triage"] }) {
+export function PlanEvents({ events, milestones, triage, intakeMode }: { events: readonly PlanEvent[]; milestones: readonly PlanMilestone[]; triage?: Plan["triage"]; intakeMode?: Plan["intakeMode"] }) {
 	const { t, i18n } = useTranslation();
 	const [all, setAll] = useState(false);
 	const titles = new Map(milestones.map((m) => [m.key, m.title]));
@@ -55,6 +55,8 @@ export function PlanEvents({ events, milestones, triage }: { events: readonly Pl
 			if (!reason) return { phrase: t(decision === "direct" ? "plan.events.triage.direct" : "plan.events.triage.plan"), title: "" };
 			return { phrase: t(decision === "direct" ? "plan.events.triage.directReason" : "plan.events.triage.planReason", slot), title: reason };
 		}
+		// An auto Task's kickoff asks the orchestrator to decide how to run it.
+		if (event.kind === "kickoff_sent" && intakeMode === "auto") return { phrase: t("plan.events.kind.kickoff_sent_auto"), title: "" };
 		if (event.kind === "direct_spawn_failed") return { phrase: t("plan.events.kind.direct_spawn_failed", slot), title: event.note };
 		const title = titles.get(event.milestoneKey) ?? event.milestoneKey;
 		const phrase = knownKinds.has(event.kind)

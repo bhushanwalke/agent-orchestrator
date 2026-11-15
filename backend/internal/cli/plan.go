@@ -380,6 +380,9 @@ func planTriageLine(p planDTO) string {
 	if p.IntakeMode != "auto" {
 		return ""
 	}
+	if p.Triage == nil && p.State == "cancelled" {
+		return "triage: cancelled before a decision"
+	}
 	if p.Triage == nil {
 		return "triage: waiting for the orchestrator to decide (ao plan triage " + p.ID + " --plan|--direct)"
 	}

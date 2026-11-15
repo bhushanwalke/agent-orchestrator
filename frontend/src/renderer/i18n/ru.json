@@ -5155,6 +5155,7 @@
 	"plan.events.viewAll": "Показать все",
 	"plan.events.kind.plan_created": "Задача создана",
 	"plan.events.kind.kickoff_sent": "Оркестратор получил запрос на план",
+	"plan.events.kind.kickoff_sent_auto": "Оркестратору поручено решить",
 	"plan.events.kind.kickoff_deferred": "Ожидание оркестратора",
 	"plan.events.kind.spec_set": "План написан",
 	"plan.events.kind.milestone_added": "{{title}}: добавлен",

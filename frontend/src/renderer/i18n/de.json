@@ -4923,6 +4923,7 @@
 	"plan.events.viewAll": "Alle anzeigen",
 	"plan.events.kind.plan_created": "Aufgabe erstellt",
 	"plan.events.kind.kickoff_sent": "Orchestrator um Planung gebeten",
+	"plan.events.kind.kickoff_sent_auto": "Orchestrator um Entscheidung gebeten",
 	"plan.events.kind.kickoff_deferred": "Wartet auf den Orchestrator",
 	"plan.events.kind.spec_set": "Plan geschrieben",
 	"plan.events.kind.milestone_added": "{{title}} hinzugefügt",

@@ -4905,6 +4905,7 @@
 	"plan.events.viewAll": "查看全部",
 	"plan.events.kind.plan_created": "任务已创建",
 	"plan.events.kind.kickoff_sent": "已请编排器规划",
+	"plan.events.kind.kickoff_sent_auto": "已请编排器做出决定",
 	"plan.events.kind.kickoff_deferred": "正在等待编排器",
 	"plan.events.kind.spec_set": "计划已写好",
 	"plan.events.kind.milestone_added": "已添加 {{title}}",

@@ -165,7 +165,8 @@ func (s *Service) triageReminder(ctx context.Context, p domain.Plan) error {
 		return nil
 	}
 	if err := s.sessions.Send(ctx, p.OrchestratorSessionID, planTriageReminderMessage(p), ports.MessageDeliveryOptions{}); err != nil {
-		s.logger.Info("plan triage reminder refused", "plan", p.ID, "error", err)
+		// Retried every tick while the orchestrator's controller is down.
+		s.logger.Debug("plan triage reminder refused", "plan", p.ID, "error", err)
 		return nil
 	}
 	s.mu.Lock()
