@@ -86,6 +86,11 @@ var boardStates = map[string]func() boardCase{
 	"merged PR": func() boardCase {
 		return boardCase{rec: boardWorker(domain.ActivityIdle, 1), provider: true, prs: []domain.PRFacts{{URL: "https://github.com/o/r/pull/1", Merged: true}}}
 	},
+	"accepted": func() boardCase {
+		rec := boardWorker(domain.ActivityIdle, 2)
+		rec.BoardRequest = domain.BoardRequestAccepted
+		return boardCase{rec: rec}
+	},
 	"draft PR": func() boardCase {
 		rec := boardWorker(domain.ActivityIdle, 1)
 		return boardCase{rec: rec, provider: true, prs: []domain.PRFacts{{URL: "https://github.com/o/r/pull/1", Draft: true}}}
@@ -129,6 +134,7 @@ func TestBoardMoveStartingStatesPlaceAsExpected(t *testing.T) {
 		"needs_you by request":     {domain.KanbanNeedsYou, domain.KanbanBuilding},
 		"draft PR":                 {domain.KanbanValidating, domain.KanbanValidating},
 		"merged PR":                {domain.KanbanReady, domain.KanbanReady},
+		"accepted":                 {domain.KanbanReady, domain.KanbanBuilding},
 	}
 	for name, state := range boardStates {
 		svc, _, _, _ := newBoardService(state())
@@ -217,6 +223,9 @@ func TestBoardMoveMatrix(t *testing.T) {
 
 		{"draft PR", domain.KanbanNeedsReview, outcome{refusal: "pr_is_draft"}},
 		{"merged PR", domain.KanbanValidating, outcome{refusal: "pr_decides_ready"}},
+		// R33: dropping accepted work on Building takes the acceptance back.
+		{"accepted", domain.KanbanBuilding, outcome{}},
+		{"accepted", domain.KanbanReady, outcome{refusal: "already_there", request: domain.BoardRequestAccepted}},
 		{"draft PR", domain.KanbanValidating, outcome{refusal: "already_there"}},
 	}
 	for _, tc := range cases {

@@ -48,6 +48,12 @@ describe("predictBoardMoveRefusal", () => {
 		expect(predictBoardMoveRefusal({ kind: "session", session: session({ prs: [pr("open")] }) }, "ready")).toBe("pr_decides_ready");
 	});
 
+	it("lets accepted work go back to its facts from Building", () => {
+		const accepted = { kind: "session" as const, session: session({ kanbanColumn: "ready", kanbanStage: "building", displayStatus: "Accepted" }) };
+		expect(predictBoardMoveRefusal(accepted, "building")).toBeNull();
+		expect(predictBoardMoveRefusal(accepted, "ready")).toBe("already_there");
+	});
+
 	it("lets a paused card go back to work", () => {
 		const paused = { kind: "session" as const, session: session({ kanbanColumn: "needs_you", kanbanStage: "validating", displayStatus: "Paused for you", prs: [pr("open")] }) };
 		expect(predictBoardMoveRefusal(paused, "building")).toBeNull();

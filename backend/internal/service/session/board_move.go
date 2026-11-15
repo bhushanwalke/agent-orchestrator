@@ -54,6 +54,12 @@ func (s *Service) BoardMove(ctx context.Context, id domain.SessionID, to domain.
 		return domain.Session{}, boardMoveRefused(plan.refusal)
 	}
 	now := s.now()
+	if plan.unaccept {
+		if _, err := writer.SetSessionBoardRequest(ctx, id, domain.BoardRequestNone, now); err != nil {
+			return domain.Session{}, err
+		}
+		return s.Get(ctx, id)
+	}
 	if plan.release {
 		if _, err := writer.SetSessionBoardRequest(ctx, id, domain.BoardRequestNone, now); err != nil {
 			return domain.Session{}, err
@@ -97,6 +103,9 @@ type sessionMovePlan struct {
 	// continue; releaseOnly means that is the whole move.
 	release     bool
 	releaseOnly bool
+	// unaccept clears the person's accepted request: the card goes back to
+	// where its facts put it.
+	unaccept bool
 }
 
 func planSessionMove(sess domain.Session, to domain.KanbanColumn, hasPRProvider bool) sessionMovePlan {
@@ -110,6 +119,9 @@ func planSessionMove(sess domain.Session, to domain.KanbanColumn, hasPRProvider 
 	// the plain release whatever the stage, since the card goes back to it.
 	if paused && (to == stage || to == domain.KanbanBuilding) {
 		return sessionMovePlan{release: true, releaseOnly: true}
+	}
+	if sess.BoardRequest == domain.BoardRequestAccepted && from == domain.KanbanReady && to == domain.KanbanBuilding {
+		return sessionMovePlan{unaccept: true}
 	}
 	live := livePRs(sess.PRs)
 	switch to {

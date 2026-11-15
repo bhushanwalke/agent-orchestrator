@@ -373,3 +373,4 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R30 The card has no ⋯ button; its menu is the right-click/context-menu (Shift+F10 on the focused card), which gains "Move to". Space on the focused card starts a keyboard drag; Left/Right step between lane centres; Enter still opens the card.
 - R31 An automation card's next run is an absolute short date and time (as the Automations page shows it), not the card's relative `formatTime`, which reads future times badly.
 - R32 Moves are offered on this machine's boards only: not on another host's board, a shared project, or a cloud project or session.
+- R33 (coordinator) An accepted session dropped on Building clears its `accepted` request with no notice to the agent, and the card returns to where its facts put it, as dragging out of Needs you clears `attention`. Every other drop of an accepted card follows the ordinary rules (Ready is `already_there`).

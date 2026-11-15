@@ -35,6 +35,21 @@ func TestSessionMovePostsTheLaneAndPrintsTheStage(t *testing.T) {
 	}
 }
 
+func TestSessionMoveTakesAnAcceptanceBack(t *testing.T) {
+	reqs, out, err := runBoardCLI(t, map[string]cliRoute{
+		"POST /api/v1/sessions/demo-3/board-move": {http.StatusOK, `{"session":{"id":"demo-3","kanbanColumn":"needs_you","kanbanStage":"building","displayStatus":"Awaiting review"}}`},
+	}, "session", "move", "demo-3", "--to", "building")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(reqs) != 1 || reqs[0].Body["to"] != "building" {
+		t.Fatalf("requests = %+v", reqs)
+	}
+	if out != "session demo-3 is in needs_you (building): Awaiting review\n" {
+		t.Fatalf("output = %q", out)
+	}
+}
+
 func TestSessionMovePrintsTheDaemonRefusal(t *testing.T) {
 	_, _, err := runBoardCLI(t, map[string]cliRoute{
 		"POST /api/v1/sessions/demo-3/board-move": {http.StatusConflict, `{"error":"conflict","code":"BOARD_MOVE_UNSUPPORTED","message":"This project has no pull request provider, so there is nothing to validate.","details":{"reason":"no_pr_provider"}}`},

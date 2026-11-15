@@ -61,6 +61,8 @@ function predictSessionRefusal(session: WorkspaceSession, to: BoardMoveLane): Bo
 	const stage = session.kanbanStage ?? column;
 	const paused = column === "needs_you" && session.displayStatus === "Paused for you";
 	if (paused && (to === stage || to === "building")) return null;
+	// Accepted work dropped on Building takes the acceptance back (R33).
+	if (column === "ready" && session.displayStatus === "Accepted" && to === "building") return null;
 	const prs = session.prs ?? [];
 	const live = prs.filter((pr) => pr.state === "open" || pr.state === "draft");
 	switch (to) {
