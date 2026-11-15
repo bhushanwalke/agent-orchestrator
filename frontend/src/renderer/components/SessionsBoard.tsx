@@ -449,7 +449,7 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 						offer={projectId && !hostId ? <ProjectImportOffer className="mt-8 w-full text-left" projectId={projectId} /> : null}
 					/>
 				) : movesEnabled ? (
-					<BoardDndArea onMove={(subject, to) => void boardMove.move(subject, to)} onRefuse={boardMove.refuse}>
+					<BoardDndArea onMove={(subject, to) => boardMove.move(subject, to)} onRefuse={boardMove.refuse}>
 						{(laneState) => boardGrid(laneState)}
 					</BoardDndArea>
 				) : (

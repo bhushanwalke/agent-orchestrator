@@ -89,7 +89,7 @@ export function BoardDndArea({
 	onRefuse,
 }: {
 	children: (laneState: (column: KanbanColumn) => BoardLaneState | undefined) => ReactNode;
-	onMove: (subject: BoardMoveSubject, to: BoardMoveLane) => void;
+	onMove: (subject: BoardMoveSubject, to: BoardMoveLane) => Promise<void> | void;
 	onRefuse: (reason: NonNullable<ReturnType<typeof predictBoardMoveRefusal>>) => void;
 }) {
 	const { t } = useTranslation();
@@ -124,18 +124,32 @@ export function BoardDndArea({
 		setActive((event.active.data.current as BoardDragItem | undefined) ?? null);
 	}, []);
 	const onDragEnd = useCallback((event: DragEndEvent) => {
-		lastDragEnd = Date.now();
+		// Only a pointer drag is followed by a stray click.
+		if (!(event.activatorEvent instanceof KeyboardEvent)) lastDragEnd = Date.now();
 		setActive(null);
 		const item = event.active.data.current as BoardDragItem | undefined;
+		// A keyboard drag keeps focus on its card, wherever the card lands.
+		const refocus = () => {
+			if (item && event.activatorEvent instanceof KeyboardEvent) requestAnimationFrame(() => focusBoardCard(subjectId(item.subject)));
+		};
 		const to = event.over?.id;
-		if (!item || !isBoardMoveLane(to)) return;
+		if (!item || !isBoardMoveLane(to)) return refocus();
 		const refusal = predictBoardMoveRefusal(item.subject, to);
-		if (refusal === "already_there" && to === currentLane(item.subject)) return;
-		if (refusal) onRefuse(refusal);
-		else onMove(item.subject, to);
+		if (refusal === "already_there" && to === currentLane(item.subject)) return refocus();
+		if (refusal) {
+			onRefuse(refusal);
+			refocus();
+			return;
+		}
+		void Promise.resolve(onMove(item.subject, to)).then(refocus);
 	}, [onMove, onRefuse]);
 	return (
-		<DndContext accessibility={accessibility} collisionDetection={laneCollision} onDragCancel={() => { lastDragEnd = Date.now(); setActive(null); }} onDragEnd={onDragEnd} onDragStart={onDragStart} sensors={sensors}>
+		<DndContext accessibility={accessibility} collisionDetection={laneCollision} onDragCancel={(event) => {
+			if (!(event.activatorEvent instanceof KeyboardEvent)) lastDragEnd = Date.now();
+			setActive(null);
+			const item = event.active.data.current as BoardDragItem | undefined;
+			if (item && event.activatorEvent instanceof KeyboardEvent) requestAnimationFrame(() => focusBoardCard(subjectId(item.subject)));
+		}} onDragEnd={onDragEnd} onDragStart={onDragStart} sensors={sensors}>
 			<BoardLanes active={active}>{children}</BoardLanes>
 			<DragOverlay dropAnimation={null}>
 				{active ? (
@@ -214,6 +228,12 @@ export function useCardMenuKeyboard() {
 			clientX: rect.left + 16,
 			clientY: rect.top + 16,
 		}));
+		// A menu opened at a point takes focus from whatever item is under the
+		// resting mouse; from the keyboard it starts on its first item.
+		requestAnimationFrame(() => {
+			const menu = document.querySelector<HTMLElement>('[role="menu"][data-state="open"]');
+			menu?.querySelector<HTMLElement>('[role="menuitem"]:not([data-disabled])')?.focus();
+		});
 	}, []);
 	const onCloseAutoFocus = useCallback((event: Event) => {
 		const button = triggerRef.current?.querySelector<HTMLElement>("[data-board-card-open]");

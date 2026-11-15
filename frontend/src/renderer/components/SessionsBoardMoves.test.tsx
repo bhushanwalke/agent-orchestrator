@@ -198,6 +198,8 @@ describe("SessionsBoard moves", () => {
 		const open = within(lane("Needs you")).getByRole("button", { name: "finished work" });
 		open.focus();
 		fireEvent.keyDown(open, { key: "F10", shiftKey: true });
+		// From the keyboard the menu starts on its first item.
+		await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole("menuitem").find((item) => !item.hasAttribute("data-disabled"))));
 		fireEvent.click(await screen.findByTestId("board-move-to"));
 		fireEvent.keyDown(screen.getByTestId("board-move-to"), { key: "ArrowRight" });
 		const validating = await screen.findByRole("menuitem", { name: /^Validating/ });
@@ -210,6 +212,21 @@ describe("SessionsBoard moves", () => {
 
 		fireEvent.keyDown(open, { key: "ContextMenu" });
 		expect(await screen.findByTestId("board-move-to")).toBeInTheDocument();
+		await waitFor(() => expect(document.activeElement).toBe(screen.getAllByRole("menuitem").find((item) => !item.hasAttribute("data-disabled"))));
+	});
+
+	it("keeps focus on a card after a keyboard drag", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace([worker({ id: "s1", title: "worker one" })])], isError: false, isSuccess: true });
+		renderBoard();
+		const open = within(lane("Building")).getByRole("button", { name: "worker one" });
+		open.focus();
+		fireEvent.keyDown(open, { code: "Space", key: " " });
+		// The drag really started: its preview is up.
+		expect(await screen.findByTestId("board-drag-preview")).toHaveTextContent("worker one");
+		fireEvent.keyDown(document.activeElement ?? document.body, { code: "Space", key: " " });
+		await waitFor(() => expect(screen.queryByTestId("board-drag-preview")).toBeNull());
+		await waitFor(() => expect(document.activeElement).toBe(within(lane("Building")).getByRole("button", { name: "worker one" })));
+		expect(postMock).not.toHaveBeenCalled();
 	});
 
 	it("runs an automation now from its card's menu", async () => {
