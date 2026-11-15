@@ -53,6 +53,63 @@ const progressLabels: BoardPullRequestLabels = {
 };
 
 describe("SessionsBoardView", () => {
+	it("names the stage before the reason on a Needs you card", () => {
+		render(<SessionCardView externalLink={ExternalLink}
+			labels={{ formatTime: () => "now", intakeIssue: (id) => id, pr: progressLabels, updatedAt: (at) => at }}
+			renderAvatar={() => null}
+			session={{ ...baseSession, kanbanColumn: "needs_you", kanbanStage: "needs_review", displayStatus: "Changes requested" }} />);
+		expect(screen.getByTestId("session-status")).toHaveTextContent("In review · Changes requested");
+		expect(screen.getByTestId("session-status-stage")).toHaveClass("text-muted-foreground");
+	});
+
+	it("names no stage outside Needs you", () => {
+		render(<SessionCardView externalLink={ExternalLink}
+			labels={{ formatTime: () => "now", intakeIssue: (id) => id, pr: progressLabels, updatedAt: (at) => at }}
+			renderAvatar={() => null}
+			session={{ ...baseSession, kanbanColumn: "needs_review", kanbanStage: "needs_review", displayStatus: "Commented" }} />);
+		expect(screen.queryByTestId("session-status-stage")).not.toBeInTheDocument();
+	});
+
+	it("spins the status slot while a move is on its way", () => {
+		render(<SessionCardView externalLink={ExternalLink}
+			labels={{ formatTime: () => "now", intakeIssue: (id) => id, pr: progressLabels, updatedAt: (at) => at }}
+			renderAvatar={() => null}
+			session={{ ...baseSession, displayStatus: "Idle", pending: true }} />);
+		expect(screen.getByTestId("session-status").querySelector(".animate-spin")).not.toBeNull();
+	});
+
+	it("shows empty-lane hints and, while dragging, dims a refusing lane with its reason", () => {
+		const columns = boardKanbanColumnOrder.map((column) => getKanbanColumnView(column));
+		const { rerender } = render(
+			<SessionsBoardGridView
+				columns={columns}
+				labels={{ ...columnLabels, emptyLane: (column) => column === "queued" ? "Nothing waiting to start." : column === "needs_you" ? "Nothing needs you." : undefined }}
+				renderSessionCard={(session) => <div>{session.title}</div>}
+				sessions={[baseSession]}
+			/>,
+		);
+		const queue = screen.getByRole("region", { name: "In queue sessions" });
+		expect(within(queue).getByTestId("board-column-hint")).toHaveTextContent("Nothing waiting to start.");
+		expect(within(screen.getByRole("region", { name: "Needs you sessions" })).getByTestId("board-column-hint")).toHaveTextContent("Nothing needs you.");
+		expect(within(screen.getByRole("region", { name: "Building sessions" })).queryByTestId("board-column-hint")).toBeNull();
+
+		rerender(
+			<SessionsBoardGridView
+				columns={columns}
+				labels={columnLabels}
+				laneState={(column) => column === "queued" ? { refusal: "A running session cannot go back to the queue." } : column === "ready" ? { isOver: true } : undefined}
+				renderSessionCard={(session) => <div>{session.title}</div>}
+				sessions={[baseSession]}
+			/>,
+		);
+		const refused = screen.getByRole("region", { name: "In queue sessions" });
+		expect(refused).toHaveAttribute("data-refused", "true");
+		expect(refused).toHaveClass("opacity-50");
+		expect(within(refused).getByTestId("board-column-hint")).toHaveTextContent("A running session cannot go back to the queue.");
+		expect(screen.getByRole("region", { name: "Ready sessions" })).toHaveClass("bg-interactive-hover");
+		expect(screen.getByRole("region", { name: "Building sessions" })).not.toHaveAttribute("data-refused");
+	});
+
 	it.each(["checking", "unavailable"] as const)("withholds provisional activity while %s", (statusReadiness) => {
 		render(<SessionCardView externalLink={ExternalLink}
 			labels={{ formatTime: () => "now", intakeIssue: (id) => id, pr: progressLabels, updatedAt: (at) => at }}

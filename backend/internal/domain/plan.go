@@ -560,8 +560,9 @@ func DerivePlanPhase(plan Plan, ms []Milestone) PlanPhase {
 const TriageReminderAfter = 15 * time.Minute
 
 // DerivePlanKanban places a plan on the board from its phase, its milestones
-// and the person's board request. stage is the lifecycle lane the card would
-// be in without Needs you; it equals the column everywhere else.
+// and the person's board request. stage is the lifecycle lane whenever the
+// column was decided by a board request or by Needs you; otherwise it equals
+// the column.
 func DerivePlanKanban(plan Plan, phase PlanPhase, ms []Milestone, now time.Time) (contract.KanbanColumn, contract.DisplayStatus, contract.KanbanColumn) {
 	switch phase {
 	case PlanPhaseCancelled:
@@ -573,7 +574,7 @@ func DerivePlanKanban(plan Plan, phase PlanPhase, ms []Milestone, now time.Time)
 	stage, status := planLifecycle(phase, ms)
 	switch plan.BoardRequest {
 	case BoardRequestHold:
-		return contract.KanbanQueued, contract.DisplayOnHold, contract.KanbanQueued
+		return contract.KanbanQueued, contract.DisplayOnHold, stage
 	case BoardRequestAttention:
 		return contract.KanbanNeedsYou, contract.DisplayPausedForYou, stage
 	}

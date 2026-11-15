@@ -6,6 +6,8 @@ import { useNavigate } from "@tanstack/react-router";
 import {
 	SessionsBoardGridView,
 	chipTone,
+	type BoardLaneState,
+	type KanbanColumn,
 	largestSession,
 	type ChipTone,
 } from "@aoagents/product-ui";
@@ -69,6 +71,17 @@ import {
 	toBoardPlanPresentation,
 } from "./SessionsBoardAdapters";
 import { usePlansQuery } from "../hooks/usePlans";
+import { useAutomations } from "../hooks/useAutomations";
+import { useBoardMove } from "../hooks/useBoardMove";
+import type { BoardMoveSubject } from "../lib/board-moves";
+import {
+	BoardAutomationCardAdapter,
+	BoardDndArea,
+	BoardDraggable,
+	BoardMoveMenu,
+	isBoardAutomationItem,
+	toBoardAutomationPresentation,
+} from "./BoardMoves";
 
 type SessionsBoardProps = {
 	/** When set, the board shows only this project's sessions. */
@@ -187,8 +200,73 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 				? { ...session, kanbanColumn: "building" as const }
 				: session,
 		);
-	const boardItems = [...boardSessions, ...planItems];
+	// An enabled automation's next run waits in the queue as its own card; a
+	// run in progress is the session or Task it created.
+	const automations = useAutomations(plansEnabled).data;
+	const automationItems = plansEnabled
+		? (automations ?? [])
+			.filter((automation) => automation.projectId === projectId && automation.enabled)
+			.map((automation) => toBoardAutomationPresentation(automation, t("displayStatus.scheduled")))
+		: [];
+	const boardItems = [...boardSessions, ...planItems, ...automationItems];
 	const boardLabels = sessionsBoardLabels(t);
+	// Cards move on this machine's own projects only: not on another host's
+	// board, a shared project, or a cloud project (where Tasks are off too).
+	const movesEnabled = !hostId && !guest && workspace?.kind !== CLOUD_PROJECT_KIND;
+	const boardMove = useBoardMove();
+	type BoardItem = (typeof boardItems)[number];
+	const subjectOf = (item: BoardItem): BoardMoveSubject | undefined => {
+		if (isBoardAutomationItem(item)) return { kind: "automation", automation: item.automationCard };
+		if (isBoardPlanItem(item)) return { kind: "plan", plan: item.planCard };
+		// A cloud session moves on its own project's board, not here.
+		return item.cloud ? undefined : { kind: "session", session: item };
+	};
+	const renderCard = (item: BoardItem) => {
+		const subject = movesEnabled ? subjectOf(item) : undefined;
+		const moveMenu = subject && subject.kind !== "automation"
+			? <BoardMoveMenu onMove={(moved, to) => void boardMove.move(moved, to)} subject={subject} />
+			: undefined;
+		const pending = subject ? boardMove.isPending(subject) : false;
+		const card = isBoardAutomationItem(item) ? (
+			<BoardAutomationCardAdapter
+				item={pending ? { ...item, pending } : item}
+				onRunNow={subject ? () => void boardMove.move(subject, "building") : undefined}
+			/>
+		) : isBoardPlanItem(item) ? (
+			<BoardPlanCardAdapter
+				item={item}
+				moveMenu={moveMenu}
+				onOpen={() => void navigate({ to: "/projects/$projectId/plans/$planId", params: { projectId: item.planCard.projectId, planId: item.planCard.id } })}
+				onOpenOrchestrator={() => void navigate(sessionNavigateTarget(item.planCard.projectId, item.planCard.orchestratorSessionId))}
+				pending={pending}
+			/>
+		) : (
+			<BoardSessionCardAdapter
+				participants={participantsBySession.get(item.id)}
+				me={cloudUserId}
+				memory={memoryBySession?.get(item.id)}
+				memoryTone={chipToneOf(item)}
+				moveMenu={moveMenu}
+				onOpen={() => openSession(item)}
+				onOpenArtifact={(path) => openSessionArtifact(item, path)}
+				onOpenArtifacts={() => openSessionArtifacts(item)}
+				onTerminate={!hostId || connected ? ({ deleteArtifacts }) => terminateSession.mutate({ ...item, deleteArtifacts }) : undefined}
+				pending={pending}
+				session={item}
+			/>
+		);
+		return subject ? <BoardDraggable provider={item.provider} subject={subject} title={item.title}>{card}</BoardDraggable> : card;
+	};
+	const boardGrid = (laneState?: (column: KanbanColumn) => BoardLaneState | undefined) => (
+		<SessionsBoardGridView
+			columns={columns}
+			key={scopeKey}
+			labels={boardLabels}
+			laneState={laneState}
+			renderSessionCard={renderCard}
+			sessions={boardItems}
+		/>
+	);
 	const presentation = useBoardPresentation({
 		projectId,
 		isSuccess: localWorkspaceQuery.isSuccess,
@@ -370,32 +448,12 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 						actions={guest ? null : <ProjectBoardActions actions={projectActions} placement="empty" />}
 						offer={projectId && !hostId ? <ProjectImportOffer className="mt-8 w-full text-left" projectId={projectId} /> : null}
 					/>
+				) : movesEnabled ? (
+					<BoardDndArea onMove={(subject, to) => void boardMove.move(subject, to)} onRefuse={boardMove.refuse}>
+						{(laneState) => boardGrid(laneState)}
+					</BoardDndArea>
 				) : (
-					<SessionsBoardGridView
-						columns={columns}
-						key={scopeKey}
-						labels={boardLabels}
-						renderSessionCard={(session) => isBoardPlanItem(session) ? (
-							<BoardPlanCardAdapter
-								item={session}
-								onOpen={() => void navigate({ to: "/projects/$projectId/plans/$planId", params: { projectId: session.planCard.projectId, planId: session.planCard.id } })}
-								onOpenOrchestrator={() => void navigate(sessionNavigateTarget(session.planCard.projectId, session.planCard.orchestratorSessionId))}
-							/>
-						) : (
-							<BoardSessionCardAdapter
-								participants={participantsBySession.get(session.id)}
-								me={cloudUserId}
-								memory={memoryBySession?.get(session.id)}
-								memoryTone={chipToneOf(session)}
-								onOpen={() => openSession(session)}
-								onOpenArtifact={(path) => openSessionArtifact(session, path)}
-								onOpenArtifacts={() => openSessionArtifacts(session)}
-								onTerminate={!hostId || connected ? ({ deleteArtifacts }) => terminateSession.mutate({ ...session, deleteArtifacts }) : undefined}
-								session={session}
-							/>
-						)}
-						sessions={boardItems}
-					/>
+					boardGrid()
 				)}
 			</div>
 

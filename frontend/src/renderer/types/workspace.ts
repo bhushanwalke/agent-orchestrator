@@ -183,6 +183,11 @@ export type WorkspaceSession = {
 	 */
 	kanbanColumn?: KanbanColumn;
 	/**
+	 * The lifecycle lane behind a `needs_you` card ("In review" for a PR
+	 * whose next turn is the person's). Equal to {@link kanbanColumn} elsewhere.
+	 */
+	kanbanStage?: KanbanColumn;
+	/**
 	 * Phrase the daemon derived for what is happening inside
 	 * {@link kanbanColumn} — "Reviewing", "Fixing CI failures", "Needs human
 	 * review". It arrives renderable, so the UI prints it rather than mapping it.

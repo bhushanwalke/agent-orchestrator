@@ -93,6 +93,7 @@ export function toBoardSessionPresentation(
 		id: session.id,
 		isTerminated: session.isTerminated,
 		kanbanColumn: session.kanbanColumn,
+		kanbanStage: session.kanbanStage,
 		displayStatus: session.displayStatus,
 		provider: session.provider,
 		status: session.status,
@@ -108,13 +109,17 @@ export function toBoardSessionPresentation(
 export function sessionsBoardLabels(t: TFunction): BoardColumnLabels {
 	return {
 		columnAria: (label) => t("shell.sessionsAria", { label }),
+		emptyLane: (column) =>
+			column === "queued" ? t("board.lane.emptyQueued") : column === "needs_you" ? t("board.lane.emptyNeedsYou") : undefined,
 	};
 }
 
 export function BoardSessionCardAdapter({
 	compact = false,
 	me,
+	moveMenu,
 	participants,
+	pending,
 	memory,
 	memoryTone,
 	onOpen,
@@ -141,11 +146,17 @@ export function BoardSessionCardAdapter({
 	participants?: readonly SessionPerson[];
 	/** The signed-in cloud user, to tell their own work from someone else's. */
 	me?: string;
+	/** "Move to" for the card's menu, where the board allows moves. */
+	moveMenu?: ReactNode;
+	/** A board move for this card is on its way. */
+	pending?: boolean;
 }) {
 	return (
 		<DesktopSessionCard
 			compact={compact}
 			me={me}
+			moveMenu={moveMenu}
+			pending={pending}
 			participants={participants}
 			memory={memory}
 			memoryTone={memoryTone}
@@ -237,6 +248,8 @@ export function ArchivedSessionCardAdapter({
 
 function DesktopSessionCard({
 	me,
+	moveMenu,
+	pending,
 	participants,
 	action,
 	branchAction,
@@ -275,6 +288,8 @@ function DesktopSessionCard({
 	session: WorkspaceSession;
 	participants?: readonly SessionPerson[];
 	me?: string;
+	moveMenu?: ReactNode;
+	pending?: boolean;
 	still?: boolean;
 }) {
 	const { t } = useTranslation();
@@ -398,7 +413,7 @@ function DesktopSessionCard({
 			session={
 				hideTerminatedStatus
 					? hideTerminatedCardStatus(toBoardSessionPresentation(session))
-					: withSharedWorkStatus(toBoardSessionPresentation(session), participants, me, t)
+					: { ...withSharedWorkStatus(toBoardSessionPresentation(session), participants, me, t), pending }
 			}
 			selected={selected}
 			still={still}
@@ -421,6 +436,12 @@ function DesktopSessionCard({
 						onRename={() => setRenameOpen(true)}
 						session={session}
 					/>
+					{moveMenu ? (
+						<>
+							<ContextMenuSeparator />
+							{moveMenu}
+						</>
+					) : null}
 				</ContextMenuContent>
 			</ContextMenu>
 			<SessionRenameDialog onOpenChange={setRenameOpen} open={renameOpen} session={session} />
@@ -967,6 +988,7 @@ export function toBoardPlanPresentation(plan: PlanSummary): BoardPlanItem {
 	return {
 		id: `plan:${plan.id}`,
 		kanbanColumn: plan.kanbanColumn,
+		kanbanStage: plan.kanbanStage,
 		provider: "",
 		status: blocked ? "needs_input" : "working",
 		displayStatus: blocked ? "Blocked" : plan.displayStatus,
@@ -987,12 +1009,18 @@ const PLAN_CARD_PRS = 3;
 /** A Task's board card: its agents, phase, milestone progress, and PRs. */
 export function BoardPlanCardAdapter({
 	item,
+	moveMenu,
 	onOpen,
 	onOpenOrchestrator,
+	pending,
 }: {
 	item: BoardPlanItem;
+	/** "Move to" for the card's menu, where the board allows moves. */
+	moveMenu?: ReactNode;
 	onOpen: () => void;
 	onOpenOrchestrator?: () => void;
+	/** A board move for this card is on its way. */
+	pending?: boolean;
 }) {
 	const { t } = useTranslation();
 	const [cancelOpen, setCancelOpen] = useState(false);
@@ -1019,7 +1047,7 @@ export function BoardPlanCardAdapter({
 			onOpen={onOpen}
 			prs={prs.slice(0, PLAN_CARD_PRS).map((pr) => ({ number: pr.number, state: pr.state, url: pr.url }))}
 			renderAvatar={() => <PlanAvatarStrip sessions={plan.liveSessions} />}
-			session={item}
+			session={pending ? { ...item, pending } : item}
 			translate={translate}
 			renderUsage={(usage) => (
 				<span className="inline-flex items-center gap-1 tabular-nums" data-testid="plan-milestone-metric" title={usage.accessibleLabel}>
@@ -1045,6 +1073,7 @@ export function BoardPlanCardAdapter({
 						<Copy className="size-icon-sm" aria-hidden />
 						{t("board.plans.copyId")}
 					</ContextMenuItem>
+					{moveMenu}
 					{plan.state !== "cancelled" && plan.phase !== "done" ? (
 						<>
 							<ContextMenuSeparator />

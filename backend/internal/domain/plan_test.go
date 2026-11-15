@@ -174,6 +174,9 @@ func TestDerivePlanPhase(t *testing.T) {
 	created := time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
 	needsYouStage := map[string]contract.KanbanColumn{
 		"triage after the reminder":  contract.KanbanBuilding,
+		"triage on hold":             contract.KanbanBuilding,
+		"planning on hold":           contract.KanbanBuilding,
+		"implementing on hold":       contract.KanbanBuilding,
 		"planning paused for you":    contract.KanbanBuilding,
 		"testing paused for you":     contract.KanbanValidating,
 		"blocked while implementing": contract.KanbanBuilding,
@@ -200,6 +203,8 @@ func TestDerivePlanPhase(t *testing.T) {
 			PlanPhaseTriage, contract.KanbanQueued, contract.DisplayOnHold},
 		{"planning on hold", Plan{State: PlanStatePlanning, BoardRequest: BoardRequestHold}, nil,
 			PlanPhasePlanning, contract.KanbanQueued, contract.DisplayOnHold},
+		{"implementing on hold", Plan{State: PlanStateActive, BoardRequest: BoardRequestHold}, []Milestone{ms("m1", impl, MilestoneStatusReady)},
+			PlanPhaseImplementing, contract.KanbanQueued, contract.DisplayOnHold},
 		{"planning paused for you", Plan{State: PlanStatePlanning, BoardRequest: BoardRequestAttention}, nil,
 			PlanPhasePlanning, contract.KanbanNeedsYou, contract.DisplayPausedForYou},
 		{"testing paused for you", Plan{State: PlanStateActive, BoardRequest: BoardRequestAttention}, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusRunning)},
@@ -240,8 +245,8 @@ func TestDerivePlanPhase(t *testing.T) {
 				t.Fatalf("kanban = %q/%q, want %q/%q", col, display, tc.column, tc.display)
 			}
 			wantStage := tc.column
-			if col == contract.KanbanNeedsYou {
-				wantStage = needsYouStage[tc.name]
+			if s, ok := needsYouStage[tc.name]; ok {
+				wantStage = s
 			}
 			if stage != wantStage {
 				t.Fatalf("stage = %q, want %q", stage, wantStage)

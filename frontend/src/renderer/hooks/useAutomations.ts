@@ -16,8 +16,9 @@ async function fetchAutomationPage(cursor?: string) {
 	return data;
 }
 
-export function useAutomations() {
+export function useAutomations(enabled = true) {
 	return useQuery({
+		enabled,
 		queryKey: automationsQueryKey,
 		queryFn: async () => {
 			const automations: Automation[] = [];

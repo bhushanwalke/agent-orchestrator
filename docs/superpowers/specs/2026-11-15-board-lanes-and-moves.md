@@ -95,9 +95,7 @@ LatestReport ReportState // "", "checkpoint", "needs_input", "stuck", "done"
 BoardRequest BoardRequest // "", "attention", "accepted"
 ```
 
-`contract.KanbanPresentation` gains `Stage KanbanColumn`: the lifecycle lane
-the card would be in if Needs you did not exist. It is set only when
-`Column == needs_you`; otherwise it equals `Column`.
+`contract.KanbanPresentation` gains `Stage KanbanColumn`. Stage is the lifecycle lane whenever Column was decided by a board request or by Needs you; otherwise it equals Column.
 
 `ReportState` and `BoardRequest` are new string types in `backend/pkg/contract/kanban.go`
 mirroring `domain.ReportState` and the new `domain.BoardRequest`.
@@ -369,3 +367,9 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R24 `POST /plans/{planId}/board-move` answers with `PlanDetailResponse`, as `activate` does, rather than `PlanResponse`.
 - R25 `ao session ls` and `ao plan ls` gain a LANE column.
 - R26 The mobile app is unchanged; it maps unknown lanes through its existing status fallback.
+- R27 (coordinator) Stage is the lifecycle lane whenever a board request places the card (a held Task's stage is building; an accepted session's is building), per the reworded §3.2.
+- R28 (coordinator) A worker's own harness permission rules may block the push that `<ao-board-deliver>` asks for. The agent then files `ao report --stuck` as instructed and the card reads Stuck in Needs you: the intended path, not a defect.
+- R29 Drag and drop lives in the renderer (`components/BoardMoves.tsx`), not in `SessionsBoardGridView`: product-ui's import boundary allows only clsx, motion, react and tailwind-merge. product-ui draws the drag through `laneState` (drop ref, refused-lane dimming with the reason as hint, hover) and `labels.emptyLane`. The drag/keyboard behaviour tests are renderer tests.
+- R30 The card has no ⋯ button; its menu is the right-click/context-menu (Shift+F10 on the focused card), which gains "Move to". Space on the focused card starts a keyboard drag; Left/Right step between lane centres; Enter still opens the card.
+- R31 An automation card's next run is an absolute short date and time (as the Automations page shows it), not the card's relative `formatTime`, which reads future times badly.
+- R32 Moves are offered on this machine's boards only: not on another host's board, a shared project, or a cloud project or session.

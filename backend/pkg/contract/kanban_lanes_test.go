@@ -46,7 +46,7 @@ func TestDeriveKanbanPresentationLanes(t *testing.T) {
 		{
 			name:    "accepted with no PR is ready",
 			session: with(finishedWorker(contract.ActivityIdle), func(s *contract.KanbanSessionFacts) { s.BoardRequest = contract.BoardRequestAccepted }),
-			want:    contract.KanbanPresentation{Column: contract.KanbanReady, DisplayStatus: contract.DisplayAccepted, Stage: contract.KanbanReady},
+			want:    contract.KanbanPresentation{Column: contract.KanbanReady, DisplayStatus: contract.DisplayAccepted, Stage: contract.KanbanBuilding},
 		},
 		{
 			name:    "accepted is ignored once a PR speaks for the session",
@@ -60,7 +60,7 @@ func TestDeriveKanbanPresentationLanes(t *testing.T) {
 				s.Provisioning = true
 				s.BoardRequest = contract.BoardRequestAccepted
 			}),
-			want: contract.KanbanPresentation{Column: contract.KanbanReady, DisplayStatus: contract.DisplayAccepted, Stage: contract.KanbanReady},
+			want: contract.KanbanPresentation{Column: contract.KanbanReady, DisplayStatus: contract.DisplayAccepted, Stage: contract.KanbanBuilding},
 		},
 		{
 			name: "a provisioning session is starting in the queue",

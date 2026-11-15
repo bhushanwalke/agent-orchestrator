@@ -321,8 +321,8 @@ const (
 type KanbanPresentation struct {
 	Column        KanbanColumn
 	DisplayStatus DisplayStatus
-	// Stage is the lifecycle lane the card would be in if Needs you did not
-	// exist. It equals Column except in Needs you.
+	// Stage is the lifecycle lane whenever Column was decided by a board
+	// request or by Needs you; otherwise it equals Column.
 	Stage KanbanColumn
 }
 
@@ -343,13 +343,13 @@ func DeriveKanbanPresentation(
 	if session.IsTerminated {
 		return KanbanPresentation{Column: KanbanArchive, DisplayStatus: DisplayTerminated, Stage: KanbanArchive}
 	}
+	stage := lifecyclePresentation(session, prs, now, noSignalGrace)
 	if session.BoardRequest == BoardRequestAccepted && len(prs) == 0 {
-		return KanbanPresentation{Column: KanbanReady, DisplayStatus: DisplayAccepted, Stage: KanbanReady}
+		return KanbanPresentation{Column: KanbanReady, DisplayStatus: DisplayAccepted, Stage: stage.Column}
 	}
 	if session.Provisioning {
 		return KanbanPresentation{Column: KanbanQueued, DisplayStatus: DisplayStarting, Stage: KanbanQueued}
 	}
-	stage := lifecyclePresentation(session, prs, now, noSignalGrace)
 	if session.BoardRequest == BoardRequestAttention {
 		return KanbanPresentation{Column: KanbanNeedsYou, DisplayStatus: DisplayPausedForYou, Stage: stage.Column}
 	}

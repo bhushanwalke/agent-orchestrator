@@ -3,6 +3,7 @@ import {
 	forwardRef,
 	type HTMLAttributes,
 	type ReactNode,
+	type Ref,
 } from "react";
 import type { ExternalLinkComponent } from "./external-link";
 import {
@@ -36,6 +37,14 @@ export type BoardSessionPresentation = {
 	 * session's status already implied.
 	 */
 	kanbanColumn?: KanbanColumn;
+	/**
+	 * The lifecycle lane behind a Needs you card, which the card names before
+	 * its reason ("In review · Changes requested"). Equal to
+	 * {@link kanbanColumn} in every other lane.
+	 */
+	kanbanStage?: KanbanColumn;
+	/** A board move for this card is on its way to the daemon. */
+	pending?: boolean;
 	/**
 	 * Daemon-derived phrase for what is happening inside {@link kanbanColumn}
 	 * ("Fixing CI failures", "Awaiting review"), replacing {@link status} as
@@ -118,6 +127,21 @@ export type BoardPullRequestLabels = {
 
 export type BoardColumnLabels = {
 	columnAria: (label: string) => string;
+	/** The hint an empty lane shows under its header, if any. */
+	emptyLane?: (column: KanbanColumn) => string | undefined;
+};
+
+/**
+ * A lane's part in a drag the client runs: the drop target to register, and
+ * while a card is dragged, whether this lane would refuse it and why. The
+ * drag itself lives in the client; the board only draws its state.
+ */
+export type BoardLaneState = {
+	dropRef?: Ref<HTMLElement>;
+	/** Why the dragged card cannot be dropped here; the lane dims and says so. */
+	refusal?: string;
+	/** The dragged card is over this lane and may be dropped. */
+	isOver?: boolean;
 };
 
 export type SessionsBoardGridViewProps<
@@ -127,11 +151,14 @@ export type SessionsBoardGridViewProps<
 	labels: BoardColumnLabels;
 	renderSessionCard: (session: TSession) => ReactNode;
 	sessions: TSession[];
+	/** Each lane's part in a client-run drag. */
+	laneState?: (column: KanbanColumn) => BoardLaneState | undefined;
 };
 
 export function SessionsBoardGridView<TSession extends BoardSessionPresentation>({
 	columns,
 	labels,
+	laneState,
 	renderSessionCard,
 	sessions,
 }: SessionsBoardGridViewProps<TSession>) {
@@ -158,6 +185,7 @@ export function SessionsBoardGridView<TSession extends BoardSessionPresentation>
 						column={column}
 						key={column.column}
 						labels={labels}
+						lane={laneState?.(column.column)}
 						renderSessionCard={renderSessionCard}
 						sessions={byColumn.get(column.column) ?? []}
 					/>
@@ -170,14 +198,19 @@ export function SessionsBoardGridView<TSession extends BoardSessionPresentation>
 function BoardColumnView<TSession extends BoardSessionPresentation>({
 	column,
 	labels,
+	lane,
 	renderSessionCard,
 	sessions,
 }: {
 	column: KanbanColumnView;
 	labels: BoardColumnLabels;
+	lane?: BoardLaneState;
 	renderSessionCard: (session: TSession) => ReactNode;
 	sessions: TSession[];
 }) {
+	const refused = Boolean(lane?.refusal);
+	// A refusal replaces the empty-lane hint while a card is dragged.
+	const hint = lane?.refusal ?? (sessions.length === 0 ? labels.emptyLane?.(column.column) : undefined);
 	const ordered = [...sessions].sort((left, right) => {
 		const attentionPriority =
 			Number(boardSessionNeedsAttention(right)) - Number(boardSessionNeedsAttention(left));
@@ -186,9 +219,15 @@ function BoardColumnView<TSession extends BoardSessionPresentation>({
 	return (
 		<section
 			aria-label={labels.columnAria(column.label)}
-			className="flex min-w-0 flex-col overflow-hidden"
+			className={cn(
+				"flex min-w-0 flex-col overflow-hidden transition-[opacity,background-color] duration-[120ms] ease-out",
+				refused && "opacity-50",
+				lane?.isOver && !refused && "bg-interactive-hover",
+			)}
 			data-testid="board-column"
 			data-column={column.column}
+			data-refused={refused || undefined}
+			ref={lane?.dropRef}
 		>
 			<div className="flex h-12 shrink-0 items-center gap-2.5 px-4">
 				<span
@@ -201,6 +240,11 @@ function BoardColumnView<TSession extends BoardSessionPresentation>({
 				</span>
 				<span className="ml-auto tabular-nums text-xs leading-none text-passive">{ordered.length}</span>
 			</div>
+			{hint ? (
+				<p className="px-4 pt-3 text-2xs text-passive" data-testid="board-column-hint">
+					{hint}
+				</p>
+			) : null}
 			<div className="board-scrollbar min-h-0 flex-1 overflow-y-auto pl-3 pr-2 pb-3 pt-3">
 				<div className="flex min-h-full flex-col gap-2.5">
 					{ordered.map((session) => (
@@ -317,12 +361,19 @@ export function SessionCardView({
 	// work in progress, so a card never spins beside a settled phrase. Fall back
 	// to `status` only for a daemon too old to send `displayStatus`.
 	const showStatusLoader =
+		session.pending === true ||
 		session.statusReadiness === "checking" || (session.statusReadiness !== "unavailable" &&
 		!needsAttention &&
 		(session.displayStatus
 			? IN_PROGRESS_DISPLAY_STATUSES.has(session.displayStatus)
 			: session.status === "working" || session.status === "review_pending"));
 
+	// A Needs you card names the stage that is waiting on the person, muted,
+	// before the reason: "In review · Changes requested". One line, one colour.
+	const stage =
+		column.column === "needs_you" && session.kanbanStage && session.kanbanStage !== "needs_you"
+			? getKanbanColumnView(session.kanbanStage, translate).label
+			: undefined;
 	const listSelection = selected !== undefined;
 	const statusLabel = (
 		<span
@@ -336,7 +387,14 @@ export function SessionCardView({
 			data-testid="session-status"
 		>
 			{showStatusLoader ? <LoaderCircleIcon aria-hidden="true" className="mr-1 size-icon-2xs animate-spin" /> : null}
-			<span className="min-w-0 truncate">{renderedStatusLabel}</span>
+			<span className="min-w-0 truncate">
+				{stage ? (
+					<span className="font-normal text-muted-foreground" data-testid="session-status-stage">
+						{stage} ·{" "}
+					</span>
+				) : null}
+				{renderedStatusLabel}
+			</span>
 		</span>
 	);
 	const metrics = (
@@ -413,6 +471,7 @@ export function SessionCardView({
 				<button
 					aria-label={session.title}
 					className="pointer-events-none absolute inset-0 outline-none"
+					data-board-card-open=""
 					type="button"
 				/>
 			) : null}
