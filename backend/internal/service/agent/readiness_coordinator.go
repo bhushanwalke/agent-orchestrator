@@ -601,6 +601,12 @@ func (c *readinessCoordinator) checkAuthentication(item agentregistry.HarnessAge
 			step.Source, step.Provider = source.Source, source.Provider
 			observation.Diagnostics = append(observation.Diagnostics, step)
 		}
+		// Routes are display evidence for every verdict, failures included.
+		observation.Routes = domain.SanitizedRoutes(evidence.Routes())
+		if observation.ReasonCode == domain.AgentReadinessReasonAuthConfigured && len(observation.Routes) > 0 &&
+			!slices.ContainsFunc(observation.Diagnostics, func(d domain.AgentAuthDiagnostic) bool { return d.Code == "token_renewal_pending" }) {
+			observation.Reason = item.Manifest.Name + " is configured to use " + describeRoutes(observation.Routes) + ". Orchestrator could not verify it without starting a session."
+		}
 		completeAuthenticationDiagnostics(&observation)
 	}()
 	attempted := c.now()

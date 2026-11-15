@@ -16632,6 +16632,10 @@ components:
           type: string
         reasonCode:
           type: string
+        routes:
+          items:
+            $ref: '#/components/schemas/AgentModelRoute'
+          type: array
         state:
           enum:
           - authorized
@@ -16933,6 +16937,64 @@ components:
       required:
       - id
       - label
+      type: object
+    AgentModelRoute:
+      properties:
+        apiFamily:
+          enum:
+          - anthropic
+          - openai
+          - openai_compatible
+          - bedrock
+          - vertex
+          - foundry
+          - google
+          - other
+          type: string
+        configSource:
+          type: string
+        credential:
+          enum:
+          - account
+          - api_key
+          - token
+          - cloud_credentials
+          - none
+          - unknown
+          type: string
+        credentialSource:
+          type: string
+        host:
+          type: string
+        httpStatus:
+          type: integer
+        isDefault:
+          type: boolean
+        kind:
+          enum:
+          - first_party
+          - gateway
+          - cloud
+          - local
+          type: string
+        name:
+          type: string
+        verification:
+          enum:
+          - verified
+          - rejected
+          - unverifiable
+          - inconclusive
+          - access_challenge
+          - unreachable
+          - not_attempted
+          - disabled
+          type: string
+      required:
+      - kind
+      - apiFamily
+      - credential
+      - verification
       type: object
     AgentModelsResponse:
       properties:

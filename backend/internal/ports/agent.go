@@ -91,6 +91,7 @@ type AuthEvidence struct {
 	mu          sync.Mutex
 	identity    domain.AgentAccountIdentity
 	diagnostics []domain.AgentAuthDiagnostic
+	routes      []domain.AgentModelRoute
 }
 
 type authEvidenceKey struct{}
@@ -184,6 +185,38 @@ func (e *AuthEvidence) Diagnostics() []domain.AgentAuthDiagnostic {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return append([]domain.AgentAuthDiagnostic(nil), e.diagnostics...)
+}
+
+// RecordModelRoute records a model route the check identified. A route with
+// the same name, kind, family and host replaces the earlier record, so an
+// adapter can record a route and then its verification; at most
+// domain.MaxAgentModelRoutes are kept.
+func RecordModelRoute(ctx context.Context, route domain.AgentModelRoute) {
+	evidence, ok := ctx.Value(authEvidenceKey{}).(*AuthEvidence)
+	if !ok || evidence == nil {
+		return
+	}
+	evidence.mu.Lock()
+	defer evidence.mu.Unlock()
+	for i, existing := range evidence.routes {
+		if existing.Name == route.Name && existing.Kind == route.Kind && existing.APIFamily == route.APIFamily && existing.Host == route.Host {
+			evidence.routes[i] = route
+			return
+		}
+	}
+	if len(evidence.routes) < domain.MaxAgentModelRoutes {
+		evidence.routes = append(evidence.routes, route)
+	}
+}
+
+// Routes returns an independent snapshot of the recorded model routes.
+func (e *AuthEvidence) Routes() []domain.AgentModelRoute {
+	if e == nil {
+		return nil
+	}
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	return append([]domain.AgentModelRoute(nil), e.routes...)
 }
 
 // AgentAuthDiagnosticsChecker adds the signed-in account and evidence from the

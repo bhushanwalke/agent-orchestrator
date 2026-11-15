@@ -26,7 +26,7 @@ R-H  Where this spec conflicts with the code on main, the code's structure
 
 # Harness model routes: identifying gateway, cloud and keyless logins
 
-Status: implemented on branch `task-workflow` (local, uncommitted). See section 12 for the code map and results.
+Status: being rebuilt on `feat/task-plans` (milestones M1–M4, see the preface). Section 12 is the code map from the first implementation; section 13 records where this build differs.
 Applies to: Claude Code, Codex, OpenCode 1 and OpenCode 2 harnesses (local hosts)
 
 ## 1. Problem
@@ -675,3 +675,34 @@ own harness configs read-only:
 - An OpenCode environment key for a built-in provider still counts as a login
   on presence alone (unchanged, C1).
 - Remote hosts and cloud harnesses are out of scope.
+
+## 13. Rulings (feat/task-plans build)
+
+Each ruling: what was decided, why, and what it costs if wrong.
+
+R1 (M1). `modelcatalog` calls `jsonc.Strip` directly; there is no `stripJSONC`
+    wrapper left. Smallest change with the same behaviour. Cost: none.
+R2 (M1). A base URL carrying userinfo (`https://user:pw@host`) is not probed:
+    `inconclusive`, nothing sent. The credential would ride in the URL and
+    could not be held back for the public-listing comparison in section 5.
+    Cost: such a route reads configured instead of authorized.
+R3 (M1). `modelroute` also exports `Decide(ctx, existing, routes)` (section 6
+    over a harness's existing verdict, recording the verified route as the
+    account evidence: method from the credential, source from the variable or
+    file name, provider from the route name) and `RecordMissingCredential`.
+    Every harness applies section 6 the same way through them. Cost: none.
+R4 (M1). The reason text names one route as "<family> via <host>", wrapped as
+    "provider <name> (...)" when the route has an id, plus " with no key" for a
+    keyless route; several routes read "several providers via <host>" (one
+    host) or "several providers". Cost: wording only.
+R5 (M1). The check cache key is the listing URL plus a SHA-256 of the sorted
+    credential header names and values. `unreachable` results are cached like
+    any other (only cancelled checks are not); "Check again" drops the cache.
+    Cost: a VPN connected less than 5 minutes ago reads unreachable until
+    "Check again".
+R6 (M1). `InvalidateAgentAuthentication` drops every cached route check, not
+    only that harness's: one gateway can serve several harnesses. Cost: an
+    extra listing request per harness after a recheck.
+R7 (M1). `AO_MODEL_ROUTE_PROBE` is read on every check and only `off`
+    (any case) disables probes. Cost: `0` or `false` do not disable.
+

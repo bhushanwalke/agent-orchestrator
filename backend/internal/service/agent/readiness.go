@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelroute"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -109,6 +110,9 @@ func (s *Service) InvalidateAgentAuthentication(agentID string) {
 			cache.InvalidateAuthCache()
 		}
 	}
+	// Route checks are shared across harnesses (one gateway can serve
+	// several), so a recheck drops them all.
+	modelroute.InvalidateCache()
 	s.readiness.Invalidate(agentID, readinessInvalidateAuthentication)
 	s.InvalidateModelCatalogs(agentID)
 	if agentID == string(domain.HarnessCodex) && s.codexAccounts != nil {

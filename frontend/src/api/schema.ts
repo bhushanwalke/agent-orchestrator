@@ -5477,6 +5477,7 @@ export interface components {
             freshness: "fresh" | "stale" | "checking";
             reason: string;
             reasonCode: string;
+            routes?: components["schemas"]["AgentModelRoute"][];
             /** @enum {string} */
             state: "authorized" | "unauthorized" | "unknown" | "not_applicable" | "configured";
         };
@@ -5590,6 +5591,22 @@ export interface components {
             requiresVersion?: string;
             supportsFast?: boolean;
             unavailableReason?: string;
+        };
+        AgentModelRoute: {
+            /** @enum {string} */
+            apiFamily: "anthropic" | "openai" | "openai_compatible" | "bedrock" | "vertex" | "foundry" | "google" | "other";
+            configSource?: string;
+            /** @enum {string} */
+            credential: "account" | "api_key" | "token" | "cloud_credentials" | "none" | "unknown";
+            credentialSource?: string;
+            host?: string;
+            httpStatus?: number;
+            isDefault?: boolean;
+            /** @enum {string} */
+            kind: "first_party" | "gateway" | "cloud" | "local";
+            name?: string;
+            /** @enum {string} */
+            verification: "verified" | "rejected" | "unverifiable" | "inconclusive" | "access_challenge" | "unreachable" | "not_attempted" | "disabled";
         };
         AgentModelsResponse: {
             agentId: string;

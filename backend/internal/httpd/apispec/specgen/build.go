@@ -521,6 +521,7 @@ var schemaNames = map[string]string{ //nolint:gosec // Public OpenAPI type names
 	"DomainAgentAuthDiagnostic":                           "AgentAuthDiagnostic",
 	"DomainAgentAccountIdentity":                          "AgentAccountIdentity",
 	"DomainAgentAuthenticationObservation":                "AgentAuthenticationObservation",
+	"DomainAgentModelRoute":                               "AgentModelRoute",
 	// service/systemcheck: "SystemcheckReport" is a generic default name that
 	// reads like an internal type, not a wire response — rename to match the
 	// endpoint it serves, same treatment as AgentInventory above.

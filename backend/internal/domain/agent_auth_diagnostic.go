@@ -112,6 +112,31 @@ func NewAgentAuthDiagnostic(method, code string) AgentAuthDiagnostic {
 	case "provider_unreachable":
 		d.Reason = "The provider check could not complete because of a connection or transport error."
 		d.NextStep = "Check network, proxy and TLS settings on the selected host, then check again."
+	case "route_identified":
+		d.Reason = "The harness is configured to send model requests over this route. Orchestrator did not check it."
+	case "route_verified":
+		d.Reason = "The route's model list answered with exactly the credential the harness sends, so this computer can reach it."
+	case "route_rejected":
+		d.Reason = "The route's endpoint rejected the credential the harness sends."
+		d.NextStep = "Check the key or token named in the route's credential source, or ask the gateway's owner for access."
+	case "route_unverifiable":
+		d.Reason = "Orchestrator cannot check this route without signing a request with your cloud identity or making a model call, so it does not."
+		d.NextStep = "Start a session to confirm access. An unverified route never blocks a launch."
+	case "route_inconclusive":
+		d.Reason = "The route's model list did not show whether access works."
+		d.NextStep = "Start a session to confirm access. An unverified route never blocks a launch."
+	case "route_access_challenge":
+		d.Reason = "The route's endpoint answered with a sign-in page or a redirect instead of a model list, which is how a VPN or zero-trust gateway turns away traffic it does not recognize."
+		d.NextStep = "Connect to the network or VPN that grants access, then check again."
+	case "route_unreachable":
+		d.Reason = "Orchestrator could not connect to the route's endpoint."
+		d.NextStep = "Check the network, VPN, proxy and TLS settings on this computer, then check again."
+	case "route_probe_disabled":
+		d.Reason = "Route checks are turned off with AO_MODEL_ROUTE_PROBE=off, so Orchestrator did not contact the route."
+		d.NextStep = "Unset AO_MODEL_ROUTE_PROBE to let Orchestrator check the route's model list."
+	case "route_credential_missing":
+		d.Reason = "The route names a credential variable that is missing or empty in Orchestrator's process."
+		d.NextStep = "Make that variable available to the Orchestrator process, then restart Orchestrator and check again. A variable set only in a terminal shell may not reach the desktop app."
 	default:
 		d.Reason = "The provider response did not establish whether the credential works."
 		d.NextStep = "Check provider availability and account access, then check again."

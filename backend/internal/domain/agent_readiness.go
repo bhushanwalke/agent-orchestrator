@@ -121,6 +121,10 @@ type AgentAuthenticationObservation struct {
 	// one. It is display-only and present only with authorized or configured.
 	Account     *AgentAccountIdentity `json:"account,omitempty"`
 	Diagnostics []AgentAuthDiagnostic `json:"diagnostics,omitempty"`
+	// Routes are the model routes the harness is configured to use when they
+	// are not its first-party login: a gateway, cloud provider or local
+	// endpoint. Present with every verdict.
+	Routes []AgentModelRoute `json:"routes,omitempty"`
 }
 
 // AgentAccountMethod is how a harness is signed in.
