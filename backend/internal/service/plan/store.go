@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 )
@@ -27,4 +28,7 @@ type Store interface {
 	ListPlanEvents(ctx context.Context, planID domain.PlanID, afterID int64, limit int) ([]domain.PlanEvent, error)
 	ListRecentPlanEvents(ctx context.Context, planID domain.PlanID, limit int) ([]domain.PlanEvent, error)
 	ListPlanAttachedSessionIDs(ctx context.Context, planID domain.PlanID) ([]domain.SessionID, error)
+	// SetPlanBoardRequest records the person's hold or attention request from
+	// the board; an empty request clears it.
+	SetPlanBoardRequest(ctx context.Context, id domain.PlanID, request domain.BoardRequest, at time.Time) (bool, error)
 }

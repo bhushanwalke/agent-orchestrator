@@ -36,6 +36,7 @@ func (c *AutomationsController) Register(r chi.Router) {
 	r.Patch("/automations/{automationId}", c.update)
 	r.Delete("/automations/{automationId}", c.delete)
 	r.Get("/automations/{automationId}/runs", c.runs)
+	r.Post("/automations/{automationId}/run-now", c.runNow)
 }
 
 func (c *AutomationsController) create(w http.ResponseWriter, r *http.Request) {
@@ -73,6 +74,25 @@ func (c *AutomationsController) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	envelope.WriteJSON(w, http.StatusOK, AutomationEnvelope{Automation: automationResponse(rec)})
+}
+
+// automationRunner is the run-now capability of the automation service.
+type automationRunner interface {
+	RunNow(context.Context, domain.AutomationID) (domain.AutomationRun, error)
+}
+
+func (c *AutomationsController) runNow(w http.ResponseWriter, r *http.Request) {
+	runner, ok := c.Svc.(automationRunner)
+	if c.Svc == nil || !ok {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/automations/{automationId}/run-now")
+		return
+	}
+	run, err := runner.RunNow(r.Context(), domain.AutomationID(chi.URLParam(r, "automationId")))
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusAccepted, automationRunSummaryResponse(run))
 }
 
 func (c *AutomationsController) list(w http.ResponseWriter, r *http.Request) {

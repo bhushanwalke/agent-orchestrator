@@ -897,6 +897,7 @@ func automationOperations() []operation {
 		{method: http.MethodGet, path: "/api/v1/automations/{automationId}", id: "getAutomation", tag: "automations", summary: "Get one recurring automation", pathParams: id, resps: append([]respUnit{{http.StatusOK, controllers.AutomationEnvelope{}}}, commonErrors...)},
 		{method: http.MethodPatch, path: "/api/v1/automations/{automationId}", id: "updateAutomation", tag: "automations", summary: "Update a recurring automation", pathParams: id, reqBody: controllers.UpdateAutomationRequest{}, resps: append([]respUnit{{http.StatusOK, controllers.AutomationEnvelope{}}}, commonErrors...)},
 		{method: http.MethodDelete, path: "/api/v1/automations/{automationId}", id: "deleteAutomation", tag: "automations", summary: "Delete an automation and its run history", pathParams: id, resps: append([]respUnit{{http.StatusNoContent, nil}}, commonErrors...)},
+		{method: http.MethodPost, path: "/api/v1/automations/{automationId}/run-now", id: "runAutomationNow", tag: "automations", summary: "Queue a run of an enabled automation now; its schedule is unchanged", pathParams: []any{controllers.AutomationIDParam{}}, resps: append([]respUnit{{http.StatusAccepted, controllers.AutomationRunSummaryResponse{}}, {http.StatusConflict, envelope.APIError{}}}, commonErrors...)},
 		{method: http.MethodGet, path: "/api/v1/automations/{automationId}/runs", id: "listAutomationRuns", tag: "automations", summary: "List durable automation run history", pathParams: []any{controllers.AutomationIDParam{}, controllers.ListAutomationRunsQuery{}}, resps: append([]respUnit{{http.StatusOK, controllers.ListAutomationRunsResponse{}}}, commonErrors...)},
 	}
 }
@@ -4055,6 +4056,20 @@ func sessionOperations() []operation {
 			},
 		},
 		{
+			method: http.MethodPost, path: "/api/v1/sessions/{sessionId}/board-move", id: "moveSessionOnBoard", tag: "sessions",
+			summary:    "Move a session card to a board lane; a refused move is 409 BOARD_MOVE_UNSUPPORTED with details.reason",
+			pathParams: []any{controllers.SessionIDParam{}},
+			reqBody:    controllers.BoardMoveRequest{},
+			resps: []respUnit{
+				{http.StatusOK, controllers.SessionResponse{}},
+				{http.StatusBadRequest, envelope.APIError{}},
+				{http.StatusNotFound, envelope.APIError{}},
+				{http.StatusConflict, envelope.APIError{}},
+				{http.StatusInternalServerError, envelope.APIError{}},
+				{http.StatusNotImplemented, envelope.APIError{}},
+			},
+		},
+		{
 			method: http.MethodPost, path: "/api/v1/sessions/cleanup", id: "cleanupSessions", tag: "sessions",
 			summary:    "Clean up terminated session workspaces",
 			pathParams: []any{controllers.CleanupSessionsQuery{}},
@@ -4554,6 +4569,14 @@ func planOperations() []operation {
 			method: http.MethodPost, path: "/api/v1/plans/{planId}/activate", id: "activatePlan", tag: "plans",
 			summary:    "Validate the milestone graph and start the plan",
 			pathParams: plan,
+			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
+				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),
+		},
+		{
+			method: http.MethodPost, path: "/api/v1/plans/{planId}/board-move", id: "movePlanOnBoard", tag: "plans",
+			summary:    "Put a Task on hold, ask it to pause, or release it, by moving its card",
+			pathParams: plan,
+			reqBody:    controllers.BoardMoveRequest{},
 			resps: with(respUnit{http.StatusOK, controllers.PlanDetailResponse{}},
 				errs(http.StatusBadRequest, http.StatusNotFound, http.StatusConflict)),
 		},

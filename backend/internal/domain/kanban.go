@@ -38,3 +38,33 @@ const (
 	BoardRequestAttention = contract.BoardRequestAttention
 	BoardRequestAccepted  = contract.BoardRequestAccepted
 )
+
+// BoardMoveRefusal says why a board move cannot change any fact, so the card
+// stays where it is. Every value has a translated message in the app.
+type BoardMoveRefusal string
+
+// Board move refusals.
+const (
+	BoardRefusalSessionCannotQueue BoardMoveRefusal = "session_cannot_queue"
+	BoardRefusalAlreadyThere       BoardMoveRefusal = "already_there"
+	BoardRefusalAlreadyBuilding    BoardMoveRefusal = "already_building"
+	BoardRefusalCannotRestart      BoardMoveRefusal = "cannot_restart"
+	BoardRefusalNoPRProvider       BoardMoveRefusal = "no_pr_provider"
+	BoardRefusalNoPR               BoardMoveRefusal = "no_pr"
+	BoardRefusalPRDecidesReady     BoardMoveRefusal = "pr_decides_ready"
+	BoardRefusalPlanCannotValidate BoardMoveRefusal = "plan_cannot_validate"
+	BoardRefusalPlanDecidesReady   BoardMoveRefusal = "plan_decides_ready"
+	BoardRefusalPlanNotLive        BoardMoveRefusal = "plan_not_live"
+	BoardRefusalAutomationOnlyRuns BoardMoveRefusal = "automation_only_runs"
+	BoardRefusalPRIsDraft          BoardMoveRefusal = "pr_is_draft"
+)
+
+// BoardMoveTarget reports whether column is a lane a card can be moved to.
+// Archive is not: terminating and cancelling stay card-menu actions.
+func BoardMoveTarget(column KanbanColumn) bool {
+	switch column {
+	case KanbanQueued, KanbanBuilding, KanbanValidating, KanbanNeedsReview, KanbanNeedsYou, KanbanReady:
+		return true
+	}
+	return false
+}

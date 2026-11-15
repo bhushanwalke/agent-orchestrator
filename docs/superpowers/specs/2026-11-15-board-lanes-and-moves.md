@@ -360,3 +360,12 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R15 The sidebar's `sessionNeedsYou` set is unchanged; aligning it with the lane is a separate change.
 - R16 A dev daemon for the B2 gate runs with its own `AO_DATA_DIR` under the scratchpad and a free port that is neither 3001 nor 3047.
 - R17 (coordinator) A draft PR dropped on In review is refused `pr_is_draft`: "This pull request is a draft. Mark it ready for review on the provider first." A board move never writes to the provider.
+- R18 Every refusal is decided before any side effect, so a refused move changes nothing. A card paused by request and dropped on Building or on its own stage is the release alone (clear, resume notice), for sessions and Tasks alike.
+- R19 A notice that cannot be delivered (controller down) does not undo the move: the fact is recorded and the failure logged.
+- R20 Validating with a live PR in any stage other than Validating (In review, Ready, or Needs you by fact) runs the same review trigger. A failed trigger is a 409 with reason `review_trigger_failed`; the inject flags stay on (R14).
+- R21 In review on a card whose stage is already In review (shown in In review or in Needs you by fact) is refused `already_there`: no AO loop is left to stop. Only when every live PR is a draft is it `pr_is_draft` (R17).
+- R22 A direct triage decision on a held Task is recorded on the plan (state stays triage, decision set, event `triage_deferred`) and its worker starts on release. A second decision is refused as for any decided Task.
+- R23 A hold also pauses the deferred-kickoff retry; release retries it. A person's plan decision on a held Task still sends the plan request: planning is not spawning.
+- R24 `POST /plans/{planId}/board-move` answers with `PlanDetailResponse`, as `activate` does, rather than `PlanResponse`.
+- R25 `ao session ls` and `ao plan ls` gain a LANE column.
+- R26 The mobile app is unchanged; it maps unknown lanes through its existing status fallback.

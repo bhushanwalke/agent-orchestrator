@@ -4734,6 +4734,13 @@ type ForkSessionResponse struct {
 	DisplayName string           `json:"displayName"`
 }
 
+// BoardMoveRequest moves a card to a board lane. A move never sets a column:
+// it changes a fact or instructs the agent, and the card lands where the
+// derived facts then put it.
+type BoardMoveRequest struct {
+	To string `json:"to" enum:"queued,building,validating,needs_review,needs_you,ready" description:"The lane the card was dropped on."`
+}
+
 // PlanIDParam is the {planId} path parameter of the /plans/{planId} routes.
 type PlanIDParam struct {
 	PlanID string `path:"planId" description:"Plan identifier."`

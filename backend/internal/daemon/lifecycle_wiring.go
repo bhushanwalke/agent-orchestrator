@@ -438,6 +438,7 @@ func startSession(ctx context.Context, cfg config.Config, runtime runtimeselect.
 	}
 	reviewSvc := reviewsvc.New(reviewEngine, store, reviewOpts...)
 	mgr.SetReviewerTerminator(reviewSvc)
+	sessionSvc.SetBoardReviewer(boardReviewer{reviews: reviewSvc, runs: store})
 	return sessionSvc, reviewSvc, mgr, nil
 }
 
@@ -937,6 +938,35 @@ func (c chatLauncher) StopChat(ctx context.Context, id domain.SessionID) error {
 // provider through the session service's claim, which re-reads the PR and
 // records it on the session. Claiming a PR the session already owns only
 // refreshes its facts; another active session's PR is never taken over.
+// boardReviewer runs the review operations a board move drives: a drop on
+// Validating asks for a fresh pass on the PR, a drop on In review cancels a
+// pass still running.
+type boardReviewer struct {
+	reviews interface {
+		TriggerRequested(ctx context.Context, workerID domain.SessionID, req reviewsvc.TriggerRequest) (reviewsvc.TriggerOutcome, error)
+		Cancel(ctx context.Context, workerID domain.SessionID) (reviewcore.CancelResult, error)
+	}
+	runs interface {
+		ListRunningReviewRunsBySession(ctx context.Context, id domain.SessionID) ([]domain.ReviewRun, error)
+	}
+}
+
+func (b boardReviewer) TriggerBoardReview(ctx context.Context, worker domain.SessionID, prURL string) error {
+	_, err := b.reviews.TriggerRequested(ctx, worker, reviewsvc.TriggerRequest{
+		Source: domain.ReviewTriggerManual, PRURL: prURL, Rerun: true, EnableAutoInject: true,
+	})
+	return err
+}
+
+func (b boardReviewer) CancelRunningReview(ctx context.Context, worker domain.SessionID) error {
+	running, err := b.runs.ListRunningReviewRunsBySession(ctx, worker)
+	if err != nil || len(running) == 0 {
+		return err
+	}
+	_, err = b.reviews.Cancel(ctx, worker)
+	return err
+}
+
 type reviewPRRefresher struct {
 	sessions interface {
 		ClaimPR(ctx context.Context, id domain.SessionID, ref string, opts sessionsvc.ClaimPROptions) (sessionsvc.ClaimPRResult, error)

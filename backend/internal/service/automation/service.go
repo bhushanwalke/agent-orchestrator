@@ -28,6 +28,7 @@ type Store interface {
 	DeleteAutomation(context.Context, domain.AutomationID) (bool, error)
 	ListAutomationRuns(context.Context, domain.AutomationRunFilter) (domain.AutomationRunPage, error)
 	ListLatestAutomationRuns(context.Context, []domain.AutomationID) (map[domain.AutomationID]domain.AutomationRun, error)
+	InsertManualAutomationRun(context.Context, domain.AutomationRun) (bool, error)
 }
 
 // Deps are the automation service's injectable dependencies.
@@ -51,6 +52,7 @@ type Service struct {
 	plans     PlanCreator
 	clock     func() time.Time
 	newID     func() string
+	wake      chan struct{}
 }
 
 // New constructs the daemon-owned automation service.
@@ -61,7 +63,46 @@ func New(deps Deps) *Service {
 	if deps.NewID == nil {
 		deps.NewID = uuid.NewString
 	}
-	return &Service{store: deps.Store, telemetry: deps.Telemetry, spawner: deps.Spawner, plans: deps.Plans, clock: deps.Clock, newID: deps.NewID}
+	return &Service{store: deps.Store, telemetry: deps.Telemetry, spawner: deps.Spawner, plans: deps.Plans, clock: deps.Clock, newID: deps.NewID, wake: make(chan struct{}, 1)}
+}
+
+// WakeC fires when the scheduler should tick now instead of at its next
+// interval, as after a run-now request.
+func (s *Service) WakeC() <-chan struct{} { return s.wake }
+
+func (s *Service) wakeScheduler() {
+	select {
+	case s.wake <- struct{}{}:
+	default:
+	}
+}
+
+// RunNow queues a run of an enabled automation for now, the board's "Start
+// now" for an automation card. The scheduled occurrence still happens: the
+// definition's next run time is unchanged. It is refused while the
+// automation already has a run pending, spawning, or running.
+func (s *Service) RunNow(ctx context.Context, id domain.AutomationID) (domain.AutomationRun, error) {
+	definition, err := s.Get(ctx, id)
+	if err != nil {
+		return domain.AutomationRun{}, err
+	}
+	if !definition.Enabled {
+		return domain.AutomationRun{}, apierr.Conflict("AUTOMATION_DISABLED", "The automation is turned off", nil)
+	}
+	now := s.clock().UTC()
+	run := domain.AutomationRun{
+		ID: domain.AutomationRunID("automation-run-" + s.newID()), AutomationID: id,
+		ScheduledFor: now, Status: domain.AutomationRunPending, CreatedAt: now, UpdatedAt: now,
+	}
+	inserted, err := s.store.InsertManualAutomationRun(ctx, run)
+	if err != nil {
+		return domain.AutomationRun{}, apierr.Internal("AUTOMATION_RUN_FAILED", "Failed to queue the run")
+	}
+	if !inserted {
+		return domain.AutomationRun{}, apierr.Conflict("AUTOMATION_RUN_ACTIVE", "The automation already has a run in progress", nil)
+	}
+	s.wakeScheduler()
+	return run, nil
 }
 
 // CreateInput is the validated user intent for one recurring definition.

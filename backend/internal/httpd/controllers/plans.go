@@ -63,6 +63,8 @@ func (c *PlansController) Register(r chi.Router) {
 	r.Delete("/plans/{planId}/milestones/{key}", c.removeMilestone)
 	r.Post("/plans/{planId}/milestones/{key}/retry", c.retryMilestone)
 	r.Post("/plans/{planId}/activate", c.activate)
+	// Same as r.Post; spelled out so this table is not a dupl twin of projects'.
+	r.Method(http.MethodPost, "/plans/{planId}/board-move", http.HandlerFunc(c.boardMove))
 	r.Post("/plans/{planId}/cancel", c.cancel)
 	r.Post("/plans/{planId}/qa-result", c.qaResult)
 	r.Post("/plans/{planId}/triage", c.triage)
@@ -256,6 +258,30 @@ func (c *PlansController) activate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d, err := c.Svc.Activate(r.Context(), id)
+	writePlanDetail(w, r, d, err)
+}
+
+// planBoardMover is the board-move capability of the plan service.
+type planBoardMover interface {
+	BoardMove(ctx context.Context, id domain.PlanID, to domain.KanbanColumn) (plansvc.Detail, error)
+}
+
+func (c *PlansController) boardMove(w http.ResponseWriter, r *http.Request) {
+	mover, ok := c.Svc.(planBoardMover)
+	if c.Svc == nil || !ok {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/plans/{planId}/board-move")
+		return
+	}
+	id, ok := planIDParam(w, r)
+	if !ok {
+		return
+	}
+	var in BoardMoveRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	d, err := mover.BoardMove(r.Context(), id, domain.KanbanColumn(strings.TrimSpace(in.To)))
 	writePlanDetail(w, r, d, err)
 }
 

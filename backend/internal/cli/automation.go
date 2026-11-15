@@ -102,7 +102,7 @@ func validateAutomationTaskMode(mode string) error {
 
 func newAutomationCommand(ctx *commandContext) *cobra.Command {
 	cmd := &cobra.Command{Use: "automation", Aliases: []string{"automations"}, Short: "Manage recurring session automations"}
-	cmd.AddCommand(newAutomationCreateCommand(ctx), newAutomationListCommand(ctx), newAutomationGetCommand(ctx), newAutomationUpdateCommand(ctx), newAutomationDeleteCommand(ctx), newAutomationRunsCommand(ctx))
+	cmd.AddCommand(newAutomationCreateCommand(ctx), newAutomationListCommand(ctx), newAutomationGetCommand(ctx), newAutomationUpdateCommand(ctx), newAutomationDeleteCommand(ctx), newAutomationRunsCommand(ctx), newAutomationRunNowCommand(ctx))
 	return cmd
 }
 

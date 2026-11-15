@@ -733,6 +733,24 @@ func (s *Store) SetSessionAutoInjectReview(ctx context.Context, id domain.Sessio
 	return rows > 0, nil
 }
 
+// SetSessionBoardRequest records the person's board request on a session; an
+// empty request clears it. It reports whether the session exists.
+func (s *Store) SetSessionBoardRequest(ctx context.Context, id domain.SessionID, request domain.BoardRequest, at time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	requestAt := sql.NullTime{}
+	if request != domain.BoardRequestNone {
+		requestAt = sql.NullTime{Time: at, Valid: true}
+	}
+	rows, err := s.qw.SetSessionBoardRequest(ctx, gen.SetSessionBoardRequestParams{
+		BoardRequest: string(request), BoardRequestAt: requestAt, UpdatedAt: at, ID: id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("set board request for session %s: %w", id, err)
+	}
+	return rows > 0, nil
+}
+
 // SetSessionAutoInjectCI persists the CI-failure injection policy for the
 // session and every PR currently owned by it. Future PRs still inherit this
 // value from the session row when first observed.
@@ -1158,6 +1176,8 @@ func rowToRecord(row gen.GetSessionRow) domain.SessionRecord {
 		SparsePaths:               unmarshalSparsePaths(row.SparsePaths),
 		PlanMilestoneKey:          row.PlanMilestoneKey,
 		PlanPrompt:                row.PlanPrompt,
+		BoardRequest:              domain.BoardRequest(row.BoardRequest),
+		BoardRequestAt:            nullTimeToTimePtr(row.BoardRequestAt),
 		ProjectID:                 projectIDValue(row.ProjectID),
 		AutomationRunID:           row.AutomationRunID,
 		AutomationLaunchCompleted: row.AutomationLaunchCompleted,

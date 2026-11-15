@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/storage/sqlite/gen"
@@ -82,6 +83,24 @@ func (s *Store) ListActivePlans(ctx context.Context) ([]domain.Plan, error) {
 		return nil, fmt.Errorf("select active plans: %w", err)
 	}
 	return plansFromGen(rows), nil
+}
+
+// SetPlanBoardRequest records the person's board request on a plan; an empty
+// request clears it. It reports whether the plan exists.
+func (s *Store) SetPlanBoardRequest(ctx context.Context, id domain.PlanID, request domain.BoardRequest, at time.Time) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	requestAt := sql.NullTime{}
+	if request != domain.BoardRequestNone {
+		requestAt = sql.NullTime{Time: at, Valid: true}
+	}
+	n, err := s.qw.SetPlanBoardRequest(ctx, gen.SetPlanBoardRequestParams{
+		BoardRequest: string(request), BoardRequestAt: requestAt, UpdatedAt: at, ID: id,
+	})
+	if err != nil {
+		return false, fmt.Errorf("set board request for plan %s: %w", id, err)
+	}
+	return n > 0, nil
 }
 
 // UpdatePlan replaces a plan's mutable fields.
@@ -372,6 +391,8 @@ func planFromGen(row gen.Plan) domain.Plan {
 		IntakeMode:            domain.PlanIntakeMode(row.IntakeMode),
 		DirectSessionID:       domain.SessionID(row.DirectSessionID),
 		TriageRemindedAt:      nullTimeToTimePtr(row.TriageRemindedAt),
+		BoardRequest:          domain.BoardRequest(row.BoardRequest),
+		BoardRequestAt:        nullTimeToTimePtr(row.BoardRequestAt),
 	}
 	if row.TriageDecision != "" {
 		p.Triage = &domain.PlanTriage{

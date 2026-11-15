@@ -67,6 +67,9 @@ type sessionDTO struct {
 	CreatedAt     time.Time            `json:"createdAt"`
 	UpdatedAt     time.Time            `json:"updatedAt"`
 	Status        string               `json:"status"`
+	KanbanColumn  string               `json:"kanbanColumn,omitempty"`
+	KanbanStage   string               `json:"kanbanStage,omitempty"`
+	DisplayStatus string               `json:"displayStatus,omitempty"`
 	Branch        string               `json:"branch,omitempty"`
 	BranchState   *branchStateDTO      `json:"branchState,omitempty"`
 	PRs           []sessionPRDTO       `json:"prs"`
@@ -248,6 +251,7 @@ func newSessionCommand(ctx *commandContext) *cobra.Command {
 	cmd.AddCommand(newSessionExitAgentCommand(ctx))
 	cmd.AddCommand(newSessionResumeAgentCommand(ctx))
 	cmd.AddCommand(newSessionRenameCommand(ctx))
+	cmd.AddCommand(newSessionMoveCommand(ctx))
 	cmd.AddCommand(newSessionCleanupCommand(ctx))
 	cmd.AddCommand(newSessionDeleteCommand(ctx))
 	cmd.AddCommand(newSessionClaimPRCommand(ctx))
@@ -1096,12 +1100,12 @@ func writeSessionList(cmd *cobra.Command, sessions []sessionDTO, summaries map[s
 				if _, err := fmt.Fprintf(table, "%s:\n", currentProject); err != nil {
 					return err
 				}
-				if _, err := fmt.Fprintln(table, "  SESSION\tROLE\tBRANCH\tPR\tCI\tREVIEW\tTHREADS\tACTIVITY\tAGE"); err != nil {
+				if _, err := fmt.Fprintln(table, "  SESSION\tROLE\tBRANCH\tLANE\tPR\tCI\tREVIEW\tTHREADS\tACTIVITY\tAGE"); err != nil {
 					return err
 				}
 			}
 			pr, ci, review, threads := sessionPRColumns(sess, summaries[sess.ID])
-			if _, err := fmt.Fprintf(table, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sess.ID, sessionRole(sess), emptyDash(sess.Branch), pr, ci, review, threads, emptyDash(sess.Activity.State), sessionAge(now, sess.Activity.LastActivityAt)); err != nil {
+			if _, err := fmt.Fprintf(table, "  %s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n", sess.ID, sessionRole(sess), emptyDash(sess.Branch), boardLaneText(sess.KanbanColumn, sess.KanbanStage), pr, ci, review, threads, emptyDash(sess.Activity.State), sessionAge(now, sess.Activity.LastActivityAt)); err != nil {
 				return err
 			}
 		}

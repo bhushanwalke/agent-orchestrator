@@ -185,6 +185,28 @@ func (s *Store) MaterializeAutomationRuns(
 	return applied, nil
 }
 
+// InsertManualAutomationRun adds a pending run for a run-now request unless
+// the automation already has a run pending, spawning, or running. It reports
+// whether the run was inserted. The definition's schedule is not touched.
+func (s *Store) InsertManualAutomationRun(ctx context.Context, run domain.AutomationRun) (bool, error) {
+	s.writeMu.Lock()
+	defer s.writeMu.Unlock()
+	inserted := false
+	err := s.inTx(ctx, "insert manual automation run", func(q *gen.Queries) error {
+		open, err := q.CountOpenAutomationRuns(ctx, run.AutomationID)
+		if err != nil || open > 0 {
+			return err
+		}
+		rows, err := q.InsertAutomationRun(ctx, automationRunToInsert(run))
+		inserted = rows > 0
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("insert manual run for automation %s: %w", run.AutomationID, err)
+	}
+	return inserted, nil
+}
+
 // ClaimNextAutomationRun leases the globally oldest eligible pending run.
 // The transaction and active-sibling predicate are the durable non-overlap
 // boundary for one automation definition.

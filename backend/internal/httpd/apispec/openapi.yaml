@@ -2370,6 +2370,57 @@ paths:
       summary: Update a recurring automation
       tags:
       - automations
+  /api/v1/automations/{automationId}/run-now:
+    post:
+      operationId: runAutomationNow
+      parameters:
+      - description: Automation identifier.
+        in: path
+        name: automationId
+        required: true
+        schema:
+          description: Automation identifier.
+          type: string
+      responses:
+        "202":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomationRunSummaryResponse'
+          description: Accepted
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Queue a run of an enabled automation now; its schedule is unchanged
+      tags:
+      - automations
   /api/v1/automations/{automationId}/runs:
     get:
       operationId: listAutomationRuns
@@ -5235,6 +5286,63 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Validate the milestone graph and start the plan
+      tags:
+      - plans
+  /api/v1/plans/{planId}/board-move:
+    post:
+      operationId: movePlanOnBoard
+      parameters:
+      - description: Plan identifier.
+        in: path
+        name: planId
+        required: true
+        schema:
+          description: Plan identifier.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersBoardMoveRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDetailResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Put a Task on hold, ask it to pause, or release it, by moving its card
       tags:
       - plans
   /api/v1/plans/{planId}/cancel:
@@ -8983,6 +9091,64 @@ paths:
                 $ref: '#/components/schemas/APIError'
           description: Not Implemented
       summary: Enable or disable automatic review for a session
+      tags:
+      - sessions
+  /api/v1/sessions/{sessionId}/board-move:
+    post:
+      operationId: moveSessionOnBoard
+      parameters:
+      - description: Session identifier, e.g. project-1.
+        in: path
+        name: sessionId
+        required: true
+        schema:
+          description: Session identifier, e.g. project-1.
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ControllersBoardMoveRequest'
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Bad Request
+        "404":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Found
+        "409":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Conflict
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Internal Server Error
+        "501":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIError'
+          description: Not Implemented
+      summary: Move a session card to a board lane; a refused move is 409 BOARD_MOVE_UNSUPPORTED
+        with details.reason
       tags:
       - sessions
   /api/v1/sessions/{sessionId}/chat-view:
@@ -19111,6 +19277,21 @@ components:
       properties:
         disabled:
           type: boolean
+      type: object
+    ControllersBoardMoveRequest:
+      properties:
+        to:
+          description: The lane the card was dropped on.
+          enum:
+          - queued
+          - building
+          - validating
+          - needs_review
+          - needs_you
+          - ready
+          type: string
+      required:
+      - to
       type: object
     ControllersBrowserChromeChannel:
       properties:

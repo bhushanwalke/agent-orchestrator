@@ -286,6 +286,9 @@ type Service struct {
 	// githubRepos lets ClaimPR accept a PR on the repository a github.com
 	// origin was renamed or transferred to. Nil keeps exact origin matching.
 	githubRepos ports.GitHubRepositoryResolver
+	// boardReviewer runs the review operations board moves drive. Nil leaves
+	// a move's flags set without starting or cancelling a review pass.
+	boardReviewer BoardReviewer
 }
 
 // SetGitHubRepositoryResolver late-binds the resolver ClaimPR uses to follow

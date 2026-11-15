@@ -2,6 +2,7 @@ package lifecycle
 
 import (
 	"context"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/sessionartifacts"
@@ -59,6 +60,18 @@ func (m *Manager) ReconcileSessionOutputType(ctx context.Context, id domain.Sess
 	artifacts, err := sessionartifacts.List(ctx, artifactDir)
 	if err != nil {
 		return err
+	}
+	// Work accepted from the board without a PR: once a PR appears it speaks
+	// for the session, so the request is cleared (the reducer already ignores
+	// it while a PR exists).
+	if len(prs) > 0 && rec.BoardRequest == domain.BoardRequestAccepted {
+		if clearer, ok := m.store.(interface {
+			SetSessionBoardRequest(ctx context.Context, id domain.SessionID, request domain.BoardRequest, at time.Time) (bool, error)
+		}); ok {
+			if _, err := clearer.SetSessionBoardRequest(ctx, id, domain.BoardRequestNone, time.Now().UTC()); err != nil {
+				return err
+			}
+		}
 	}
 	next := sessionartifacts.DeriveOutputType(len(prs), len(artifacts))
 	if next == rec.OutputType && !backfilled {

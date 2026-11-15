@@ -299,7 +299,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt,
+    board_request, board_request_at
 FROM sessions WHERE id = ?;
 
 -- name: GetSessionByAutomationRunID :one
@@ -322,7 +323,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt,
+    board_request, board_request_at
 FROM sessions WHERE automation_run_id = ?;
 
 -- name: ListSessionsByProject :many
@@ -345,7 +347,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt,
+    board_request, board_request_at
 FROM sessions WHERE project_id IS ? ORDER BY num;
 
 -- name: ListAllSessions :many
@@ -368,7 +371,8 @@ SELECT id, project_id, num, issue_id, kind, harness,
     hibernated_at, stale_binary_since, stale_binary_version, stale_binary_launch, stale_binary_switch_failed_at,
     client_request_id, client_request_hash, client_request_committed,
     runtime_released_launch_id, import_source,
-    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt
+    plan_id, plan_milestone_id, sparse_paths, plan_milestone_key, plan_prompt,
+    board_request, board_request_at
 FROM sessions ORDER BY project_id, num;
 
 -- name: ListChatHibernationCandidates :many
@@ -469,6 +473,11 @@ UPDATE sessions SET auto_inject_review = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionAutoInjectCI :execrows
 UPDATE sessions SET auto_inject_ci = ?, updated_at = ? WHERE id = ?;
+
+-- name: SetSessionBoardRequest :execrows
+-- Records the board request on a session. It is a fact the board
+-- reads, not a column; an empty request clears it.
+UPDATE sessions SET board_request = ?, board_request_at = ?, updated_at = ? WHERE id = ?;
 
 -- name: SetSessionPinned :execrows
 UPDATE sessions SET is_pinned = ?, pinned_at = ?, updated_at = ? WHERE id = ?;

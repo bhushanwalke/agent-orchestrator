@@ -107,3 +107,9 @@ DELETE FROM plans WHERE id = ?;
 SELECT id FROM sessions
 WHERE plan_id = ? AND plan_milestone_id = ''
 ORDER BY created_at, id;
+
+-- name: SetPlanBoardRequest :execrows
+-- Records the hold or attention request on a plan; an empty one clears it.
+UPDATE plans
+SET board_request = ?, board_request_at = ?, updated_at = ?
+WHERE id = ?;

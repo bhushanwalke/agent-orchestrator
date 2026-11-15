@@ -23,6 +23,7 @@ type planDTO struct {
 	State                 string                `json:"state"`
 	Phase                 string                `json:"phase"`
 	KanbanColumn          string                `json:"kanbanColumn,omitempty"`
+	KanbanStage           string                `json:"kanbanStage,omitempty"`
 	DisplayStatus         string                `json:"displayStatus,omitempty"`
 	MilestoneCounts       planMilestoneCountDTO `json:"milestoneCounts"`
 	OrchestratorSessionID string                `json:"orchestratorSessionId,omitempty"`
@@ -149,7 +150,7 @@ func newPlanCommand(ctx *commandContext) *cobra.Command {
 	cmd.AddCommand(
 		newPlanCreateCommand(ctx), newPlanListCommand(ctx), newPlanGetCommand(ctx), newPlanSetSpecCommand(ctx),
 		milestone, newPlanActivateCommand(ctx), newPlanCancelCommand(ctx), newPlanQAResultCommand(ctx),
-		newPlanTriageCommand(ctx),
+		newPlanTriageCommand(ctx), newPlanMoveCommand(ctx),
 		newPlanEventsCommand(ctx),
 	)
 	return cmd
@@ -286,9 +287,9 @@ func newPlanListCommand(ctx *commandContext) *cobra.Command {
 				return writeJSON(cmd.OutOrStdout(), response)
 			}
 			writer := tabwriter.NewWriter(cmd.OutOrStdout(), 0, 4, 2, ' ', 0)
-			_, _ = fmt.Fprintln(writer, "ID\tPHASE\tSTATUS\tMILESTONES\tTITLE")
+			_, _ = fmt.Fprintln(writer, "ID\tPHASE\tLANE\tSTATUS\tMILESTONES\tTITLE")
 			for _, p := range response.Plans {
-				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%d/%d\t%s\n", p.ID, p.Phase, p.DisplayStatus,
+				_, _ = fmt.Fprintf(writer, "%s\t%s\t%s\t%s\t%d/%d\t%s\n", p.ID, p.Phase, boardLaneText(p.KanbanColumn, p.KanbanStage), p.DisplayStatus,
 					p.MilestoneCounts.Done, p.MilestoneCounts.Total, p.Title)
 			}
 			return writer.Flush()

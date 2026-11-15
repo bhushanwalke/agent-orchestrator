@@ -45,6 +45,10 @@ func (s *Service) Tick(ctx context.Context, _ time.Time) error {
 		if p.State != domain.PlanStatePlanning && p.State != domain.PlanStateTriage {
 			continue
 		}
+		// A held Task waits; releasing it retries the kickoff (releaseHeld).
+		if held(p) {
+			continue
+		}
 		if _, err := s.RetryDeferredKickoff(ctx, p.ID); err != nil {
 			errs = append(errs, fmt.Errorf("plan %s kickoff: %w", p.ID, err))
 		}
@@ -135,6 +139,10 @@ func (s *Service) tickPlan(ctx context.Context, id domain.PlanID) error {
 		case actionAskVerdict:
 			s.askVerdict(ctx, id, a.milestone)
 		case actionSpawn:
+			// Held from the board: ready milestones wait for the release.
+			if held(p) {
+				continue
+			}
 			if err := s.spawnMilestone(ctx, id, project, a.milestone, facts); err != nil {
 				return err
 			}

@@ -405,3 +405,14 @@ func TestTickFailsTerminatedRetainedSeedWithoutKilling(t *testing.T) {
 		t.Fatalf("kills = %v, want no teardown for terminated seed", spawner.kills)
 	}
 }
+
+func (f *schedulerMemoryStore) InsertManualAutomationRun(_ context.Context, run domain.AutomationRun) (bool, error) {
+	for _, existing := range f.runs {
+		if existing.AutomationID == run.AutomationID && (existing.Status == domain.AutomationRunPending ||
+			existing.Status == domain.AutomationRunSpawning || existing.Status == domain.AutomationRunRunning) {
+			return false, nil
+		}
+	}
+	f.runs[run.ID] = run
+	return true, nil
+}

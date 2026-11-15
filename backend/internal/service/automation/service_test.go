@@ -562,3 +562,7 @@ func TestUpdateHarnessResetsOnlyOmittedTuning(t *testing.T) {
 		})
 	}
 }
+
+func (f *fakeStore) InsertManualAutomationRun(context.Context, domain.AutomationRun) (bool, error) {
+	return false, errors.New("fakeStore keeps no runs")
+}

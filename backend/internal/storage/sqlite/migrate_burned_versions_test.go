@@ -272,6 +272,7 @@ var shippedMigrations = map[int64]string{
 	20261114161310228: "20261114161310228_task_plan_attached_sessions.sql",
 	20261114231812030: "20261114231812030_task_intake_modes.sql",
 	20261114231813267: "20261114231813267_automation_task_mode.sql",
+	20261115105225340: "20261115105225340_board_requests.sql",
 }
 
 // burnedVersion reports version numbers that must never be (re)used: they

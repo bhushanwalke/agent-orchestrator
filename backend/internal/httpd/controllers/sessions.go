@@ -274,6 +274,7 @@ func (c *SessionsController) Register(r chi.Router) {
 	r.Patch("/sessions/{sessionId}/auto-inject-ci", c.setAutoInjectCIPolicy)
 	r.Put("/sessions/{sessionId}/reviewer", c.setReviewer)
 	r.Put("/sessions/{sessionId}/auto-review", c.setAutoReview)
+	r.Post("/sessions/{sessionId}/board-move", c.boardMove)
 	r.Post("/sessions/{sessionId}/restore", c.restore)
 	r.Post("/sessions/{sessionId}/exit-agent", c.exitAgent)
 	r.Post("/sessions/{sessionId}/resume-agent", c.resumeAgent)
@@ -2091,6 +2092,30 @@ func (c *SessionsController) setAutoReview(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	sess, err := c.Svc.SetAutoReview(r.Context(), sessionID(r), in.Enabled)
+	if err != nil {
+		envelope.WriteError(w, r, err)
+		return
+	}
+	envelope.WriteJSON(w, http.StatusOK, SessionResponse{Session: sessionView(r, sess)})
+}
+
+// sessionBoardMover is the board-move capability of the session service.
+type sessionBoardMover interface {
+	BoardMove(ctx context.Context, id domain.SessionID, to domain.KanbanColumn) (domain.Session, error)
+}
+
+func (c *SessionsController) boardMove(w http.ResponseWriter, r *http.Request) {
+	mover, ok := c.Svc.(sessionBoardMover)
+	if c.Svc == nil || !ok {
+		apispec.NotImplemented(w, r, "POST", "/api/v1/sessions/{sessionId}/board-move")
+		return
+	}
+	var in BoardMoveRequest
+	if err := decodeJSON(r, &in); err != nil {
+		envelope.WriteAPIError(w, r, http.StatusBadRequest, "bad_request", "INVALID_JSON", "Invalid JSON body", nil)
+		return
+	}
+	sess, err := mover.BoardMove(r.Context(), sessionID(r), domain.KanbanColumn(strings.TrimSpace(in.To)))
 	if err != nil {
 		envelope.WriteError(w, r, err)
 		return

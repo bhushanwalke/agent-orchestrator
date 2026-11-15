@@ -247,7 +247,7 @@ func (q *Queries) InsertPlanEvent(ctx context.Context, arg InsertPlanEventParams
 }
 
 const selectActivePlans = `-- name: SelectActivePlans :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE state = 'active' ORDER BY created_at, id
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at, board_request, board_request_at FROM plans WHERE state = 'active' ORDER BY created_at, id
 `
 
 func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
@@ -280,6 +280,8 @@ func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
 			&i.TriageDecidedBy,
 			&i.TriageDecidedAt,
 			&i.TriageRemindedAt,
+			&i.BoardRequest,
+			&i.BoardRequestAt,
 		); err != nil {
 			return nil, err
 		}
@@ -295,7 +297,7 @@ func (q *Queries) SelectActivePlans(ctx context.Context) ([]Plan, error) {
 }
 
 const selectAllPlans = `-- name: SelectAllPlans :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans ORDER BY created_at DESC, id DESC
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at, board_request, board_request_at FROM plans ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) SelectAllPlans(ctx context.Context) ([]Plan, error) {
@@ -328,6 +330,8 @@ func (q *Queries) SelectAllPlans(ctx context.Context) ([]Plan, error) {
 			&i.TriageDecidedBy,
 			&i.TriageDecidedAt,
 			&i.TriageRemindedAt,
+			&i.BoardRequest,
+			&i.BoardRequestAt,
 		); err != nil {
 			return nil, err
 		}
@@ -494,7 +498,7 @@ func (q *Queries) SelectPlanAttachedSessionIDs(ctx context.Context, planID domai
 }
 
 const selectPlanByID = `-- name: SelectPlanByID :one
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE id = ?
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at, board_request, board_request_at FROM plans WHERE id = ?
 `
 
 func (q *Queries) SelectPlanByID(ctx context.Context, id domain.PlanID) (Plan, error) {
@@ -521,6 +525,8 @@ func (q *Queries) SelectPlanByID(ctx context.Context, id domain.PlanID) (Plan, e
 		&i.TriageDecidedBy,
 		&i.TriageDecidedAt,
 		&i.TriageRemindedAt,
+		&i.BoardRequest,
+		&i.BoardRequestAt,
 	)
 	return i, err
 }
@@ -570,7 +576,7 @@ func (q *Queries) SelectPlanEventsAfter(ctx context.Context, arg SelectPlanEvent
 }
 
 const selectPlansByProject = `-- name: SelectPlansByProject :many
-SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at FROM plans WHERE project_id = ? ORDER BY created_at DESC, id DESC
+SELECT id, project_id, title, brief, ticket_ref, spec_markdown, state, orchestrator_session_id, max_parallel, created_at, updated_at, activated_at, finished_at, intake_mode, direct_session_id, triage_decision, triage_reason, triage_decided_by, triage_decided_at, triage_reminded_at, board_request, board_request_at FROM plans WHERE project_id = ? ORDER BY created_at DESC, id DESC
 `
 
 func (q *Queries) SelectPlansByProject(ctx context.Context, projectID domain.ProjectID) ([]Plan, error) {
@@ -603,6 +609,8 @@ func (q *Queries) SelectPlansByProject(ctx context.Context, projectID domain.Pro
 			&i.TriageDecidedBy,
 			&i.TriageDecidedAt,
 			&i.TriageRemindedAt,
+			&i.BoardRequest,
+			&i.BoardRequestAt,
 		); err != nil {
 			return nil, err
 		}
@@ -658,6 +666,33 @@ func (q *Queries) SelectRecentPlanEvents(ctx context.Context, arg SelectRecentPl
 		return nil, err
 	}
 	return items, nil
+}
+
+const setPlanBoardRequest = `-- name: SetPlanBoardRequest :execrows
+UPDATE plans
+SET board_request = ?, board_request_at = ?, updated_at = ?
+WHERE id = ?
+`
+
+type SetPlanBoardRequestParams struct {
+	BoardRequest   string
+	BoardRequestAt sql.NullTime
+	UpdatedAt      time.Time
+	ID             domain.PlanID
+}
+
+// Records the hold or attention request on a plan; an empty one clears it.
+func (q *Queries) SetPlanBoardRequest(ctx context.Context, arg SetPlanBoardRequestParams) (int64, error) {
+	result, err := q.db.ExecContext(ctx, setPlanBoardRequest,
+		arg.BoardRequest,
+		arg.BoardRequestAt,
+		arg.UpdatedAt,
+		arg.ID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected()
 }
 
 const updateMilestone = `-- name: UpdateMilestone :execrows

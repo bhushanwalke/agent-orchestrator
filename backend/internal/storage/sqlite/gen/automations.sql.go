@@ -155,6 +155,18 @@ func (q *Queries) CountAutomations(ctx context.Context, arg CountAutomationsPara
 	return count, err
 }
 
+const countOpenAutomationRuns = `-- name: CountOpenAutomationRuns :one
+SELECT COUNT(*) FROM automation_runs
+WHERE automation_id = ? AND status IN ('pending', 'spawning', 'running')
+`
+
+func (q *Queries) CountOpenAutomationRuns(ctx context.Context, automationID domain.AutomationID) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countOpenAutomationRuns, automationID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const deleteAutomation = `-- name: DeleteAutomation :execrows
 DELETE FROM automations WHERE id = ?
 `

@@ -36,7 +36,8 @@ func (s *Service) Triage(ctx context.Context, id domain.PlanID, decision domain.
 	if err != nil {
 		return domain.Plan{}, err
 	}
-	if p.State != domain.PlanStateTriage {
+	// A direct decision deferred by a hold is already the decision.
+	if p.State != domain.PlanStateTriage || p.Triage != nil {
 		return domain.Plan{}, notInTriage(p)
 	}
 	project, err := s.requireProject(ctx, p.ProjectID)
@@ -46,7 +47,49 @@ func (s *Service) Triage(ctx context.Context, id domain.PlanID, decision domain.
 	if decision == domain.TriageDecisionPlan {
 		return s.decidePlan(ctx, p, project, reason, actor)
 	}
+	if held(p) {
+		return s.deferDirect(ctx, p, reason, actor)
+	}
 	return s.decideDirect(ctx, p, project, reason, actor)
+}
+
+// deferDirect records a direct decision on a held Task without starting its
+// worker: the plan stays in triage with the decision set, and releasing the
+// hold runs the spawn (runDeferredDirect).
+func (s *Service) deferDirect(ctx context.Context, p domain.Plan, reason string, actor domain.TriageActor) (domain.Plan, error) {
+	now := s.now().UTC()
+	s.mu.Lock()
+	next, err := s.mutatePlan(ctx, p.ID, func(p *domain.Plan) error {
+		if p.State != domain.PlanStateTriage || p.Triage != nil {
+			return notInTriage(*p)
+		}
+		p.Triage = &domain.PlanTriage{Decision: domain.TriageDecisionDirect, Reason: reason, DecidedBy: actor, DecidedAt: now}
+		return nil
+	})
+	s.mu.Unlock()
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	s.recordEvent(ctx, p.ID, "", "", EventTriageDeferred, triageNote(*next.Triage))
+	return next, nil
+}
+
+// runDeferredDirect starts the worker of a direct decision a hold deferred.
+func (s *Service) runDeferredDirect(ctx context.Context, p domain.Plan) (domain.Plan, error) {
+	s.triageMu.Lock()
+	defer s.triageMu.Unlock()
+	cur, err := s.requirePlan(ctx, p.ID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	if cur.State != domain.PlanStateTriage || cur.Triage == nil || cur.Triage.Decision != domain.TriageDecisionDirect {
+		return cur, nil
+	}
+	project, err := s.requireProject(ctx, cur.ProjectID)
+	if err != nil {
+		return domain.Plan{}, err
+	}
+	return s.decideDirect(ctx, cur, project, cur.Triage.Reason, cur.Triage.DecidedBy)
 }
 
 func (s *Service) decidePlan(ctx context.Context, p domain.Plan, project domain.ProjectRecord, reason string, actor domain.TriageActor) (domain.Plan, error) {
@@ -152,7 +195,7 @@ func directSpawnConfig(p domain.Plan, project domain.ProjectRecord) ports.SpawnC
 // refused delivery is retried on the next tick. No decision is ever made
 // automatically.
 func (s *Service) triageReminder(ctx context.Context, p domain.Plan) error {
-	if p.State != domain.PlanStateTriage || p.TriageRemindedAt != nil || p.OrchestratorSessionID == "" {
+	if p.State != domain.PlanStateTriage || p.TriageRemindedAt != nil || p.OrchestratorSessionID == "" || held(p) {
 		return nil
 	}
 	sentAt, sent, err := s.kickoffSentAt(ctx, p.ID)

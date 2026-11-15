@@ -173,3 +173,7 @@ UPDATE automation_runs
 SET status = 'pending', claimed_at = NULL, lease_expires_at = NULL,
     error_message = ?, updated_at = ?
 WHERE id = ? AND status = 'spawning';
+
+-- name: CountOpenAutomationRuns :one
+SELECT COUNT(*) FROM automation_runs
+WHERE automation_id = ? AND status IN ('pending', 'spawning', 'running');

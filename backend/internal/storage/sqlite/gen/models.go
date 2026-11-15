@@ -651,6 +651,8 @@ type Plan struct {
 	TriageDecidedBy       string
 	TriageDecidedAt       sql.NullTime
 	TriageRemindedAt      sql.NullTime
+	BoardRequest          string
+	BoardRequestAt        sql.NullTime
 }
 
 type PlanEvent struct {
@@ -865,6 +867,8 @@ type Session struct {
 	SparsePaths                      string
 	PlanMilestoneKey                 string
 	PlanPrompt                       string
+	BoardRequest                     string
+	BoardRequestAt                   sql.NullTime
 }
 
 type SessionAgentAccount struct {
