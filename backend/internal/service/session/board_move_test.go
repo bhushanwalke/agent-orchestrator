@@ -83,6 +83,9 @@ var boardStates = map[string]func() boardCase{
 		rec.BoardRequest = domain.BoardRequestAttention
 		return boardCase{rec: rec, provider: true}
 	},
+	"merged PR": func() boardCase {
+		return boardCase{rec: boardWorker(domain.ActivityIdle, 1), provider: true, prs: []domain.PRFacts{{URL: "https://github.com/o/r/pull/1", Merged: true}}}
+	},
 	"draft PR": func() boardCase {
 		rec := boardWorker(domain.ActivityIdle, 1)
 		return boardCase{rec: rec, provider: true, prs: []domain.PRFacts{{URL: "https://github.com/o/r/pull/1", Draft: true}}}
@@ -125,6 +128,7 @@ func TestBoardMoveStartingStatesPlaceAsExpected(t *testing.T) {
 		"needs_you by fact, PR":    {domain.KanbanNeedsYou, domain.KanbanNeedsReview},
 		"needs_you by request":     {domain.KanbanNeedsYou, domain.KanbanBuilding},
 		"draft PR":                 {domain.KanbanValidating, domain.KanbanValidating},
+		"merged PR":                {domain.KanbanReady, domain.KanbanReady},
 	}
 	for name, state := range boardStates {
 		svc, _, _, _ := newBoardService(state())
@@ -212,6 +216,7 @@ func TestBoardMoveMatrix(t *testing.T) {
 		{"needs_you by request", domain.KanbanNeedsReview, outcome{refusal: "no_pr", request: domain.BoardRequestAttention}},
 
 		{"draft PR", domain.KanbanNeedsReview, outcome{refusal: "pr_is_draft"}},
+		{"merged PR", domain.KanbanValidating, outcome{refusal: "pr_decides_ready"}},
 		{"draft PR", domain.KanbanValidating, outcome{refusal: "already_there"}},
 	}
 	for _, tc := range cases {

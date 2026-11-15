@@ -124,8 +124,10 @@ func planSessionMove(sess domain.Session, to domain.KanbanColumn, hasPRProvider 
 		if stage == domain.KanbanValidating && !paused {
 			return refuse(domain.BoardRefusalAlreadyThere)
 		}
+		// Only merged or closed PRs: they decide the lane, and there is no
+		// live PR to review.
 		if len(live) == 0 && len(sess.PRs) > 0 {
-			return refuse(domain.BoardRefusalAlreadyThere)
+			return refuse(domain.BoardRefusalPRDecidesReady)
 		}
 		if len(live) == 0 && !hasPRProvider {
 			return refuse(domain.BoardRefusalNoPRProvider)
