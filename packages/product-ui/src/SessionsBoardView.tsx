@@ -328,6 +328,10 @@ export function SessionCardView({
 	const needsAttention = boardSessionNeedsAttention(session);
 	const needsAttentionChip = needsAttention;
 	const column = getKanbanColumnView(toKanbanColumn(session.kanbanColumn, session.status), translate);
+	// In the Needs you lane the lane header and the status line carry the
+	// attention; the card itself neither pulses nor tints, so a full lane is
+	// calm (DESIGN.md §9: never pulse several cards).
+	const attentionSurface = needsAttention && column.column !== "needs_you";
 	const statusClassName =
 		session.displayStatus === "Closed without merge"
 			? "text-status-exited"
@@ -455,7 +459,7 @@ export function SessionCardView({
 					(listSelection
 						? "cursor-pointer"
 						: "cursor-pointer hover:bg-interactive-hover focus-within:bg-interactive-hover active:scale-[0.99] has-[button:active]:scale-100 has-[a:active]:scale-100"),
-				needsAttention &&
+				attentionSurface &&
 					(still
 						? "bg-[color-mix(in_srgb,var(--color-status-needs-you)_10%,var(--popover))]"
 						: "animate-attention-card-pulse border-status-needs-you bg-[color-mix(in_srgb,var(--color-status-needs-you)_8%,var(--color-surface))]"),

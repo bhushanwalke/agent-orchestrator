@@ -414,7 +414,8 @@ const kanbanColumnBases: Record<KanbanColumn, KanbanColumnBase> = {
 		glow: "transparent",
 		dot: "var(--color-status-terminated)",
 		dotGlow: false,
-		titleClassName: "text-passive",
+		// Muted, not passive: passive text is about 2.7:1 on the dark background.
+		titleClassName: "text-muted-foreground",
 		dotClassName: "bg-status-terminated",
 	},
 	building: {

@@ -232,7 +232,7 @@ export function toBoardAutomationPresentation(automation: Automation, scheduledL
 		provider: automation.harness ?? "",
 		status: "idle",
 		displayStatus: "Scheduled",
-		statusPresentation: { className: "text-passive", indicatorClassName: "bg-status-terminated", label: scheduledLabel },
+		statusPresentation: { className: "text-muted-foreground", indicatorClassName: "bg-status-terminated", label: scheduledLabel },
 		plainSurface: true,
 		title: automation.displayName,
 		updatedAt: automation.nextRunAt,

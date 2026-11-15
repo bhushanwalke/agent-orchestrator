@@ -62,6 +62,22 @@ describe("SessionsBoardView", () => {
 		expect(screen.getByTestId("session-status-stage")).toHaveClass("text-muted-foreground");
 	});
 
+	it("keeps a Needs you card calm: no pulse and no tint, the status line carries it", () => {
+		const props = {
+			externalLink: ExternalLink,
+			labels: { formatTime: () => "now", intakeIssue: (id: string) => id, pr: progressLabels, updatedAt: (at: string) => at },
+			renderAvatar: () => null,
+		};
+		const { rerender } = render(<SessionCardView {...props} session={{ ...baseSession, kanbanColumn: "needs_you", kanbanStage: "building", displayStatus: "Blocked" }} />);
+		const card = screen.getByTestId("board-session-card");
+		expect(card.className).not.toContain("animate-attention-card-pulse");
+		expect(card.className).not.toContain("--color-status-needs-you");
+		expect(screen.getByTestId("session-status")).toHaveClass("text-status-needs-you");
+		// The same attention outside Needs you keeps the existing treatment.
+		rerender(<SessionCardView {...props} session={{ ...baseSession, kanbanColumn: "building", displayStatus: "Blocked" }} />);
+		expect(screen.getByTestId("board-session-card")).toHaveClass("animate-attention-card-pulse");
+	});
+
 	it("names no stage outside Needs you", () => {
 		render(<SessionCardView externalLink={ExternalLink}
 			labels={{ formatTime: () => "now", intakeIssue: (id) => id, pr: progressLabels, updatedAt: (at) => at }}

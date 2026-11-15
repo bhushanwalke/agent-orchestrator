@@ -969,7 +969,7 @@ function CopyActionButton({
 export type BoardPlanItem = BoardSessionPresentation & { planCard: PlanSummary };
 
 const PLAN_LANE_TONES: Record<string, { className: string; indicatorClassName: string; tone: string }> = {
-	queued: { className: "text-passive", indicatorClassName: "bg-status-terminated", tone: "var(--color-status-terminated)" },
+	queued: { className: "text-muted-foreground", indicatorClassName: "bg-status-terminated", tone: "var(--color-status-terminated)" },
 	building: { className: "text-status-working", indicatorClassName: "bg-status-working", tone: "var(--color-status-working)" },
 	validating: { className: "text-status-validating", indicatorClassName: "bg-status-validating", tone: "var(--color-status-validating)" },
 	needs_review: { className: "text-status-needs-you", indicatorClassName: "bg-status-needs-you", tone: "var(--color-status-needs-you)" },

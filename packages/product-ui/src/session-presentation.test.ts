@@ -92,7 +92,7 @@ describe("session presentation", () => {
 	});
 
 	it("keeps the in-queue lane muted and gives only needs you the needs-human header", () => {
-		expect(getKanbanColumnView("queued")).toMatchObject({ dotGlow: false, titleClassName: "text-passive" });
+		expect(getKanbanColumnView("queued")).toMatchObject({ dotGlow: false, titleClassName: "text-muted-foreground", dotClassName: "bg-status-terminated" });
 		expect(getKanbanColumnView("needs_you")).toMatchObject({ dotGlow: true, titleClassName: "text-status-needs-you" });
 		for (const column of boardKanbanColumnOrder.filter((lane) => lane !== "needs_you")) {
 			expect(getKanbanColumnView(column).titleClassName).not.toBe("text-status-needs-you");
