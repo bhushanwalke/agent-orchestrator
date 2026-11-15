@@ -11,6 +11,7 @@ import { formatRelativeTime } from "../../lib/usage-format";
 import { cn } from "../../lib/utils";
 import type { PlanMilestone, PlanPhase } from "../../types/plan";
 import { ChatMarkdown } from "../chat/ChatMarkdown";
+import { ConfirmDialog } from "../ConfirmDialog";
 import { PageTopbar, PageTopbarTitle } from "../PageTopbar";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
@@ -45,9 +46,10 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 	const query = usePlanQuery(planId);
 	const workspaces = useWorkspaceQuery().data ?? [];
 	const sessions = workspaces.find((workspace) => workspace.id === projectId)?.sessions ?? [];
-	const { retryMilestone } = usePlanMutations(planId, projectId);
+	const { retryMilestone, triage } = usePlanMutations(planId, projectId);
 	const [selectedKey, setSelectedKey] = useState<string>();
 	const [cancelOpen, setCancelOpen] = useState(false);
+	const [directOpen, setDirectOpen] = useState(false);
 	const [specOpen, setSpecOpen] = useState(false);
 
 	const backToBoard = () => void navigate({ to: "/projects/$projectId", params: { projectId } });
@@ -82,6 +84,10 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 	const started = plan.activatedAt ?? plan.createdAt;
 	const canRerunQA = plan.phase === "done" || plan.phase === "fixing";
 	const finished = plan.phase === "cancelled" || plan.phase === "done";
+	const deciding = plan.phase === "triage";
+	// A direct Task is closed: its worker's own card and session carry the work.
+	const direct = plan.phase === "direct";
+	const hasSpec = Boolean(plan.specMarkdown.trim());
 
 	const lead = (
 		<>
@@ -124,16 +130,34 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 				<DropdownMenuItem disabled={!plan.orchestratorSessionId} onSelect={() => openSession(plan.orchestratorSessionId)}>
 					{t("plan.actions.openOrchestrator")}
 				</DropdownMenuItem>
-				<DropdownMenuItem disabled={!canRerunQA || retryMilestone.isPending} onSelect={() => retryMilestone.mutate("qa")}>
-					{t("plan.actions.rerunQa")}
-				</DropdownMenuItem>
-				<DropdownMenuItem disabled={!plan.specMarkdown.trim()} onSelect={() => setSpecOpen(true)}>
-					{t("plan.actions.showSpec")}
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem disabled={finished} onSelect={() => setCancelOpen(true)} variant="destructive">
-					{t("plan.actions.cancel")}
-				</DropdownMenuItem>
+				{deciding ? (
+					<>
+						<DropdownMenuItem disabled={triage.isPending} onSelect={() => triage.mutate("plan")}>
+							{t("plan.actions.planIt")}
+						</DropdownMenuItem>
+						<DropdownMenuItem disabled={triage.isPending} onSelect={() => setDirectOpen(true)}>
+							{t("plan.actions.sendToWorker")}
+						</DropdownMenuItem>
+					</>
+				) : null}
+				{deciding || direct ? null : (
+					<DropdownMenuItem disabled={!canRerunQA || retryMilestone.isPending} onSelect={() => retryMilestone.mutate("qa")}>
+						{t("plan.actions.rerunQa")}
+					</DropdownMenuItem>
+				)}
+				{direct && !hasSpec ? null : (
+					<DropdownMenuItem disabled={!hasSpec} onSelect={() => setSpecOpen(true)}>
+						{t("plan.actions.showSpec")}
+					</DropdownMenuItem>
+				)}
+				{direct ? null : (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuItem disabled={finished} onSelect={() => setCancelOpen(true)} variant="destructive">
+							{t("plan.actions.cancel")}
+						</DropdownMenuItem>
+					</>
+				)}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -146,9 +170,26 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 					{t("plan.actions.rerunFailed", { message: apiErrorMessage(retryMilestone.error) })}
 				</p>
 			) : null}
+			{triage.isError && !directOpen ? (
+				<p className="px-(--space-4_5) pt-3 text-sm text-destructive" role="alert">
+					{t("plan.triage.failed", { message: apiErrorMessage(triage.error) })}
+				</p>
+			) : null}
 			<div className="flex min-h-0 flex-1 flex-col overflow-y-auto min-[900px]:flex-row min-[900px]:overflow-hidden">
 				<div className="min-w-0 flex-1 px-(--space-4_5) py-6 min-[900px]:overflow-auto">
-					{milestones.length === 0 ? (
+					{deciding ? (
+						<p className="py-12 text-center text-sm text-muted-foreground">{t("plan.triage.waiting")}</p>
+					) : direct ? (
+						<div className="flex flex-col items-center gap-2 py-12 text-center">
+							<p className="text-sm font-medium text-foreground">{t("plan.direct.heading")}</p>
+							{plan.triage?.reason ? <p className="max-w-prose text-sm text-muted-foreground">{plan.triage.reason}</p> : null}
+							{plan.directSessionId ? (
+								<Button className="mt-2" onClick={() => openSession(plan.directSessionId ?? "")} size="sm" type="button" variant="primary">
+									{t("plan.direct.open")}
+								</Button>
+							) : null}
+						</div>
+					) : milestones.length === 0 ? (
 						<p className="text-sm text-muted-foreground">{t("plan.graph.empty")}</p>
 					) : (
 						<PlanGraph milestones={milestones} onOpen={openMilestone} onSelect={setSelectedKey} selectedKey={selectedKey} />
@@ -166,10 +207,24 @@ export function PlanRunView({ projectId, planId }: { projectId: string; planId: 
 						selectedKey={selectedKey}
 						sessions={sessions}
 					/>
-					<PlanEvents events={events} milestones={milestones} />
+					<PlanEvents events={events} milestones={milestones} triage={plan.triage} />
 				</aside>
 			</div>
 			<CancelPlanDialog onOpenChange={setCancelOpen} open={cancelOpen} planId={planId} projectId={projectId} title={plan.title} />
+			<ConfirmDialog
+				open={directOpen}
+				onOpenChange={(next) => {
+					if (!next) triage.reset();
+					setDirectOpen(next);
+				}}
+				title={t("plan.triage.directTitle", { title: plan.title })}
+				description={t("plan.triage.directDescription")}
+				confirmLabel={t("plan.actions.sendToWorker")}
+				cancelLabel={t("plan.triage.keepDeciding")}
+				busy={triage.isPending}
+				error={triage.isError ? apiErrorMessage(triage.error, t("plan.triage.directFailed")) : null}
+				onConfirm={() => triage.mutate("direct", { onSuccess: () => setDirectOpen(false) })}
+			/>
 			<Sheet onOpenChange={setSpecOpen} open={specOpen}>
 				<SheetContent className="w-full overflow-y-auto sm:max-w-2xl" side="right">
 					<SheetHeader>

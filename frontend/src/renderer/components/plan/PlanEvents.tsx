@@ -3,7 +3,7 @@ import { useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import type { MessageKey } from "../../i18n";
 import { formatRelativeTime } from "../../lib/usage-format";
-import type { MilestoneStatus, PlanEvent, PlanMilestone } from "../../types/plan";
+import type { MilestoneStatus, Plan, PlanEvent, PlanMilestone } from "../../types/plan";
 import { Button } from "../ui/button";
 import { StatusGlyph, statusTone } from "./PlanGraph";
 
@@ -23,6 +23,7 @@ const eventStatus: Record<string, MilestoneStatus> = {
 	milestone_failed: "failed",
 	qa_failed: "failed",
 	plan_cancelled: "cancelled",
+	direct_spawn_failed: "failed",
 };
 
 const knownKinds = new Set([
@@ -30,10 +31,11 @@ const knownKinds = new Set([
 	"plan_activated", "milestone_ready", "milestone_started", "milestone_checkpoint", "milestone_blocked", "milestone_done",
 	"milestone_failed", "milestone_branch_unresolved", "qa_verdict_requested", "qa_passed", "qa_failed", "defect_sent",
 	"plan_done", "plan_done_notified", "plan_cancelled", "sparse_disabled", "milestone_blocked_notified", "milestone_failed_notified",
+	"triage_requested", "triage_reminder", "direct_spawned", "direct_spawn_failed",
 ]);
 
 /** The Task's latest events, newest first (the daemon's order). */
-export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[]; milestones: readonly PlanMilestone[] }) {
+export function PlanEvents({ events, milestones, triage }: { events: readonly PlanEvent[]; milestones: readonly PlanMilestone[]; triage?: Plan["triage"] }) {
 	const { t, i18n } = useTranslation();
 	const [all, setAll] = useState(false);
 	const titles = new Map(milestones.map((m) => [m.key, m.title]));
@@ -42,11 +44,27 @@ export function PlanEvents({ events, milestones }: { events: readonly PlanEvent[
 
 	// The phrase is translated around a placeholder title, so the title alone
 	// truncates and the verb stays readable in every word order.
-	const describe = (event: PlanEvent): ReactNode => {
+	// The slot holds the part that may truncate: a milestone title, the triage
+	// reason, or a spawn error.
+	const phraseFor = (event: PlanEvent): { phrase: string; title: string } => {
+		const slot = { title: TITLE_SLOT, interpolation: { escapeValue: false } };
+		if (event.kind === "triage_decided") {
+			// One decision per Task: the plan carries it; the note is a fallback.
+			const decision = triage?.decision ?? (event.note.startsWith("direct") ? "direct" : "plan");
+			const reason = triage?.reason ?? "";
+			if (!reason) return { phrase: t(decision === "direct" ? "plan.events.triage.direct" : "plan.events.triage.plan"), title: "" };
+			return { phrase: t(decision === "direct" ? "plan.events.triage.directReason" : "plan.events.triage.planReason", slot), title: reason };
+		}
+		if (event.kind === "direct_spawn_failed") return { phrase: t("plan.events.kind.direct_spawn_failed", slot), title: event.note };
 		const title = titles.get(event.milestoneKey) ?? event.milestoneKey;
 		const phrase = knownKinds.has(event.kind)
-			? t(`plan.events.kind.${event.kind}` as MessageKey, { title: TITLE_SLOT, interpolation: { escapeValue: false } })
-			: t("plan.events.kind.other", { title: TITLE_SLOT, kind: event.kind.replaceAll("_", " "), interpolation: { escapeValue: false } });
+			? t(`plan.events.kind.${event.kind}` as MessageKey, slot)
+			: t("plan.events.kind.other", { ...slot, kind: event.kind.replaceAll("_", " ") });
+		return { phrase, title };
+	};
+
+	const describe = (event: PlanEvent): ReactNode => {
+		const { phrase, title } = phraseFor(event);
 		const at = phrase.indexOf(TITLE_SLOT);
 		if (at < 0 || !title) return <span className="min-w-0 truncate">{phrase.replace(TITLE_SLOT, "").trim()}</span>;
 		const before = phrase.slice(0, at);

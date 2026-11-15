@@ -289,6 +289,19 @@ describe("SessionsBoard plans", () => {
 		expect(screen.queryByText("Dropped task")).toBeNull();
 	});
 
+	it("shows a deciding Task in the working lane and leaves a direct one to its worker's card", () => {
+		plansMock.mockReturnValue([
+			plan({ id: "plan_t", title: "Deciding task", state: "triage", phase: "triage", intakeMode: "auto", kanbanColumn: "building", displayStatus: "Deciding", liveSessions: [], prs: [] }),
+			// A direct Task is never a card, whatever lane the daemon reports.
+			plan({ id: "plan_d", title: "Direct task", state: "direct", phase: "direct", intakeMode: "auto", kanbanColumn: "building", displayStatus: "One worker", directSessionId: "solo", liveSessions: [], prs: [] }),
+		]);
+		renderBoard("p1");
+		const card = within(columnOf("building")).getByText("Deciding task").closest("[data-testid='board-plan-card']") as HTMLElement;
+		expect(within(card).getByText("Deciding")).toBeInTheDocument();
+		expect(screen.queryByText("Direct task")).toBeNull();
+		expect(within(columnOf("building")).getByText("Solo worker")).toBeInTheDocument();
+	});
+
 	it("opens the run view, and offers orchestrator, cancel, and copy actions", async () => {
 		renderBoard("p1");
 		const card = screen.getByTestId("board-plan-card");

@@ -99,5 +99,13 @@ export function usePlanMutations(planId: string, projectId: string) {
 		},
 		onSettled: refresh,
 	});
-	return { cancel, retryMilestone, patch };
+	// A person's triage decision for an auto Task (the daemon records decidedBy human).
+	const triage = useMutation({
+		mutationFn: async (decision: "plan" | "direct") => {
+			const { error } = await apiClient.POST("/api/v1/plans/{planId}/triage", { params: { path: { planId } }, body: { decision } });
+			if (error) throw error;
+		},
+		onSettled: refresh,
+	});
+	return { cancel, retryMilestone, patch, triage };
 }

@@ -57,7 +57,8 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 	const planAvailable = !hostId && !report && !task.isCloudProject &&
 		projectId !== STANDALONE_WORKSPACE_ID && projectId !== CLOUD_STANDALONE_WORKSPACE_ID;
 	const [newTaskMode, setNewTaskMode] = useNewTaskMode(projectId);
-	const planMode = planAvailable && newTaskMode === "plan";
+	// Plan and Auto both create a Task plan; Auto lets the orchestrator decide.
+	const planMode = planAvailable && newTaskMode !== "task" ? newTaskMode : undefined;
 	const hostAccounts = useAgentAccounts(Boolean(task.account), hostId);
 	const providerRows = task.account ? (hostAccounts.data ?? []).filter((row) => row.provider === task.account?.provider) : [];
 	const accountRows = withoutSameLogins(providerRows, task.account?.value ?? providerRows.find((row) => row.default)?.id);
@@ -455,15 +456,16 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 			<BareTopbarDragStrip />
 			{planAvailable && !frozen ? (
 				<div className="flex shrink-0 justify-center pt-2">
-					<Tabs value={planMode ? "plan" : "task"} onValueChange={(value) => setNewTaskMode(value === "plan" ? "plan" : "task")}>
+					<Tabs value={planMode ?? "task"} onValueChange={(value) => setNewTaskMode(asNewTaskMode(value))}>
 						<TabsList aria-label={t("newTask.plan.modeLabel")}>
 							<TabsTrigger value="task">{t("newTask.plan.modeTask")}</TabsTrigger>
 							<TabsTrigger value="plan">{t("newTask.plan.modePlan")}</TabsTrigger>
+							<TabsTrigger value="auto">{t("newTask.plan.modeAuto")}</TabsTrigger>
 						</TabsList>
 					</Tabs>
 				</div>
 			) : null}
-			{planMode ? <PlanComposer projectId={projectId} tray={projectTray} /> : <ChatWorkspace
+			{planMode ? <PlanComposer mode={planMode} projectId={projectId} tray={projectTray} /> : <ChatWorkspace
 				// A different project is a different worktree: the composer reloads its
 				// draft (text kept, staged files dropped above). So does a draft written
 				// from outside this page.
@@ -538,14 +540,18 @@ export function NewChatPage({ projectId, hostId, report }: { projectId: string; 
 	);
 }
 
-type NewTaskMode = "task" | "plan";
+type NewTaskMode = "task" | "plan" | "auto";
+
+function asNewTaskMode(value: string | null): NewTaskMode {
+	return value === "plan" || value === "auto" ? value : "task";
+}
 
 // The last New Task mode per project, a per-viewer convenience.
 function useNewTaskMode(projectId: string): [NewTaskMode, (mode: NewTaskMode) => void] {
 	const key = `ao.newTask.mode.${projectId}`;
 	const read = (): NewTaskMode => {
 		try {
-			return window.localStorage.getItem(key) === "plan" ? "plan" : "task";
+			return asNewTaskMode(window.localStorage.getItem(key));
 		} catch {
 			return "task";
 		}

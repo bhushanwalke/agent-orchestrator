@@ -13,11 +13,13 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 const TITLE_MAX = 100;
 
 /**
- * New Task in Plan mode: a ticket handed to the project orchestrator, which
- * plans it into milestones. There is no session yet, so this is a form rather
- * than the session's chat; it opens the Task's run view once created.
+ * New Task in Plan or Auto mode: a ticket handed to the project orchestrator,
+ * which plans it into milestones (Plan) or first decides between a plan and one
+ * worker (Auto). There is no session yet, so this is a form rather than the
+ * session's chat; it opens the Task's run view once created. The form stays
+ * mounted across the two modes, so switching keeps what was typed.
  */
-export function PlanComposer({ projectId, tray }: { projectId: string; tray?: ReactNode }) {
+export function PlanComposer({ mode = "plan", projectId, tray }: { mode?: "plan" | "auto"; projectId: string; tray?: ReactNode }) {
 	const { t } = useTranslation();
 	const navigate = useNavigate();
 	const [title, setTitle] = useState("");
@@ -33,7 +35,12 @@ export function PlanComposer({ projectId, tray }: { projectId: string; tray?: Re
 		setSubmitting(true);
 		setError(undefined);
 		try {
-			const body = { title: title.trim(), brief, ...(ticketRef.trim() ? { ticketRef: ticketRef.trim() } : {}) };
+			const body = {
+				title: title.trim(),
+				brief,
+				...(ticketRef.trim() ? { ticketRef: ticketRef.trim() } : {}),
+				...(mode === "auto" ? { mode } : {}),
+			};
 			const plan = await createPlan(projectId, body);
 			void navigate({ to: "/projects/$projectId/plans/$planId", params: { projectId, planId: plan.id } });
 		} catch (failure) {
@@ -51,7 +58,9 @@ export function PlanComposer({ projectId, tray }: { projectId: string; tray?: Re
 	return (
 		<div className="flex min-h-0 flex-1 flex-col items-center justify-center overflow-y-auto px-4 pb-16">
 			<form className="flex w-full max-w-[680px] flex-col gap-4" onSubmit={(event) => void submit(event)} onKeyDown={submitOnModEnter}>
-				<h1 className="mb-1 text-center text-2xl font-normal tracking-tight text-foreground sm:text-3xl">{t("newTask.plan.heading")}</h1>
+				<h1 className="mb-1 text-center text-2xl font-normal tracking-tight text-foreground sm:text-3xl">
+					{mode === "auto" ? t("newTask.plan.headingAuto") : t("newTask.plan.heading")}
+				</h1>
 				<div className="flex flex-col gap-2">
 					<Label htmlFor="plan-title">{t("newTask.plan.title")}</Label>
 					<Input
@@ -105,9 +114,12 @@ export function PlanComposer({ projectId, tray }: { projectId: string; tray?: Re
 					</Tooltip>
 					<div className="flex-1" />
 					<Button type="submit" variant="primary" size="sm" disabled={!ready}>
-						{submitting ? t("newTask.plan.submitting") : t("newTask.plan.submit")}
+						{mode === "auto"
+							? submitting ? t("newTask.plan.submittingAuto") : t("newTask.plan.submitAuto")
+							: submitting ? t("newTask.plan.submitting") : t("newTask.plan.submit")}
 					</Button>
 				</div>
+				{mode === "auto" ? <p className="px-1 text-xs text-muted-foreground">{t("newTask.plan.autoHint")}</p> : null}
 				{error ? <p role="alert" className="px-1 text-xs text-destructive">{error}</p> : null}
 			</form>
 		</div>

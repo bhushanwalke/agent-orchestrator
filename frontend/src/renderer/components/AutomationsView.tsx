@@ -378,6 +378,12 @@ function AutomationRow({ item, projectName, busy, expanded, onExpand, onEdit, on
 						<span className="truncate">{scheduleLabel(item.rrule)}</span>
 						<span aria-hidden="true" className="text-passive">·</span>
 						<span className="truncate">{projectName}</span>
+						{item.taskMode && item.taskMode !== "direct" ? (
+							<>
+								<span aria-hidden="true" className="text-passive">·</span>
+								<span className="truncate">{t(`automations.taskMode.${item.taskMode}`)}</span>
+							</>
+						) : null}
 					</p>
 				</div>
 			</Pressable>
@@ -405,7 +411,7 @@ function AutomationRow({ item, projectName, busy, expanded, onExpand, onEdit, on
 					<p className="mb-1 text-caption font-medium text-muted-foreground">{t("automations.field.prompt")}</p>
 					<p className="mb-4 whitespace-pre-wrap text-xs leading-5 text-foreground">{item.prompt}</p>
 					<h3 className="mb-2 flex items-center gap-1.5 text-xs font-medium"><History className="size-3.5 text-muted-foreground" aria-hidden="true" />{t("automations.runs.title")}</h3>
-					{runs.isLoading ? <p role="status" className="text-xs text-muted-foreground">{t("automations.runs.loading")}</p> : runs.error ? <p role="alert" className="text-xs text-destructive">{runs.error.message}</p> : runs.data?.length ? <div className="divide-y divide-border">{runs.data.map((run) => <div key={run.id} className="flex items-center justify-between gap-3 py-2 text-xs"><div><span className="font-medium">{t(`automations.runStatus.${run.status}`, { defaultValue: run.status })}</span><span className="ml-3 text-caption tabular-nums text-muted-foreground">{displayTime(run.scheduledFor, i18n.resolvedLanguage)}</span>{run.errorMessage ? <p className="mt-1 text-xs text-destructive">{run.errorMessage}</p> : null}</div>{run.sessionId ? <Button variant="secondary" size="sm" onClick={() => void navigate({ to: "/sessions/$sessionId", params: { sessionId: run.sessionId! } })}>{t("automations.runs.openSession")}</Button> : null}</div>)}</div> : <p className="flex items-center gap-2 py-3 text-xs text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" />{t("automations.runs.empty")}</p>}
+					{runs.isLoading ? <p role="status" className="text-xs text-muted-foreground">{t("automations.runs.loading")}</p> : runs.error ? <p role="alert" className="text-xs text-destructive">{runs.error.message}</p> : runs.data?.length ? <div className="divide-y divide-border">{runs.data.map((run) => <div key={run.id} className="flex items-center justify-between gap-3 py-2 text-xs"><div><span className="font-medium">{t(`automations.runStatus.${run.status}`, { defaultValue: run.status })}</span><span className="ml-3 text-caption tabular-nums text-muted-foreground">{displayTime(run.scheduledFor, i18n.resolvedLanguage)}</span>{run.errorMessage ? <p className="mt-1 text-xs text-destructive">{run.errorMessage}</p> : null}</div>{run.planId ? <Button variant="secondary" size="sm" onClick={() => void navigate({ to: "/projects/$projectId/plans/$planId", params: { projectId: item.projectId, planId: run.planId! } })}>{t("automations.runs.openTask")}</Button> : run.sessionId ? <Button variant="secondary" size="sm" onClick={() => void navigate({ to: "/sessions/$sessionId", params: { sessionId: run.sessionId! } })}>{t("automations.runs.openSession")}</Button> : null}</div>)}</div> : <p className="flex items-center gap-2 py-3 text-xs text-muted-foreground"><Clock3 className="size-3.5" aria-hidden="true" />{t("automations.runs.empty")}</p>}
 				</div>
 			</motion.div> : null}
 		</AnimatePresence>
@@ -414,6 +420,8 @@ function AutomationRow({ item, projectName, busy, expanded, onExpand, onEdit, on
 
 
 type WorkspaceOption = { id: string; name: string; standaloneAgent?: boolean };
+type TaskMode = "direct" | "plan" | "auto";
+const TASK_MODES: TaskMode[] = ["direct", "plan", "auto"];
 type AutomationFormSubmit = {
 	templateId?: AutomationTemplateID;
 	useCase?: AutomationUseCase;
@@ -421,6 +429,7 @@ type AutomationFormSubmit = {
 	displayName: string;
 	prompt: string;
 	kind?: "worker" | "orchestrator";
+	taskMode?: TaskMode;
 	harness?: string;
 	model?: string;
 	mode?: string;
@@ -478,6 +487,9 @@ function AutomationFormDialog({
 	const [model, setModel] = useState("");
 	const [mode, setMode] = useState("");
 	const [effort, setEffort] = useState("");
+	const [taskMode, setTaskMode] = useState<TaskMode>("direct");
+	// An orchestrator automation (only the CLI makes one) always runs a session.
+	const orchestrator = automation?.kind === "orchestrator";
 	const [modelValid, setModelValid] = useState(true);
 	const [schedule, setSchedule] = useState<ScheduleFields>(() => ({
 		preset: "daily",
@@ -513,6 +525,7 @@ function AutomationFormDialog({
 		setModel(automation?.model ?? "");
 		setMode(automation?.mode ?? "");
 		setEffort(automation?.effort ?? "");
+		setTaskMode(automation?.taskMode ?? "direct");
 		setModelValid(true);
 		const defaultTime = nowLocalHHMM();
 		const [defaultHour, defaultMinute] = defaultTime.split(":");
@@ -632,6 +645,7 @@ function AutomationFormDialog({
 				// Kind is not a form choice: automations are workers, and editing
 				// leaves the stored kind untouched.
 				...(editing ? {} : { projectId, timezone, templateId, useCase: template?.useCase ?? "unknown", kind: "worker" as const }),
+				...(!editing || taskMode !== (automation?.taskMode ?? "direct") ? { taskMode } : {}),
 				displayName: name,
 				prompt,
 				...tuning,
@@ -701,38 +715,52 @@ function AutomationFormDialog({
 								className="min-h-28 w-full resize-y rounded-md border border-transparent bg-input/50 px-3 py-2 text-[13px] leading-5 outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 aria-invalid:border-destructive"
 							/>
 						</Field>
+						{orchestrator ? null : (
+							<Field label={t("automations.taskMode.label")} id="automation-task-mode">
+								<AutomationSelect
+									id="automation-task-mode"
+									label={t("automations.taskMode.label")}
+									value={taskMode}
+									onValueChange={(value) => setTaskMode(value as TaskMode)}
+									options={TASK_MODES.map((value) => ({ value, label: t(`automations.taskMode.${value}`) }))}
+								/>
+							</Field>
+						)}
 						<div className="grid grid-cols-2 gap-3">
-							<RequiredAgentField
-								id="automation-agent"
-								label={t("automations.agent")}
-								labelClassName={onboardingFormLabelClass}
-								placeholder={t("automations.agentPlaceholder")}
-								value={selectedHarness}
-								agents={harnesses}
-								disabled={busy}
-								onChange={(value) => {
-									setHarness(value);
-									setModel(""); setMode(""); setEffort(""); setModelValid(true);
-								}}
-							/>
-							{open ? (
-								<div className="flex min-w-0 flex-col justify-end gap-2" inert={busy || awaitingInheritedHarness} aria-busy={awaitingInheritedHarness}>
-									<AgentModelField
-										key={selectedHarness + ":" + projectId}
-										role="worker"
-										variant="task"
-										agentId={selectedHarness}
-										projectId={projectId}
-										model={displayedModel}
-										mode={displayedMode}
-										effort={displayedEffort}
-										onModelChange={setModel}
-										onModeChange={setMode}
-										onEffortChange={setEffort}
-										onValidityChange={setModelValid}
-									/>
-								</div>
-							) : null}
+							{/* A Task runs on the project's orchestrator and worker roles, so only a one-worker run picks its agent. */}
+							{taskMode === "direct" ? <>
+								<RequiredAgentField
+									id="automation-agent"
+									label={t("automations.agent")}
+									labelClassName={onboardingFormLabelClass}
+									placeholder={t("automations.agentPlaceholder")}
+									value={selectedHarness}
+									agents={harnesses}
+									disabled={busy}
+									onChange={(value) => {
+										setHarness(value);
+										setModel(""); setMode(""); setEffort(""); setModelValid(true);
+									}}
+								/>
+								{open ? (
+									<div className="flex min-w-0 flex-col justify-end gap-2" inert={busy || awaitingInheritedHarness} aria-busy={awaitingInheritedHarness}>
+										<AgentModelField
+											key={selectedHarness + ":" + projectId}
+											role="worker"
+											variant="task"
+											agentId={selectedHarness}
+											projectId={projectId}
+											model={displayedModel}
+											mode={displayedMode}
+											effort={displayedEffort}
+											onModelChange={setModel}
+											onModeChange={setMode}
+											onEffortChange={setEffort}
+											onValidityChange={setModelValid}
+										/>
+									</div>
+								) : null}
+							</> : null}
 							<Field label={t("automations.field.schedule")}>
 								<AutomationSelect
 									label={t("automations.field.schedule")}

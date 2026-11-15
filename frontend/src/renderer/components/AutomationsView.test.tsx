@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
 	workerTuning: {} as { model?: string; mode?: string; effort?: string },
 	baseTuning: {} as { model?: string; mode?: string; effort?: string },
 	workspaces: [] as Array<Record<string, unknown>>,
+	runs: [] as Array<Record<string, unknown>>,
+	navigate: vi.fn(),
 }));
 
 vi.mock("../lib/telemetry", async (importOriginal) => ({
@@ -33,7 +35,7 @@ vi.mock("../lib/platform", async (importOriginal) => ({
 	...await importOriginal<typeof import("../lib/platform")>(),
 }));
 
-vi.mock("@tanstack/react-router", () => ({ useNavigate: () => vi.fn() }));
+vi.mock("@tanstack/react-router", () => ({ useNavigate: () => mocks.navigate }));
 const codexSnapshot = { id: "codex", label: "Codex", installation: { state: "installed", freshness: "fresh" }, authentication: { state: "authorized", freshness: "fresh" }, effectiveReadiness: "ready", usageCount: 3, lastUsedAt: null };
 const ampSnapshot = { ...codexSnapshot, id: "amp", label: "Amp" };
 const cursorSnapshot = { id: "cursor", label: "Cursor", installation: { state: "not_installed", freshness: "fresh" }, authentication: { state: "unknown", freshness: "stale" }, effectiveReadiness: "not_ready", usageCount: 0, lastUsedAt: null };
@@ -61,7 +63,7 @@ vi.mock("../hooks/useAutomations", () => ({
 	useCreateAutomation: () => ({ mutateAsync: mocks.create, isPending: false, error: null }),
 	useUpdateAutomation: () => ({ mutateAsync: mocks.update, isPending: false, error: null }),
 	useDeleteAutomation: () => ({ mutate: vi.fn(), isPending: false, error: null }),
-	useAutomationRuns: () => ({ data: [], isLoading: false, error: mocks.runsError }),
+	useAutomationRuns: () => ({ data: mocks.runs, isLoading: false, error: mocks.runsError }),
 }));
 
 function renderView(ui: ReactNode = <AutomationsView />) {
@@ -913,5 +915,71 @@ describe("automation starters", () => {
 		await user.click(within(dialog).getByRole("button", { name: "Create automation" }));
 		expect(mocks.create).not.toHaveBeenCalled();
 		expect(within(dialog).getByText("Keep the prompt within 4,096 UTF-8 bytes.")).toBeInTheDocument();
+	});
+});
+
+describe("automation task modes", () => {
+	beforeEach(() => {
+		mocks.automations = [];
+		mocks.runs = [];
+		mocks.create.mockReset();
+		mocks.update.mockReset();
+		mocks.navigate.mockReset();
+		mocks.runsError = null;
+	});
+
+	it("runs as one worker by default and saves the chosen mode", async () => {
+		const user = userEvent.setup();
+		renderView();
+		await openBlankCreate(user);
+		const dialog = screen.getByRole("dialog", { name: "Create automation" });
+		const runAs = within(dialog).getByRole("combobox", { name: "Run as" });
+		expect(runAs).toHaveTextContent("One worker");
+		await user.click(within(dialog).getByRole("combobox", { name: "Project" }));
+		await user.click(screen.getByRole("option", { name: "Demo" }));
+		await user.type(within(dialog).getByRole("textbox", { name: "Name" }), "Nightly cleanup");
+		await user.type(within(dialog).getByRole("textbox", { name: "Prompt" }), "Fix the flaky tests");
+		await user.click(runAs);
+		expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual(["One worker", "Task plan", "Let the orchestrator decide"]);
+		await user.click(screen.getByRole("option", { name: "Let the orchestrator decide" }));
+		// The project's orchestrator and worker roles run a Task, so there is no agent to pick.
+		expect(within(dialog).queryByRole("button", { name: "Model" })).toBeNull();
+		await user.click(within(dialog).getByRole("button", { name: "Create automation" }));
+		expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({ kind: "worker", taskMode: "auto" }));
+	});
+
+	it("sends a changed mode when editing and hides it for an orchestrator automation", async () => {
+		const user = userEvent.setup();
+		mocks.automations = [
+			{ id: "a-1", projectId: "demo", displayName: "Nightly cleanup", prompt: "Fix", kind: "worker", taskMode: "direct", harness: "codex", rrule: "FREQ=DAILY;BYHOUR=2;BYMINUTE=0;BYSECOND=0", timezone: "UTC", enabled: true },
+			{ id: "a-2", projectId: "demo", displayName: "Morning standup", prompt: "Summarise", kind: "orchestrator", taskMode: "direct", rrule: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0;BYSECOND=0", timezone: "UTC", enabled: true },
+		];
+		renderView();
+		await user.click(screen.getByRole("button", { name: "Edit Nightly cleanup" }));
+		let dialog = screen.getByRole("dialog");
+		await user.click(within(dialog).getByRole("combobox", { name: "Run as" }));
+		await user.click(screen.getByRole("option", { name: "Task plan" }));
+		await user.click(within(dialog).getByRole("button", { name: "Save changes" }));
+		await waitFor(() => expect(mocks.update).toHaveBeenCalledWith({ id: "a-1", body: expect.objectContaining({ taskMode: "plan" }) }));
+		await user.keyboard("{Escape}");
+		await user.click(screen.getByRole("button", { name: "Edit Morning standup" }));
+		dialog = screen.getByRole("dialog");
+		expect(within(dialog).queryByRole("combobox", { name: "Run as" })).toBeNull();
+	});
+
+	it("shows the mode on the row and links a plan run to its Task", async () => {
+		mocks.automations = [{ id: "a-1", projectId: "demo", displayName: "Nightly cleanup", prompt: "Fix", kind: "worker", taskMode: "auto", harness: "codex", rrule: "FREQ=DAILY;BYHOUR=2;BYMINUTE=0;BYSECOND=0", timezone: "UTC", enabled: true }];
+		mocks.runs = [
+			{ id: "r-2", automationId: "a-1", status: "running", planId: "plan_9", scheduledFor: "2026-11-14T02:00:00Z", attemptCount: 1, createdAt: "2026-11-14T02:00:00Z", updatedAt: "2026-11-14T02:00:00Z" },
+			{ id: "r-1", automationId: "a-1", status: "completed", planId: "plan_8", sessionId: "demo-3", scheduledFor: "2026-11-13T02:00:00Z", attemptCount: 1, createdAt: "2026-11-13T02:00:00Z", updatedAt: "2026-11-13T02:00:00Z" },
+		];
+		renderView();
+		expect(screen.getByText("Let the orchestrator decide")).toBeInTheDocument();
+		await userEvent.click(screen.getByRole("button", { name: /Show run history/ }));
+		const openTask = screen.getAllByRole("button", { name: "Open Task" });
+		expect(openTask).toHaveLength(2);
+		expect(screen.queryByRole("button", { name: "Open session" })).toBeNull();
+		await userEvent.click(openTask[0]);
+		expect(mocks.navigate).toHaveBeenCalledWith({ to: "/projects/$projectId/plans/$planId", params: { projectId: "demo", planId: "plan_9" } });
 	});
 });

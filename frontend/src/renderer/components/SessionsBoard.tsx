@@ -175,7 +175,8 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 	const plansEnabled = !hostId && Boolean(projectId) && Boolean(workspace) && workspace?.kind !== CLOUD_PROJECT_KIND &&
 		projectId !== STANDALONE_WORKSPACE_ID && !isScratchpadWorkspace(workspace) && !guest;
 	const plans = usePlansQuery(projectId, plansEnabled).data;
-	const planItems = plansEnabled ? (plans ?? []).filter((plan) => plan.kanbanColumn !== "archive").map(toBoardPlanPresentation) : [];
+	// A direct Task's worker card stands for it, so the Task has no card of its own.
+	const planItems = plansEnabled ? (plans ?? []).filter((plan) => plan.kanbanColumn !== "archive" && plan.phase !== "direct").map(toBoardPlanPresentation) : [];
 	const showPlanSessions = useUiStore((state) => state.showPlanSessions);
 	const setShowPlanSessions = useUiStore((state) => state.setShowPlanSessions);
 	const hasPlanSessions = plansEnabled && activeSessions.some((session) => Boolean(session.planId));

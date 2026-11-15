@@ -158,5 +158,46 @@ describe("New Task plan mode", () => {
 		h.isCloudProject = true;
 		renderPage();
 		expect(screen.queryByRole("tab", { name: "Plan" })).toBeNull();
+		expect(screen.queryByRole("tab", { name: "Auto" })).toBeNull();
+	});
+});
+
+describe("New Task auto mode", () => {
+	it("shows Task, Plan, and Auto in that order", () => {
+		renderPage();
+		expect(screen.getAllByRole("tab").map((tab) => tab.textContent)).toEqual(["Task", "Plan", "Auto"]);
+	});
+
+	it("posts an auto Task, says who decides, and opens its run view", async () => {
+		h.createPlan.mockResolvedValue({ id: "plan_7", projectId: "proj-1" });
+		renderPage();
+		h.workspace = undefined;
+		await userEvent.click(screen.getByRole("tab", { name: "Auto" }));
+		expect(screen.getByRole("tab", { name: "Auto" })).toHaveAttribute("aria-selected", "true");
+		expect(h.workspace).toBeUndefined();
+		expect(screen.getByText("The orchestrator reads the brief and decides whether to plan it or hand it to one worker.")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "Plan with orchestrator" })).toBeNull();
+		const submit = screen.getByRole("button", { name: "Create task" });
+		await userEvent.type(screen.getByLabelText("Title"), "Rename the panel");
+		await userEvent.type(screen.getByRole("textbox", { name: "Brief" }), "Rename 'Coming up' to 'Due soon'");
+		await userEvent.click(submit);
+		await waitFor(() => expect(h.createPlan).toHaveBeenCalledWith("proj-1", { title: "Rename the panel", brief: "Rename 'Coming up' to 'Due soon'", mode: "auto" }));
+		await waitFor(() => expect(h.navigate).toHaveBeenCalledWith({ to: "/projects/$projectId/plans/$planId", params: { projectId: "proj-1", planId: "plan_7" } }));
+		expect(window.localStorage.getItem("ao.newTask.mode.proj-1")).toBe("auto");
+	});
+
+	it("keeps the typed brief when switching between Plan and Auto", async () => {
+		renderPage();
+		await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
+		await userEvent.type(screen.getByLabelText("Title"), "Keep me");
+		await userEvent.click(screen.getByRole("tab", { name: "Auto" }));
+		expect(screen.getByLabelText("Title")).toHaveValue("Keep me");
+	});
+
+	it("remembers Auto per project", () => {
+		window.localStorage.setItem("ao.newTask.mode.proj-1", "auto");
+		renderPage();
+		expect(screen.getByRole("tab", { name: "Auto" })).toHaveAttribute("aria-selected", "true");
+		expect(screen.getByRole("button", { name: "Create task" })).toBeInTheDocument();
 	});
 });

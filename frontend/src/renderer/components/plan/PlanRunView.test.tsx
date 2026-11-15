@@ -268,3 +268,108 @@ describe("PlanRunView", () => {
 		);
 	});
 });
+
+function triageDetail(overrides: Partial<PlanDetail["plan"]> = {}, events: PlanDetail["events"] = []): PlanDetail {
+	return {
+		...detail({ state: "triage", phase: "triage", intakeMode: "auto", displayStatus: "Deciding", kanbanColumn: "building", specMarkdown: "", milestoneCounts: { total: 0, done: 0, running: 0, failed: 0, blocked: 0 }, liveSessions: [], ...overrides }),
+		milestones: [],
+		events,
+	};
+}
+
+describe("PlanRunView triage", () => {
+	it("waits for the orchestrator's decision with no graph or legend", () => {
+		planMock.mockReturnValue(triageDetail());
+		renderView();
+		expect(screen.getByTestId("plan-phase")).toHaveTextContent("Deciding");
+		expect(screen.getByText("Waiting for the orchestrator to decide how to run this Task")).toBeInTheDocument();
+		expect(screen.queryByRole("list", { name: "Milestone states" })).toBeNull();
+		expect(screen.queryByText("The orchestrator hasn't added milestones yet.")).toBeNull();
+	});
+
+	it("plans the Task from Actions without a confirmation", async () => {
+		planMock.mockReturnValue(triageDetail());
+		renderView();
+		await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+		await userEvent.click(screen.getByRole("menuitem", { name: "Plan it" }));
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/plans/{planId}/triage", { params: { path: { planId: "plan_1" } }, body: { decision: "plan" } }),
+		);
+	});
+
+	it("sends the Task to one worker only after confirming", async () => {
+		planMock.mockReturnValue(triageDetail());
+		renderView();
+		await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+		await userEvent.click(screen.getByRole("menuitem", { name: "Send to one worker" }));
+		const dialog = await screen.findByRole("dialog");
+		expect(postMock).not.toHaveBeenCalled();
+		await userEvent.click(within(dialog).getByRole("button", { name: "Send to one worker" }));
+		await waitFor(() =>
+			expect(postMock).toHaveBeenCalledWith("/api/v1/plans/{planId}/triage", { params: { path: { planId: "plan_1" } }, body: { decision: "direct" } }),
+		);
+	});
+
+	it("offers no triage actions once a Task is planning", async () => {
+		renderView();
+		await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+		expect(screen.queryByRole("menuitem", { name: "Plan it" })).toBeNull();
+		expect(screen.queryByRole("menuitem", { name: "Send to one worker" })).toBeNull();
+	});
+
+	it("names the triage events in sentence case", () => {
+		planMock.mockReturnValue(triageDetail({ triage: { decision: "plan", reason: "API and UI both change", decidedBy: "orchestrator", decidedAt: "2026-01-01T00:02:00Z" } }, [
+			{ id: 6, kind: "direct_spawn_failed", milestoneKey: "", sessionId: "", note: "worktree busy", createdAt: "2026-01-01T00:05:00Z" },
+			{ id: 5, kind: "triage_reminder", milestoneKey: "", sessionId: "orch-1", note: "", createdAt: "2026-01-01T00:04:00Z" },
+			{ id: 4, kind: "triage_decided", milestoneKey: "", sessionId: "", note: "plan, decided by orchestrator: API and UI both change", createdAt: "2026-01-01T00:02:00Z" },
+			{ id: 3, kind: "triage_requested", milestoneKey: "", sessionId: "", note: "", createdAt: "2026-01-01T00:01:00Z" },
+		]));
+		renderView();
+		const rows = screen.getAllByTestId("plan-event");
+		expect(rows.map((row) => row.textContent)).toEqual([
+			expect.stringMatching(/^Worker could not start: worktree busy/),
+			expect.stringMatching(/^Reminder sent to the orchestrator/),
+			expect.stringMatching(/^Decided: plan — API and UI both change/),
+			expect.stringMatching(/^Triage requested/),
+		]);
+		expect(rows[0].querySelector("svg")).toHaveClass("text-destructive");
+	});
+});
+
+describe("PlanRunView direct", () => {
+	const direct = () => triageDetail({
+		state: "direct", phase: "direct", displayStatus: "One worker", kanbanColumn: "archive", directSessionId: "w-9",
+		triage: { decision: "direct", reason: "One small rename with its test", decidedBy: "orchestrator", decidedAt: "2026-01-01T00:02:00Z" },
+	}, [
+		{ id: 5, kind: "direct_spawned", milestoneKey: "", sessionId: "w-9", note: "", createdAt: "2026-01-01T00:03:00Z" },
+		{ id: 4, kind: "triage_decided", milestoneKey: "", sessionId: "", note: "direct, decided by orchestrator: One small rename with its test", createdAt: "2026-01-01T00:02:00Z" },
+	]);
+
+	it("says one worker handles it, with the reason and a way to its session", async () => {
+		planMock.mockReturnValue(direct());
+		renderView();
+		expect(screen.getByTestId("plan-phase")).toHaveTextContent("One worker");
+		expect(screen.getByText("Handled by a single worker")).toBeInTheDocument();
+		expect(screen.getByText("One small rename with its test", { selector: "p" })).toBeInTheDocument();
+		expect(screen.queryByRole("list", { name: "Milestone states" })).toBeNull();
+		await userEvent.click(screen.getByRole("button", { name: "Open worker session" }));
+		expect(navigateMock).toHaveBeenCalledTimes(1);
+		expect(JSON.stringify(navigateMock.mock.calls[0][0])).toContain("w-9");
+	});
+
+	it("keeps only the orchestrator chat in Actions while the spec is empty", async () => {
+		planMock.mockReturnValue(direct());
+		renderView();
+		await userEvent.click(screen.getByRole("button", { name: "Actions" }));
+		expect(screen.getAllByRole("menuitem").map((item) => item.textContent)).toEqual(["Open orchestrator chat"]);
+	});
+
+	it("names the decision and the worker start", () => {
+		planMock.mockReturnValue(direct());
+		renderView();
+		expect(screen.getAllByTestId("plan-event").map((row) => row.textContent)).toEqual([
+			expect.stringMatching(/^Worker started/),
+			expect.stringMatching(/^Decided: one worker — One small rename with its test/),
+		]);
+	});
+});
