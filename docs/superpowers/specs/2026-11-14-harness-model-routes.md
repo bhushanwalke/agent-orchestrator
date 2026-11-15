@@ -784,3 +784,11 @@ R22 (M4). The subscriptions-not-used note sits under the "Model route" group
     (DESIGN.md: no new panels). The group appears only for harnesses with a
     Subscriptions panel; other harnesses show the route on their Account row
     through the account description. Cost: none.
+R23 (M4 nits). The Health tab's route row puts the route and its check in the
+    row's description, which wraps at full width under the label, instead
+    of in the value cell, so a long route in any locale no longer squeezes
+    the label. The account line drops an account provider that names one of
+    the routes (the route line already labels it), so several providers read
+    "N providers via <host> · M verified" with no bare id in front. No new
+    string. Cost: the verified provider's id shows only in the Health tab and
+    the report when several routes are summarised.

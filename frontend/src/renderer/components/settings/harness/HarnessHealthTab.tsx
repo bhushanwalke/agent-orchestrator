@@ -47,9 +47,9 @@ export function HarnessHealthTab({ details, checking, authCheckFailed, updateErr
 			{isInstalled ? <HarnessDetailRow label={t("settings.harness.health.authentication")}>
 				<HarnessStateText tone={authTone}>{authLabel}</HarnessStateText>
 			</HarnessDetailRow> : null}
-			{isInstalled ? details.routes.map((route, index) => <HarnessDetailRow key={`${route.name ?? ""}:${route.host ?? ""}:${index}`} label={t("settings.harness.health.modelRoute")} description={routeVerificationLabel(route, t)}>
-				<span className="min-w-0 break-all text-xs text-settings-label">{describeRoute(route, t)}</span>
-			</HarnessDetailRow>) : null}
+			{/* A route and its check can be long in any locale, so both sit under
+			    the label, where they wrap at full width, not in the value cell. */}
+			{isInstalled ? details.routes.map((route, index) => <HarnessDetailRow key={`${route.name ?? ""}:${route.host ?? ""}:${index}`} label={t("settings.harness.health.modelRoute")} description={`${describeRoute(route, t)} · ${routeVerificationLabel(route, t)}`} />) : null}
 			{executable ? <HarnessDetailRow label={t("settings.harness.health.executable")}>
 				<span className="min-w-0 break-all font-mono text-xs text-settings-label">{executable}</span>
 			</HarnessDetailRow> : null}

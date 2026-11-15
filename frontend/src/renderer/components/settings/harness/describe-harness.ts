@@ -98,6 +98,7 @@ export function describeHarness(input: HarnessDescribeInput) {
 	const accountWho = account?.email || account?.name;
 	// Who and how the harness is signed in. Where the credential was found
 	// stays in the readiness data for diagnostics; the row does not show it.
+	const routes = readinessAgent?.authentication.routes ?? [];
 	const accountLine = account ? [
 		accountWho ? t("settings.harness.signedInAs", { account: accountWho })
 			: account.method === "api_key" ? t("settings.harness.usingApiKey")
@@ -105,11 +106,12 @@ export function describeHarness(input: HarnessDescribeInput) {
 			: account.method === "account" ? t("settings.harness.signedInWithAccount") : undefined,
 		account.plan ? account.plan.charAt(0).toUpperCase() + account.plan.slice(1) : undefined,
 		account.organization,
-		account.provider,
+		// A provider that names a route is already in the route line, which
+		// labels it; bare here it would read as an unexplained name.
+		routes.some((route) => route.name === account.provider) ? undefined : account.provider,
 	].filter(Boolean).join(" · ") || undefined : undefined;
 	// Where model requests go when it is not the provider's own login: a
 	// gateway, cloud provider or local endpoint, after the account line.
-	const routes = readinessAgent?.authentication.routes ?? [];
 	const routeDescription = describeRoutes(routes, t);
 	const accountDescription = [accountLine, routeDescription].filter(Boolean).join(" · ") || undefined;
 	const routeLabel = routeStatusLabel(authStatus, routes, t);

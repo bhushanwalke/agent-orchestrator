@@ -1,5 +1,6 @@
 import type { TFunction } from "i18next";
 import { describe, expect, it } from "vitest";
+import type { AgentReadinessSnapshot } from "../../../hooks/useAgentReadinessQuery";
 import type { AgentId } from "../../../lib/agent-options";
 import { agentReadiness } from "../../../test/agent-readiness-fixtures";
 import en from "../../../i18n/en.json";
@@ -57,9 +58,10 @@ const route = (overrides: Partial<AgentModelRoute> = {}): AgentModelRoute => ({
 	kind: "gateway", apiFamily: "openai", host: "gw.example.com", credential: "none", verification: "verified", ...overrides,
 });
 
-function routedHarness(state: "configured" | "authorized" | "unknown", routes: AgentModelRoute[]) {
+function routedHarness(state: "configured" | "authorized" | "unknown", routes: AgentModelRoute[], account?: AgentReadinessSnapshot["authentication"]["account"]) {
 	const readinessAgent = agentReadiness("codex", "Codex", { authentication: state });
 	readinessAgent.authentication.routes = routes;
+	readinessAgent.authentication.account = account;
 	return describeHarness({
 		agentId: "codex", readinessAgent, t: english, language: "en",
 		installed: true, pending: false, readinessPending: false, readinessFailed: false,
@@ -98,6 +100,13 @@ describe("model routes", () => {
 		expect(unrouted.routeDescription).toBeUndefined();
 		// A route on an unknown verdict is still shown.
 		expect(routedHarness("unknown", [route({ verification: "not_attempted", credential: "api_key" })]).accountDescription).toBe("OpenAI API via gw.example.com");
+	});
+
+	it("does not repeat a route's provider as a bare name on the account line", () => {
+		const routes = [route({ name: "gw-keyless" }), route({ name: "b" }), route({ name: "c", verification: "inconclusive" })];
+		expect(routedHarness("authorized", routes, { provider: "gw-keyless" }).accountDescription).toBe("3 providers via gw.example.com · 2 verified");
+		expect(routedHarness("authorized", [route({ name: "fp-gw" })], { provider: "fp-gw", method: "api_key" }).accountDescription).toBe("Using an API key · Provider fp-gw · OpenAI API via gw.example.com · no key (network access)");
+		expect(routedHarness("authorized", [route({ name: "gw" })], { provider: "zai-coding-plan" }).accountDescription).toContain("zai-coding-plan · ");
 	});
 
 	it("says when subscriptions do not reach the route", () => {
