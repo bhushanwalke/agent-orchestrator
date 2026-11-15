@@ -33,7 +33,7 @@ An Auto Task starts as **Deciding**. The orchestrator gets the brief and decides
 - **One worker** when the work is one coherent change that a careful engineer finishes in a few hours as one PR, touches one area with its own tests, and needs no research or QA over several parts. AO starts one worker with the brief, exactly as the **Task** mode would, named after the Task. The board shows that worker's card instead of a Task card, and the Task's run view says **Handled by a single worker**, with the orchestrator's reason and **Open worker session**.
 - **Plan** when the work splits into parts that can run in parallel, needs investigation before it can be specified, crosses more than one area (for example API and UI), or needs QA over the whole. The Task then continues as a planned Task.
 
-The orchestrator records its choice with `ao plan triage <plan-id> --direct|--plan --reason "..."`, and **Recent events** shows it with the reason. You can decide instead from the run view's **Actions**: **Plan it**, or **Send to one worker** (which asks to confirm). A Task is decided once; a second decision is refused. If the orchestrator has not decided 15 minutes after it got the Task, AO reminds it once; AO never decides on its own. If the worker cannot start, the Task stays **Deciding** and the orchestrator is told why.
+The orchestrator records its choice with `ao plan triage <plan-id> --direct|--plan --reason "..."`, and **Recent events** shows it with the reason. You can decide instead from the run view's **Actions**: **Plan it**, or **Send to one worker** (which asks to confirm). A Task is decided once; a second decision is refused. If the orchestrator has not decided 15 minutes after it got the Task, AO reminds it once; AO never decides on its own. On the board a Deciding Task waits in **In queue**, and after those 15 minutes it moves to **Needs you** as "Needs a decision". If the worker cannot start, the Task stays **Deciding** and the orchestrator is told why.
 
 To bias the choice, add a line to the project's `orchestratorRules` ([project configuration](/configuration/projects)), for example "Prefer one worker for docs-only tickets" or "Always plan changes that touch the API".
 
@@ -96,7 +96,7 @@ A QA worker that reports done without a verdict is asked for one. A done report 
 
 ## Watch, retry, and cancel
 
-Tasks appear on the board as one card in the lane for their phase, with the agents working on them and a milestone count. Their worker sessions are folded into the card; **Show agent sessions** in the board toolbar shows them again. Click the card to open the run view:
+Tasks appear on the board as one card in the lane for their phase (In queue while deciding or on hold), with the agents working on them and a milestone count. Their worker sessions are folded into the card; **Show agent sessions** in the board toolbar shows them again. Click the card to open the run view:
 
 - The **graph** shows each milestone's state and what a pending milestone is waiting for. Select a milestone with a click or the arrow keys; double-click or Enter opens its session.
 - **Agents** lists the orchestrator and every milestone's session; **Research** lists the research workers still running. **Recent events** lists what happened, newest first.
@@ -105,6 +105,8 @@ Tasks appear on the board as one card in the lane for their phase, with the agen
 A milestone gets up to **3 attempts**: if its session ends without reporting done, AO starts a new worker. After the third failure the milestone stays failed until you retry it with `ao plan milestone retry <plan-id> <key>`, which gives it a fresh three attempts.
 
 **Re-run QA** starts a new QA worker after QA passed (or retries a failed QA), for example after you changed something by hand.
+
+**Hold and Needs you.** Drag a Task card to **In queue** (or `ao plan move <plan-id> --to queued`) to put it on hold while it is triaging, planning, or has no milestone running: AO starts no milestone worker and does not run a one-worker triage decision until you move it back to **Building**. Decisions and activation made meanwhile are kept and take effect on release. Drag it to **Needs you** to ask the orchestrator to pause the Task and summarise; running milestones and QA keep going. A failed Task and a Task with a blocked milestone are in Needs you too. See [Board](/guides/board).
 
 **Cancel plan** (or `ao plan cancel <plan-id>`, which needs `--yes` when not run from an interactive terminal) stops AO from starting more work. Running agents keep going; archive them from their cards.
 

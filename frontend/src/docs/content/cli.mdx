@@ -16,13 +16,13 @@ ao
 ├── agent ls                      List built-in agent adapters and readiness
 ├── project                       add, ls, get, set-config, rm
 ├── spawn                         Create a worker or orchestrator session
-├── session                       ls, get, kill, restore, rename, cleanup, delete,
-│                                 claim-pr, exit-agent, resume-agent
-├── automation                    create, list, get, update, delete, runs
+├── session                       ls, get, kill, restore, rename, move, cleanup,
+│                                 delete, claim-pr, exit-agent, resume-agent
+├── automation                    create, list, get, update, delete, runs, run-now
 ├── cue                           create, list
 ├── report                        Report worker progress or artifacts
 ├── plan                          create, ls, get, set-spec, milestone, activate,
-│                                 cancel, qa-result, triage, events
+│                                 cancel, qa-result, triage, move, events
 ├── orchestrator ls               List orchestrator sessions
 ├── send                           Send a message to a session
 ├── pr                             merge, resolve-comments
@@ -101,7 +101,7 @@ Agent adapters are compiled into Orchestrator. There is no plugin marketplace or
 
 Focused `set-config` flags change only the fields they name and keep the rest of the saved config. `--config-json` replaces the entire project config, and its JSON decoder ignores unknown keys. See [Projects: update from the CLI](/configuration/projects#update-from-the-cli) for safe alternatives and details. This command does not edit the old `agent-orchestrator.yaml` file.
 
-Use `ao automation create`, `list`, `get`, `update`, `delete`, and `runs` to manage recurring work. To create one, provide a project, name, prompt, and exactly one schedule: `--cron` or `--rrule`. Set `--timezone` to an IANA time-zone name such as `America/New_York`. Pause a definition with `ao automation update <id> --enabled=false`. `--task-mode direct|plan|auto` (create and update) sets what each run creates: one worker session (the default), a Task plan, or an auto Task the orchestrator triages; an orchestrator automation must be `direct`. `ao automation runs` lists each run's session and, for plan and auto runs, its Task (`PLAN`). See [schedule behavior](/configuration/lifecycle-automation#what-ao-handles).
+Use `ao automation create`, `list`, `get`, `update`, `delete`, and `runs` to manage recurring work. To create one, provide a project, name, prompt, and exactly one schedule: `--cron` or `--rrule`. Set `--timezone` to an IANA time-zone name such as `America/New_York`. Pause a definition with `ao automation update <id> --enabled=false`. `--task-mode direct|plan|auto` (create and update) sets what each run creates: one worker session (the default), a Task plan, or an auto Task the orchestrator triages; an orchestrator automation must be `direct`. `ao automation runs` lists each run's session and, for plan and auto runs, its Task (`PLAN`). `ao automation run-now <id>` queues a run now without changing the schedule; it is refused while the automation is off or a run is already in progress. See [schedule behavior](/configuration/lifecycle-automation#what-ao-handles).
 
 `ao cue create --project <id> --name <name>` requires exactly one `--command` or `--prompt`. `ao cue list --project <id>` lists definitions. Editing, deleting, and invoking Cues is available in the desktop; the CLI does not have a `cue run` command.
 
@@ -149,6 +149,7 @@ Orchestrator chooses a project in this order: `--project`, `AO_PROJECT_ID`, the 
 | `ao session exit-agent <id>` | Stop the controller while retaining the session. |
 | `ao session resume-agent <id>` | Start the controller again in that session. |
 | `ao session rename <id> <name>` | Change its display name. The project orchestrator cannot be renamed. |
+| `ao session move <id> --to <lane>` | Move the session's board card: `needs_you` asks the agent to pause and summarise, `building` releases it, `validating` asks it to deliver or hands its PR back to AO, `needs_review` hands the PR to a person, `ready` accepts work that has no PR. A refused move prints the reason. See [Board](/guides/board). |
 | `ao session cleanup` | Reclaim eligible terminated workspaces; supports `--dry-run`. Workspaces already released are not listed again. |
 | `ao session delete <id>` | Permanently delete a terminated session and its AO history once its worktree is cleaned up; `--cleanup` cleans it up first, never forced. Branches, PRs and agent account usage totals are kept. |
 | `ao session claim-pr [<session-id>] <pr-ref>` | Attach an existing PR; omitting the session uses `AO_SESSION_ID`. |
@@ -209,6 +210,7 @@ Tasks: the orchestrator plans a ticket into milestones, AO runs a worker per mil
 | `ao plan cancel [<plan-id>]` | Stop starting work; running agents keep going. Asks to confirm; pass `--yes` when stdin is not a terminal. |
 | `ao plan qa-result [<plan-id>] --pass\|--fail --milestone <key> --note <text>` | Record the QA verdict. QA sessions only. |
 | `ao plan triage [<plan-id>] --plan\|--direct [--reason <text>]` | Decide how an auto Task runs: `--plan` continues as a plan, `--direct` spawns one worker with the brief and closes the plan. A Task is decided once (409 `PLAN_NOT_IN_TRIAGE` after that). `--by orchestrator\|human` defaults to `orchestrator` inside an AO session. |
+| `ao plan move [<plan-id>] --to <lane>` | Move the Task's board card: `queued` puts it on hold (no new workers), `needs_you` asks the orchestrator to pause it and summarise, `building` releases it. QA decides `validating` and `ready`. |
 | `ao plan events [<plan-id>]` | Print the activity log, oldest first. |
 
 Inside a milestone or QA session, `<plan-id>` can be omitted: `AO_PLAN_ID` supplies it.

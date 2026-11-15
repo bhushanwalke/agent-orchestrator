@@ -1,0 +1,59 @@
+---
+title: Board
+description: The project board's six lanes, and moving a card to change what happens next.
+---
+
+The board is a project's operational overview: what has not started, what agents are working on, what waits on a review, what needs you, and what is done. Each card sits where the daemon's facts put it. Nothing stores a column.
+
+## Lanes
+
+| Lane | What sits here | Dropping a card here means |
+| --- | --- | --- |
+| In queue | Not started yet: a session still starting, a Task waiting for its triage decision or put on hold, an enabled automation's next run | Hold: do not start until moved again |
+| Building | A session with no pull request; a Task planning or implementing | Start now |
+| Validating | A pull request in an AO loop (review, CI fixes, its own comments); a Task in QA | Push, open the pull request, trigger an AO review |
+| In review | A pull request waiting on a person's review or answer | Stop AO's loop and hand the pull request to a person |
+| Needs you | Waiting on a person, whatever the stage | Pause and ask the agent to summarise |
+| Ready | A pull request merged, closed, mergeable or approved; a Task whose QA passed | Accept work that has no pull request |
+
+Terminated sessions and cancelled Tasks are in **Archived sessions**, under the lanes; that is not a lane and not a drop target.
+
+A Needs you card names the stage that is waiting on you before the reason, for example "In review · Changes requested". A card lands in Needs you when the worker asked a question or is blocked, when a pull request has failing CI, merge conflicts or requested changes that no AO loop is fixing, when the worker reported `--needs-input` or `--stuck` and stopped, or when it finished with commits and the project has no pull request provider to deliver to. A Task waits in In queue for 15 minutes for its triage decision, then moves to Needs you.
+
+## Moving a card
+
+Drag a card to another lane, or open the card's menu (right-click, or Shift+F10 on a focused card) and choose **Move to**. With the keyboard, Space picks up the focused card, Left and Right move it between lanes, and Space drops it.
+
+A move never sets a column. It records what you asked for or sends the agent an instruction, and the card moves when the daemon's facts change; until then it shows a spinner where its status is. While you drag, lanes that would refuse the card dim and say why.
+
+| Move | What happens |
+| --- | --- |
+| Session to Needs you | The agent is asked to finish its step, stop, and summarise in a few lines. The card reads "Paused for you". |
+| Session back to its lane, or to Building | The agent is told to continue. |
+| Session with no pull request to Validating | The agent is asked to push, open a pull request and request an AO review. If the push fails, it reports itself stuck. |
+| Session with a pull request to Validating | AO's review and CI loops are turned back on and an AO review of the pull request is started. |
+| Session to In review | AO's review and CI loops are turned off and a running AO review is cancelled. |
+| Session with no pull request to Ready | The work is accepted ("Accepted"). If a pull request appears later, it decides the lane. |
+| Task to In queue | The Task is put on hold: no milestone worker starts until it is moved again. Only while triaging, planning, or with no milestone running. |
+| Task to Needs you | The orchestrator is asked to pause the Task and summarise. Running milestones keep going. |
+| Task back to Building | The hold is released and waiting workers start. |
+| Automation to Building | A run starts now. The scheduled run still happens. |
+
+No move kills a session, deletes a branch, or cancels running milestones.
+
+## When a move is refused
+
+| Reason | Meaning |
+| --- | --- |
+| A running session can't go back to the queue | Pause it with Needs you instead. |
+| Already there / already building | The card is already in that lane. |
+| Can't go back to Building | A card that moved on does not restart. |
+| No pull request provider | The project's origin is not a provider AO can open pull requests on. Accept the work from Ready. |
+| No pull request | There is nothing to hand to a reviewer. |
+| The pull request decides | With a pull request, its state decides Ready. A session whose pull requests are all merged or closed cannot go back to Validating. |
+| The pull request is a draft | Mark it ready for review on the provider first. |
+| QA decides | A Task reaches Validating and Ready through its QA. |
+| A milestone is running | A Task can't be put on hold while a milestone is running. |
+| Only runs | An automation card can only be started. |
+
+The same moves are available from the CLI: `ao session move`, `ao plan move` and `ao automation run-now`. See the [CLI reference](/cli).

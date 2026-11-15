@@ -1,5 +1,5 @@
 {
 	"title": "Guides",
 	"defaultOpen": false,
-	"pages": ["per-role-agents", "import-sessions", "parallel-issues", "task-plans", "ci-recovery", "review-loop", "session-forks", "reactions", "multi-project", "cloud", "migrate-from-conductor"]
+	"pages": ["per-role-agents", "import-sessions", "parallel-issues", "task-plans", "board", "ci-recovery", "review-loop", "session-forks", "reactions", "multi-project", "cloud", "migrate-from-conductor"]
 }
