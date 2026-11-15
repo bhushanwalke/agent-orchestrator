@@ -38,6 +38,7 @@ import {
 } from "../hooks/useTerminateSession";
 import { cn } from "../lib/utils";
 import { appI18n } from "../i18n";
+import { planStatusLabel } from "../lib/plan-status";
 import { AgentAvatar } from "./AgentAvatar";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { SessionArchiveDialog, type SessionArchiveChoice } from "./SessionArchiveDialog";
@@ -992,7 +993,7 @@ export function toBoardPlanPresentation(plan: PlanSummary): BoardPlanItem {
 		provider: "",
 		status: blocked ? "needs_input" : "working",
 		displayStatus: blocked ? "Blocked" : plan.displayStatus,
-		statusPresentation: blocked ? undefined : { ...tone, label: plan.displayStatus },
+		statusPresentation: blocked ? undefined : { ...tone, label: planStatusLabel(plan.displayStatus, appI18n.t) },
 		plainSurface: true,
 		title: plan.title,
 		updatedAt: plan.updatedAt,

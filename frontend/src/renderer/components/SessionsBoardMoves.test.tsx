@@ -169,6 +169,25 @@ describe("SessionsBoard moves", () => {
 		await waitFor(() => expect(useUiStore.getState().globalToasts.map((toast) => toast.title)).toContain(appI18n.t("board.move.refused.no_pr_provider")));
 	});
 
+	it("translates a Task card's status, counts included", async () => {
+		workspaceQueryMock.mockReturnValue({ data: [workspace([])], isError: false, isSuccess: true });
+		plansMock.mockReturnValue([
+			{ id: "plan_1", projectId: "p1", title: "Held task", phase: "planning", state: "planning", kanbanColumn: "queued", kanbanStage: "building", displayStatus: "On hold", milestoneCounts: { total: 0, done: 0, running: 0, failed: 0, blocked: 0 }, liveSessions: [], prs: [], updatedAt: "2026-11-15T10:00:00Z", createdAt: "2026-11-15T10:00:00Z" },
+			{ id: "plan_2", projectId: "p1", title: "Busy task", phase: "implementing", state: "active", kanbanColumn: "building", kanbanStage: "building", displayStatus: "Implementing 1/3", milestoneCounts: { total: 3, done: 1, running: 1, failed: 0, blocked: 0 }, liveSessions: [], prs: [], updatedAt: "2026-11-15T10:00:00Z", createdAt: "2026-11-15T10:00:00Z" },
+		] as unknown as PlanSummary[]);
+		await appI18n.changeLanguage("de");
+		try {
+			renderBoard();
+			const held = screen.getByText("Held task").closest("[data-testid='board-plan-card']") as HTMLElement;
+			expect(within(held).getByTestId("session-status")).toHaveTextContent(appI18n.t("displayStatus.onHold"));
+			expect(within(held).getByTestId("session-status")).not.toHaveTextContent("On hold");
+			const busy = screen.getByText("Busy task").closest("[data-testid='board-plan-card']") as HTMLElement;
+			expect(within(busy).getByTestId("session-status")).toHaveTextContent("Umsetzung 1/3");
+		} finally {
+			await appI18n.changeLanguage("en");
+		}
+	});
+
 	it("runs an automation now from its card's menu", async () => {
 		workspaceQueryMock.mockReturnValue({ data: [workspace([])], isError: false, isSuccess: true });
 		automationsMock.mockReturnValue([automation()]);

@@ -106,6 +106,8 @@ describe("board move translations", () => {
 		"column.queued", "column.needs_you",
 		"displayStatus.starting", "displayStatus.onHold", "displayStatus.scheduled", "displayStatus.pausedForYou",
 		"displayStatus.needsADecision", "displayStatus.stuck", "displayStatus.accepted",
+		"displayStatus.planning", "displayStatus.deciding", "displayStatus.implementing", "displayStatus.fixingQaFindings",
+		"displayStatus.testing", "displayStatus.qaPassed", "displayStatus.needsYou", "displayStatus.cancelled", "displayStatus.oneWorker",
 		"board.move.moveTo", "board.move.runNow", "board.move.askedToPause", "board.move.askedToContinue",
 		"board.lane.emptyQueued", "board.lane.emptyNeedsYou",
 		...BOARD_MOVE_REFUSALS.map((reason) => `board.move.refused.${reason}`),
