@@ -81,6 +81,15 @@ A **Task** (internally a *plan*) turns one ticket into coordinated work. You cre
 - `e070a2306b` feat(plans): name the QA branch in the plan done notice
 - `04adc9b260` fix(plans): pluralise the run view's active agent count
 
+**Intake modes (direct / plan / auto), spec `docs/superpowers/specs/2026-11-14-task-intake-modes.md`**
+- `43f1559821` fix(app): stop a done Task's run view reading as still running
+- `9fb61713ba` docs(plans): add the Task intake modes spec
+- `03f7aa629f` feat(plans): store Task intake modes and automation task modes
+- `a2a9a3b265` feat(plans): let the orchestrator triage an auto Task
+- `da21ed0557` feat(plans): add the triage API and ao plan triage
+- `4ca2d76068` feat(automations): run an automation as a Task plan or an auto Task
+- the desktop commit (New task Auto tab, run view triage/direct, board, Automations "Run as", locales) and this docs commit follow
+
 ## Migrations (all new; none on `main` modified)
 
 | File | What it does |
@@ -89,6 +98,8 @@ A **Task** (internally a *plan*) turns one ticket into coordinated work. You cre
 | `20261114111138604_task_plan_session_context.sql` | `sessions.plan_milestone_key`, `plan_prompt` (so restore keeps a worker's plan context). |
 | `20261114112602243_task_plan_milestone_retry_base.sql` | `plan_milestones.retry_base` (fresh attempt budget on human retry) and `branch` (the work branch recorded at done). |
 | `20261114161310228_task_plan_attached_sessions.sql` | Partial index `sessions_plan_idx` on `sessions(plan_id)` for listing a plan's research sessions. |
+| `20261114231812030_task_intake_modes.sql` | Widens the `plans.state` CHECK in place with `triage` and `direct` (writable_schema, guarded); `plans.intake_mode`, `direct_session_id`, `triage_decision`, `triage_reason`, `triage_decided_by`, `triage_decided_at`, `triage_reminded_at`. Down maps triage/direct plans to cancelled. |
+| `20261114231813267_automation_task_mode.sql` | `automations.task_mode` (`direct`/`plan`/`auto`, default direct); `automation_runs.plan_id` (FK to plans, ON DELETE SET NULL). |
 
 ## CLI
 
@@ -215,3 +226,12 @@ Stop it by killing the `Electron.app/.../MacOS/Electron` main process (killing f
 ## Orchestrator notices
 
 `<ao-plan-done>` leads with `QA branch: <branch>`, the branch QA merged every milestone into and verified, resolved like a milestone's work branch (the QA worktree's checked-out branch, else the QA session's recorded branch marked `(unresolved: …)`, else `QA branch: (unresolved; ask the QA session …)`). The notice and the orchestrator prompt tell it to hand the human the QA branch as the combined result, with the milestone branches and PR links beneath it. `<ao-milestone-blocked>` and `<ao-milestone-failed>` are unchanged.
+
+An auto Task's kickoff is `<ao-plan-triage id=…>` (the plan request's content plus the decision rule); the orchestrator answers with `ao plan triage <id> --plan|--direct --reason "…"`. `<ao-plan-triage-reminder>` arrives once, 15 minutes after the triage request landed, if no decision was made. `<ao-plan-triage-failed>` reports a direct worker that could not start (the Task stays in triage). A person's plan decision sends the ordinary `<ao-plan-request>`.
+
+## Intake modes summary
+
+- API: `POST /projects/{id}/plans` takes `mode: plan|auto`; `POST /plans/{id}/triage` `{decision, reason?, decidedBy?}` → `{plan}`; 409 `PLAN_NOT_IN_TRIAGE` after the first decision, 400 `INVALID_TRIAGE_DECISION|REASON|ACTOR`, `INVALID_PLAN_MODE`. Plan responses carry `intakeMode`, `directSessionId`, `triage`; phases add `triage` ("Deciding") and `direct` ("One worker", never a board card).
+- Automations: `taskMode: direct|plan|auto` (400 `INVALID_AUTOMATION_TASK_MODE` for an unknown mode or a non-direct orchestrator automation); runs carry `planId`; plan-backed runs finish from the Task's phase, and a direct auto Task's run adopts the worker session.
+- CLI: `ao plan create --mode`, `ao plan triage`, `ao automation create|update --task-mode`, a `PLAN` column in `ao automation runs`.
+- Implementation rulings R1–R22 are recorded in the intake modes spec, §13.

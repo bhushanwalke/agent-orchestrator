@@ -32,6 +32,12 @@ ao automation runs <automation-id>
 ao automation update <automation-id> --enabled=false
 ```
 
+### Run as
+
+**Run as** sets what each run creates. **One worker** (the default) starts one worker session with the prompt. **Task plan** creates a [Task](/guides/task-plans) with the prompt as its brief, which the project orchestrator plans into milestones and QA. **Let the orchestrator decide** creates an auto Task: the orchestrator reads the prompt and chooses a plan or one worker on each run, so a quiet day's run stays small. A Task runs on the project's orchestrator and worker settings, so the agent and model fields apply only to **One worker**. From the CLI, pass `--task-mode direct|plan|auto` to `ao automation create` or `update`.
+
+A Task run is named after the automation and the run time (for example `Nightly cleanup · 2026-11-14 02:00`), and its run history row opens the Task. It completes when the Task's QA passes and fails when the Task fails or is cancelled. When the orchestrator hands an auto Task to one worker, the run follows that worker's session instead, as a One worker run does. Orchestrator automations (created with `--kind orchestrator`) always run as one session.
+
 Choose one schedule format: a five-field cron expression or an RRULE, a calendar recurrence rule. Set the time zone with an IANA name, such as `America/New_York`.
 
 Cron accepts numeric minute and hour fields, `*` for day and month, and supported weekday choices. It does not accept arbitrary ranges or steps. RRULE does not accept `COUNT` or `UNTIL`, or intervals faster than one minute.

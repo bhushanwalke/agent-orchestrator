@@ -9,15 +9,33 @@ Tasks work in local single-repository projects. Scratch, multi-repo workspaces, 
 
 ## Create a Task
 
-In the app, open **New task**, pick the project, and switch the control at the top from **Task** to **Plan**. Give it a title, paste the ticket or describe the work in **Brief**, and optionally add a **Ticket link**. **Plan with orchestrator** creates the Task and opens its run view. The app remembers the last mode per project.
+**New task** has three modes at the top, and the app remembers the last one per project:
+
+- **Task** starts one worker session with your prompt. There is no plan.
+- **Plan** hands the ticket to the orchestrator to plan into milestones, as described below.
+- **Auto** lets the orchestrator decide. It reads the brief and either plans it or hands it to one worker.
+
+In **Plan** or **Auto**, give the Task a title, paste the ticket or describe the work in **Brief**, and optionally add a **Ticket link**. **Plan with orchestrator** (or **Create task** in Auto) creates the Task and opens its run view.
 
 From the CLI:
 
 ```bash
 ao plan create --project my-app --title "TODO app MVP" --brief-file ticket.md --ticket https://github.com/acme/my-app/issues/42
+ao plan create --project my-app --title "Rename the panel" --brief "Rename 'Coming up' to 'Due soon'" --mode auto
 ```
 
-`--max-parallel` (1 to 10, default 3) caps how many implementation workers run at once.
+`--max-parallel` (1 to 10, default 3) caps how many implementation workers run at once. [Automations](/configuration/lifecycle-automation#run-as) can create Tasks too: set **Run as** to **Task plan** or **Let the orchestrator decide**.
+
+## Auto: the orchestrator decides
+
+An Auto Task starts as **Deciding**. The orchestrator gets the brief and decides in the same turn:
+
+- **One worker** when the work is one coherent change that a careful engineer finishes in a few hours as one PR, touches one area with its own tests, and needs no research or QA over several parts. AO starts one worker with the brief, exactly as the **Task** mode would, named after the Task. The board shows that worker's card instead of a Task card, and the Task's run view says **Handled by a single worker**, with the orchestrator's reason and **Open worker session**.
+- **Plan** when the work splits into parts that can run in parallel, needs investigation before it can be specified, crosses more than one area (for example API and UI), or needs QA over the whole. The Task then continues as a planned Task.
+
+The orchestrator records its choice with `ao plan triage <plan-id> --direct|--plan --reason "..."`, and **Recent events** shows it with the reason. You can decide instead from the run view's **Actions**: **Plan it**, or **Send to one worker** (which asks to confirm). A Task is decided once; a second decision is refused. If the orchestrator has not decided 15 minutes after it got the Task, AO reminds it once; AO never decides on its own. If the worker cannot start, the Task stays **Deciding** and the orchestrator is told why.
+
+To bias the choice, add a line to the project's `orchestratorRules` ([project configuration](/configuration/projects)), for example "Prefer one worker for docs-only tickets" or "Always plan changes that touch the API".
 
 ## What the orchestrator does
 

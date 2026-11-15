@@ -108,7 +108,7 @@ See the [command reference](../../backend/internal/skillassets/using-ao/commands
 | `ao session fork <id> [--check]` | `POST /api/v1/sessions/{id}/fork`             |
 | `ao orchestrator ls`                | `GET /api/v1/orchestrators`                    |
 | `ao send`                           | `POST /api/v1/sessions/{id}/send`              |
-| `ao plan create`                    | `POST /api/v1/projects/{id}/plans`             |
+| `ao plan create [--mode plan\|auto]` | `POST /api/v1/projects/{id}/plans` (`mode`)  |
 | `ao plan ls`                        | `GET /api/v1/projects/{id}/plans`              |
 | `ao plan get [<plan-id>]`           | `GET /api/v1/plans/{id}`                       |
 | `ao plan set-spec [<plan-id>] --file` | `PATCH /api/v1/plans/{id}` (`specMarkdown`)  |
@@ -117,6 +117,7 @@ See the [command reference](../../backend/internal/skillassets/using-ao/commands
 | `ao plan activate [<plan-id>]`      | `POST /api/v1/plans/{id}/activate`             |
 | `ao plan cancel [<plan-id>]`        | `POST /api/v1/plans/{id}/cancel`               |
 | `ao plan qa-result [<plan-id>]`     | `POST /api/v1/plans/{id}/qa-result` (QA sessions only) |
+| `ao plan triage [<plan-id>] --plan\|--direct` | `POST /api/v1/plans/{id}/triage`        |
 | `ao plan events [<plan-id>]`        | `GET /api/v1/plans/{id}/events`                |
 | `ao report ...`                     | `POST /api/v1/reports`                         |
 | `ao preview [url]`                  | `POST /api/v1/sessions/{id}/preview`           |

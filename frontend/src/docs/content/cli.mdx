@@ -22,7 +22,7 @@ ao
 ├── cue                           create, list
 ├── report                        Report worker progress or artifacts
 ├── plan                          create, ls, get, set-spec, milestone, activate,
-│                                 cancel, qa-result, events
+│                                 cancel, qa-result, triage, events
 ├── orchestrator ls               List orchestrator sessions
 ├── send                           Send a message to a session
 ├── pr                             merge, resolve-comments
@@ -101,7 +101,7 @@ Agent adapters are compiled into Orchestrator. There is no plugin marketplace or
 
 Focused `set-config` flags change only the fields they name and keep the rest of the saved config. `--config-json` replaces the entire project config, and its JSON decoder ignores unknown keys. See [Projects: update from the CLI](/configuration/projects#update-from-the-cli) for safe alternatives and details. This command does not edit the old `agent-orchestrator.yaml` file.
 
-Use `ao automation create`, `list`, `get`, `update`, `delete`, and `runs` to manage recurring work. To create one, provide a project, name, prompt, and exactly one schedule: `--cron` or `--rrule`. Set `--timezone` to an IANA time-zone name such as `America/New_York`. Pause a definition with `ao automation update <id> --enabled=false`. See [schedule behavior](/configuration/lifecycle-automation#what-ao-handles).
+Use `ao automation create`, `list`, `get`, `update`, `delete`, and `runs` to manage recurring work. To create one, provide a project, name, prompt, and exactly one schedule: `--cron` or `--rrule`. Set `--timezone` to an IANA time-zone name such as `America/New_York`. Pause a definition with `ao automation update <id> --enabled=false`. `--task-mode direct|plan|auto` (create and update) sets what each run creates: one worker session (the default), a Task plan, or an auto Task the orchestrator triages; an orchestrator automation must be `direct`. `ao automation runs` lists each run's session and, for plan and auto runs, its Task (`PLAN`). See [schedule behavior](/configuration/lifecycle-automation#what-ao-handles).
 
 `ao cue create --project <id> --name <name>` requires exactly one `--command` or `--prompt`. `ao cue list --project <id>` lists definitions. Editing, deleting, and invoking Cues is available in the desktop; the CLI does not have a `cue run` command.
 
@@ -199,7 +199,7 @@ Tasks: the orchestrator plans a ticket into milestones, AO runs a worker per mil
 
 | Command | Purpose |
 | --- | --- |
-| `ao plan create --title <t> --brief <text>` | Create a Task and ask the project orchestrator to plan it. `--brief-file`, `--ticket`, `--max-parallel` (1 to 10, default 3), `--project`. |
+| `ao plan create --title <t> --brief <text>` | Create a Task and ask the project orchestrator to plan it. `--brief-file`, `--ticket`, `--max-parallel` (1 to 10, default 3), `--project`, `--mode plan\|auto` (`auto` lets the orchestrator decide between a plan and one worker). |
 | `ao plan ls` | List a project's Tasks, newest first. |
 | `ao plan get [<plan-id>]` | Show the phase, milestones, and latest events. |
 | `ao plan set-spec [<plan-id>] --file <plan.md>` | Store the plan document while the Task is planning. |
@@ -208,6 +208,7 @@ Tasks: the orchestrator plans a ticket into milestones, AO runs a worker per mil
 | `ao plan activate [<plan-id>]` | Check the milestone graph, add QA, and start scheduling. |
 | `ao plan cancel [<plan-id>]` | Stop starting work; running agents keep going. Asks to confirm; pass `--yes` when stdin is not a terminal. |
 | `ao plan qa-result [<plan-id>] --pass\|--fail --milestone <key> --note <text>` | Record the QA verdict. QA sessions only. |
+| `ao plan triage [<plan-id>] --plan\|--direct [--reason <text>]` | Decide how an auto Task runs: `--plan` continues as a plan, `--direct` spawns one worker with the brief and closes the plan. A Task is decided once (409 `PLAN_NOT_IN_TRIAGE` after that). `--by orchestrator\|human` defaults to `orchestrator` inside an AO session. |
 | `ao plan events [<plan-id>]` | Print the activity log, oldest first. |
 
 Inside a milestone or QA session, `<plan-id>` can be omitted: `AO_PLAN_ID` supplies it.

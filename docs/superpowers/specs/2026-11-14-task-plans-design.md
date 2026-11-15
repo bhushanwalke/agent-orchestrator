@@ -4,6 +4,8 @@ Date: 2026-11-14. Repo: `agent-orchestrator` (Go daemon in `backend/`, Electron/
 
 This document is the source of truth for the feature. The companion plan `docs/superpowers/plans/2026-11-14-task-plans.md` splits it into testable milestones.
 
+Addendum: `docs/superpowers/specs/2026-11-14-task-intake-modes.md` adds the direct / plan / auto intake modes (an auto Task the orchestrator triages into a plan or one worker) and the matching Automation task modes.
+
 ## 1. Goal
 
 A person creates a **Task** in the desktop app by pasting a ticket. From then on AO behaves like a small engineering team:
