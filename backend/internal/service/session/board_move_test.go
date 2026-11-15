@@ -145,6 +145,9 @@ func TestBoardMoveStartingStatesPlaceAsExpected(t *testing.T) {
 		if got := [2]domain.KanbanColumn{sess.KanbanColumn, sess.KanbanStage}; got != want[name] {
 			t.Errorf("%s: column/stage = %v, want %v", name, got, want[name])
 		}
+		if sess.HasPRProvider != state().provider {
+			t.Errorf("%s: hasPrProvider = %v, want %v", name, sess.HasPRProvider, state().provider)
+		}
 	}
 }
 

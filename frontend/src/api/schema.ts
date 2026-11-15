@@ -6637,6 +6637,8 @@ export interface components {
             displayName?: string;
             displayStatus: string;
             harness?: string;
+            /** @description Whether the session's repository can take a pull request. */
+            hasPrProvider?: boolean;
             id: string;
             isTerminated: boolean;
             /** @enum {string} */
@@ -6728,6 +6730,7 @@ export interface components {
             /** @enum {string} */
             displayStatus: "Working" | "Blocked" | "Needs input" | "Exited" | "No signal" | "Interrupted" | "Idle" | "Fixing CI failures" | "Addressing comments" | "Review scheduled" | "Reviewing" | "Retrying review" | "Draft" | "Awaiting review" | "Review failed" | "Review cancelled" | "CI failing" | "Merge conflicts" | "Commented" | "Changes requested" | "Mergeable" | "Approved" | "Merged" | "Closed without merge" | "Terminated" | "Starting" | "Paused for you" | "Stuck" | "Accepted";
             harness?: string;
+            hasPrProvider: boolean;
             /** Format: date-time */
             hibernatedAt?: null | string;
             id: string;
@@ -8102,6 +8105,8 @@ export interface components {
             displayName?: string;
             displayStatus: string;
             harness?: string;
+            /** @description Whether the session's repository can take a pull request. */
+            hasPrProvider?: boolean;
             id: string;
             isTerminated: boolean;
             /** @enum {string} */

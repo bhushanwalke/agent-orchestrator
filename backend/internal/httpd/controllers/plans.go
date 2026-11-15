@@ -550,6 +550,7 @@ func planSessionSummary(s domain.Session) PlanSessionSummary {
 		KanbanColumn:  string(s.KanbanColumn),
 		DisplayStatus: string(s.DisplayStatus),
 		IsTerminated:  s.IsTerminated,
+		HasPRProvider: s.HasPRProvider,
 	}
 }
 

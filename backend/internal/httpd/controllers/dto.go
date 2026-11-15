@@ -4827,6 +4827,7 @@ type PlanSessionSummary struct {
 	KanbanColumn  string `json:"kanbanColumn" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
 	DisplayStatus string `json:"displayStatus"`
 	IsTerminated  bool   `json:"isTerminated"`
+	HasPRProvider bool   `json:"hasPrProvider,omitempty" description:"Whether the session's repository can take a pull request."`
 }
 
 // PlanMilestoneCounts summarises a plan's implementation milestones by

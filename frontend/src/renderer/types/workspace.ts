@@ -188,6 +188,12 @@ export type WorkspaceSession = {
 	 */
 	kanbanStage?: KanbanColumn;
 	/**
+	 * Whether the session's repository can take a pull request, as the daemon
+	 * judged it. Absent from a daemon too old to say, which the board treats
+	 * as unknown.
+	 */
+	hasPrProvider?: boolean;
+	/**
 	 * Phrase the daemon derived for what is happening inside
 	 * {@link kanbanColumn} — "Reviewing", "Fixing CI failures", "Needs human
 	 * review". It arrives renderable, so the UI prints it rather than mapping it.

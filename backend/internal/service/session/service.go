@@ -1906,6 +1906,7 @@ func (s *Service) toSessionWithFacts(ctx context.Context, rec domain.SessionReco
 		SCMStatus:        deriveSCMStatus(prs),
 		KanbanColumn:     presentation.Column,
 		KanbanStage:      presentation.Stage,
+		HasPRProvider:    board.hasPRProvider,
 		DisplayStatus:    presentation.DisplayStatus,
 		TerminalHandleID: rec.Metadata.RuntimeHandleID,
 		ArtifactFiles:    artifactFiles,

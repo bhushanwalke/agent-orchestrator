@@ -40,8 +40,10 @@ describe("predictBoardMoveRefusal", () => {
 		expect(predictBoardMoveRefusal(s, "needs_review")).toBe("no_pr");
 		expect(predictBoardMoveRefusal(s, "ready")).toBeNull();
 		expect(predictBoardMoveRefusal(s, "needs_you")).toBeNull();
-		// The provider is the daemon's to judge.
+		// Unknown provider: the daemon judges.
 		expect(predictBoardMoveRefusal(s, "validating")).toBeNull();
+		expect(predictBoardMoveRefusal({ kind: "session", session: session({ hasPrProvider: false }) }, "validating")).toBe("no_pr_provider");
+		expect(predictBoardMoveRefusal({ kind: "session", session: session({ hasPrProvider: true }) }, "validating")).toBeNull();
 
 		expect(predictBoardMoveRefusal({ kind: "session", session: session({ prs: [pr("draft")] }) }, "needs_review")).toBe("pr_is_draft");
 		expect(predictBoardMoveRefusal({ kind: "session", session: session({ prs: [pr("merged")], kanbanColumn: "ready", kanbanStage: "ready" }) }, "validating")).toBe("pr_decides_ready");

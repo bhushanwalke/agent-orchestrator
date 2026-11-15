@@ -19659,6 +19659,9 @@ components:
           type: string
         harness:
           type: string
+        hasPrProvider:
+          description: Whether the session's repository can take a pull request.
+          type: boolean
         id:
           type: string
         isTerminated:
@@ -19914,6 +19917,8 @@ components:
           type: string
         harness:
           type: string
+        hasPrProvider:
+          type: boolean
         hibernatedAt:
           format: date-time
           type:
@@ -20131,6 +20136,7 @@ components:
       - status
       - kanbanColumn
       - kanbanStage
+      - hasPrProvider
       - displayStatus
       - lastEventAt
       - prs
@@ -23618,6 +23624,9 @@ components:
           type: string
         harness:
           type: string
+        hasPrProvider:
+          description: Whether the session's repository can take a pull request.
+          type: boolean
         id:
           type: string
         isTerminated:

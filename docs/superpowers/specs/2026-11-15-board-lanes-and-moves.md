@@ -356,7 +356,7 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R13 `run-now` also returns 409 `AUTOMATION_RUN_ACTIVE` when a `pending` run already exists for the automation, so a double drop cannot queue two runs.
 - R14 Moving a PR to Validating triggers the review with `Rerun: true` so an already reviewed head is reviewed again. A trigger error (no reviewer harness, review already running) is returned as the 409 message; the inject flags are set first and stay set.
 - R15 The sidebar's `sessionNeedsYou` set is unchanged; aligning it with the lane is a separate change.
-- R16 A dev daemon for the B2 gate runs with its own `AO_DATA_DIR` under the scratchpad and a free port that is neither 3001 nor 3047.
+- R16 A dev daemon for the B2 gate runs with its own `AO_DATA_DIR` under the scratchpad and a free port that is neither 3001 nor 3047. (Coordinator) Every dev-daemon environment also sets `GH_TOKEN` and `AO_GITHUB_TOKEN` to a value containing a newline, so Go refuses the header before dialing and no lab reaches api.github.com with the user's keychain token.
 - R17 (coordinator) A draft PR dropped on In review is refused `pr_is_draft`: "This pull request is a draft. Mark it ready for review on the provider first." A board move never writes to the provider.
 - R18 Every refusal is decided before any side effect, so a refused move changes nothing. A card paused by request and dropped on Building or on its own stage is the release alone (clear, resume notice), for sessions and Tasks alike.
 - R19 A notice that cannot be delivered (controller down) does not undo the move: the fact is recorded and the failure logged.
@@ -374,3 +374,4 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R31 An automation card's next run is an absolute short date and time (as the Automations page shows it), not the card's relative `formatTime`, which reads future times badly.
 - R32 Moves are offered on this machine's boards only: not on another host's board, a shared project, or a cloud project or session.
 - R33 (coordinator) An accepted session dropped on Building clears its `accepted` request with no notice to the agent, and the card returns to where its facts put it, as dragging out of Needs you clears `attention`. Every other drop of an accepted card follows the ordinary rules (Ready is `already_there`).
+- R34 (ao-verify finding 1) `SessionResponse` and `PlanSessionSummary` carry `hasPrProvider`, the same fact the reducer reads. The client predicts `no_pr_provider` from it, so Validating dims with the reason during a drag and the Move to item is disabled. On `PlanSessionSummary` it is omitted when false; on the session it is always present, and a daemon that omits it is treated as unknown.

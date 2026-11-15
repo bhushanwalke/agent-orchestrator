@@ -42,8 +42,9 @@ export type BoardMoveSubject =
  * Predicts the daemon's refusal of a move from what the card already knows,
  * so a drag can dim the lanes that would refuse it and the menu can disable
  * them. It never allows what the daemon would refuse on facts the card
- * carries; facts it cannot see (whether the project has a PR provider) are
- * left to the daemon, whose refusal arrives as a toast.
+ * carries; a fact it cannot see (an older daemon that does not say whether
+ * the project has a PR provider) is left to the daemon, whose refusal
+ * arrives as a toast.
  */
 export function predictBoardMoveRefusal(subject: BoardMoveSubject, to: BoardMoveLane): BoardMoveRefusal | null {
 	switch (subject.kind) {
@@ -73,6 +74,7 @@ function predictSessionRefusal(session: WorkspaceSession, to: BoardMoveLane): Bo
 		case "validating":
 			if (stage === "validating" && !paused) return "already_there";
 			if (live.length === 0 && prs.length > 0) return "pr_decides_ready";
+			if (live.length === 0 && session.hasPrProvider === false) return "no_pr_provider";
 			return null;
 		case "needs_review":
 			if (live.length === 0) return "no_pr";

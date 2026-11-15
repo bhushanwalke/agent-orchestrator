@@ -746,6 +746,10 @@ type Session struct {
 	// can say which stage is waiting on the person. It equals KanbanColumn in
 	// every other column.
 	KanbanStage KanbanColumn `json:"kanbanStage" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
+	// HasPRProvider reports that the session's repository origin parses as a
+	// provider AO can open pull requests on: the fact the board reads for
+	// "finished with nowhere to deliver" and for a drop on Validating.
+	HasPRProvider bool `json:"hasPrProvider"`
 	// DisplayStatus is the short phrase to render inside that column: the most
 	// important current fact about the session at the stage it sits in. It is
 	// derived after the column, from the facts that column reads, and ships in
