@@ -27,8 +27,8 @@ var claudeRouteEnvKeys = []string{
 var claudeRoutePresenceKeys = []string{"AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_FOUNDRY_API_KEY"}
 
 // ClaudeRouteEnv is the route configuration Claude Code will apply: the
-// launch or process environment first, then the user's settings.json env
-// block. It holds no credential values.
+// explicit launch environment, then the user's settings.json env block, then
+// the process environment. It holds no credential values.
 type ClaudeRouteEnv struct {
 	values       map[string]string
 	fromSettings map[string]bool
@@ -58,9 +58,17 @@ func ResolveClaudeRouteEnv(ctx context.Context, opts ResolveOptions) ClaudeRoute
 		settings, route.APIKeyHelper = readClaudeRouteSettings(ctx, route.SettingsPath)
 	}
 	for _, key := range append(append([]string{}, claudeRouteEnvKeys...), claudeRoutePresenceKeys...) {
-		value, fromSettings := lookup(key), false
-		if value == "" && settings[key] != "" {
-			value, fromSettings = settings[key], true
+		// The order ResolveClaudeSettings applies, which is Claude Code's:
+		// explicit launch environment, then the user settings when they define
+		// the key (an empty entry shadows), then the process environment.
+		var value string
+		fromSettings := false
+		if launch, ok := opts.CommandEnv[key]; ok {
+			value = strings.TrimSpace(launch)
+		} else if configured, ok := settings[key]; ok {
+			value, fromSettings = configured, true
+		} else {
+			value = opts.Getenv(key)
 		}
 		if value == "" {
 			continue

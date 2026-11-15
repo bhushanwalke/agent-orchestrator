@@ -433,9 +433,11 @@ No storage or migration change: readiness observations are in memory only.
 
 `backend/pkg/agentcreds/claude_route_env.go` (new)
 
-- `ClaudeRouteEnv(ctx, opts)`: lookup over the launch/process environment,
-  falling back to the `env` block of the user's own `settings.json` (in
-  `CLAUDE_CONFIG_DIR` or `~/.claude`) for the route keys only:
+- `ClaudeRouteEnv(ctx, opts)`: lookup in the order the existing resolver and
+  Claude Code apply: the explicit launch environment, then the `env` block of
+  the user's own `settings.json` (in `CLAUDE_CONFIG_DIR` or `~/.claude`) when it
+  defines the key (an empty entry shadows), then the process environment. Route
+  keys only (ruling R18):
   `CLAUDE_CODE_USE_{BEDROCK,VERTEX,FOUNDRY}`, `ANTHROPIC_BASE_URL`,
   `ANTHROPIC_{BEDROCK,VERTEX,FOUNDRY}_BASE_URL`, `ANTHROPIC_FOUNDRY_RESOURCE`,
   `CLAUDE_CODE_SKIP_{BEDROCK,VERTEX,FOUNDRY}_AUTH`, `AWS_REGION`,
@@ -675,6 +677,10 @@ own harness configs read-only:
 - An OpenCode environment key for a built-in provider still counts as a login
   on presence alone (unchanged, C1).
 - Remote hosts and cloud harnesses are out of scope.
+- A keyed Claude Code gateway is still checked by the pre-existing validator
+  (C1): it sends the key on its own model-list requests without the
+  public-listing rule or the cleartext guard of section 5. Hardening it is a
+  separate follow-up (ruling R19).
 
 ## 13. Rulings (feat/task-plans build)
 
@@ -752,3 +758,16 @@ R16 (M3). The codex, opencode and opencodev2 test packages point
 R17 (M3). An OpenCode provider with a `baseURL`, no `apiKey`, and an `env`
     list sends the first set variable as its key. None set means keyless.
     Cost: none.
+R18 (fix after M2 verification). `ResolveClaudeRouteEnv` uses the resolver's
+    precedence: explicit launch environment, then the user settings when they
+    define the key (an empty entry shadows), then the process environment.
+    `ConfigSource` names the source whose value was used; a gateway URL that
+    only the project's settings set reads `.claude/settings.json`. Before
+    this, the process environment won for route values while the probe used
+    settings, so the route could name the wrong host or source. Cost: none.
+R19 (coordinator ruling). The section 5 safety and public-listing rules apply
+    to AO's new probe only. A keyed Claude gateway keeps the existing
+    validator unchanged under C1, including its keyed requests, and the route
+    maps `provider_accepted` to `verified`. Hardening that validator is a
+    separate follow-up (section 12.12). Cost: a public model list read
+    through a keyed gateway still reads verified.

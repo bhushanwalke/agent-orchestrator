@@ -2,6 +2,7 @@ package claudecode
 
 import (
 	"context"
+	"path/filepath"
 	"regexp"
 	"time"
 
@@ -114,6 +115,11 @@ func claudeModelRoute(ctx context.Context, resolved claudeProviderContext, worki
 		Host:         domain.RouteHost(baseURL),
 		Credential:   domain.AgentModelRouteCredentialNone,
 		ConfigSource: source("ANTHROPIC_BASE_URL"),
+	}
+	if routeEnv.Get("ANTHROPIC_BASE_URL") != baseURL {
+		// Only the project's own settings can set a gateway the user
+		// configuration does not; the resolver read them for this launch.
+		route.ConfigSource = filepath.Join(".claude", "settings.json")
 	}
 	route.Kind = modelroute.Kind(route.Host)
 	switch {

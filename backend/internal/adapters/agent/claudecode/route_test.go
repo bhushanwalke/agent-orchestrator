@@ -234,3 +234,42 @@ func TestARouteRejectionNeverBlocksALaunch(t *testing.T) {
 		t.Fatalf("launch status = %s err = %v; a route rejection blocked the launch", status, err)
 	}
 }
+
+// User settings override the process environment for route keys, as Claude
+// Code applies them, and the route names the source whose value it used.
+func TestRouteUsesUserSettingsOverTheProcessEnvironment(t *testing.T) {
+	t.Run("gateway", func(t *testing.T) {
+		clearClaudeCredentialEnv(t)
+		resetRouteCaches(t)
+		stubClaudeCLI(t, "")
+		var paths []string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			paths = append(paths, r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[]}`))
+		}))
+		t.Cleanup(server.Close)
+		t.Setenv("ANTHROPIC_BASE_URL", server.URL+"/keyless")
+		writeClaudeAuthSettings(t, filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), "settings.json"), map[string]string{"ANTHROPIC_BASE_URL": server.URL + "/zt"})
+		_, routes, _ := checkClaude(t)
+		if len(paths) != 1 || paths[0] != "/zt/v1/models" {
+			t.Fatalf("probed %v, want the settings gateway", paths)
+		}
+		if len(routes) != 1 || routes[0].ConfigSource != "~/.claude/settings.json" {
+			t.Fatalf("routes = %+v, want configSource from settings", routes)
+		}
+	})
+	t.Run("bedrock", func(t *testing.T) {
+		clearClaudeCredentialEnv(t)
+		resetRouteCaches(t)
+		refuseRouteRequests(t)
+		stubClaudeCLI(t, "")
+		t.Setenv("CLAUDE_CODE_USE_BEDROCK", "1")
+		t.Setenv("ANTHROPIC_BEDROCK_BASE_URL", "https://env-bedrock.lab.invalid")
+		writeClaudeAuthSettings(t, filepath.Join(os.Getenv("CLAUDE_CONFIG_DIR"), "settings.json"), map[string]string{"ANTHROPIC_BEDROCK_BASE_URL": "https://bedrock-gw.lab.invalid:8443"})
+		_, routes, _ := checkClaude(t)
+		if len(routes) != 1 || routes[0].Host != "bedrock-gw.lab.invalid:8443" || routes[0].ConfigSource != "CLAUDE_CODE_USE_BEDROCK" {
+			t.Fatalf("routes = %+v, want the settings host", routes)
+		}
+	})
+}
