@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -931,7 +932,13 @@ func parseGitHubRepo(remote string) (ports.SCMRepo, bool) {
 		owner, name, ok := splitOwnerRepo(parts[1])
 		return makeGitHubRepo(host, owner, name), ok && isGitHubHost(host)
 	}
-	if !strings.Contains(raw, "://") && strings.Count(strings.Trim(raw, "/"), "/") == 1 {
+	if !strings.Contains(raw, "://") {
+		// GitHub's owner/repo shorthand, and nothing that is a path on disk:
+		// a local bare origin such as /tmp/todo.git must never become
+		// github.com/tmp/todo.
+		if looksLikeLocalPath(raw) || strings.Count(raw, "/") != 1 {
+			return ports.SCMRepo{}, false
+		}
 		owner, name, ok := splitOwnerRepo(raw)
 		return makeGitHubRepo("github.com", owner, name), ok
 	}
@@ -942,6 +949,23 @@ func parseGitHubRepo(remote string) (ports.SCMRepo, bool) {
 	host := strings.ToLower(u.Host)
 	owner, name, ok := splitOwnerRepo(u.Path)
 	return makeGitHubRepo(host, owner, name), ok && isGitHubHost(host)
+}
+
+var windowsDrive = regexp.MustCompile(`^[A-Za-z]:`)
+
+// looksLikeLocalPath reports a remote that names a path on disk rather than
+// GitHub's owner/repo shorthand: absolute, relative, home-relative, Windows,
+// or a .git directory (the shorthand never carries one).
+func looksLikeLocalPath(raw string) bool {
+	switch {
+	case strings.HasPrefix(raw, "/"), strings.HasPrefix(raw, "./"), strings.HasPrefix(raw, "../"), strings.HasPrefix(raw, "~"):
+		return true
+	case strings.Contains(raw, `\`), windowsDrive.MatchString(raw):
+		return true
+	case strings.HasSuffix(raw, ".git"):
+		return true
+	}
+	return false
 }
 
 func splitOwnerRepo(p string) (string, string, bool) {
