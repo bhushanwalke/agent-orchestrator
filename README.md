@@ -45,7 +45,7 @@ Tell a project's main agent what you want built. It plans the work, starts a wor
 
 ### One board for every session
 
-Sessions sort themselves into lanes from the agent, its PR, CI, and reviews, so whatever needs you is on top.
+Sessions sort themselves into six lanes from the agent, its PR, CI, and reviews: In queue, Building, Validating, In review, Needs you, and Ready. Nothing stores a column; the board derives every lane from facts. Drag a card, or use **Move to**, and the move changes the facts so the agents act: hold work in the queue, send a worker back to Building, hand a finished branch over for review, re-run a Task's QA, or run an automation now. A move the facts cannot honour is refused with the reason, and a move never writes to your PR provider.
 
 <img src="docs/assets/readme/site/board.jpg" alt="The Kanban board with Working, Needs you, In review, and Ready to merge lanes" width="100%" />
 
@@ -54,6 +54,21 @@ Sessions sort themselves into lanes from the agent, its PR, CI, and reviews, so 
 Failed checks, review comments, and merge conflicts go back to the worker that owns the branch until the PR is approved. A reviewer agent can read every PR before a person does.
 
 <img src="docs/assets/readme/site/feedback.jpg" alt="A pull request timeline where a failed check and a review comment are routed back to Claude Code, which pushes a fix" width="100%" />
+
+### Tasks: plan, build, QA
+
+Hand the orchestrator a ticket and it becomes a Task: a plan of milestones with a dependency graph. The scheduler starts a worker per milestone as its dependencies clear, up to the Task's parallel limit, and each worker gets its own branch and worktree, with cone-mode sparse checkouts for large repositories. When the milestones report done, a QA worker checks the result and routes defects back to the worker that owns them until QA passes. The Task card on the board folds its agents into one card, and the run view shows the milestone graph, its events, and any research workers attached to it.
+
+- **Pick how a Task starts.** Plan mode always plans. Auto mode lets the orchestrator triage the request first and decide between a quick direct session and a full plan.
+- **Automate it.** A recurring automation can open a Task plan or an auto Task on its schedule.
+- **Steer it from the board.** Hold a Task in the queue, flag it for your attention, resume it, or re-run QA by moving its card.
+- **Or from the terminal.** `ao plan`, `ao plan triage`, `ao plan move`, `ao session move`, and `ao automation run-now`.
+
+See the [Task plans guide](https://docs.orchestrator.inc/guides/task-plans) and the [board guide](https://docs.orchestrator.inc/guides/board).
+
+### Know which route your model takes
+
+**Settings → Harness** shows where Claude Code, Codex, and OpenCode send model requests: the provider's own API, AWS Bedrock, Google Vertex AI, Azure AI Foundry, a gateway or proxy, or a local model server. The check reads the harness's own settings in the order the harness resolves them, tells you whether the route is verified, configured but unverifiable, or unreachable, and never changes anything. When a route is in use, the account subscriptions below it are not what model requests bill against, and the app says so.
 
 ### Use the agent you already trust
 
