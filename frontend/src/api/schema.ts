@@ -6582,7 +6582,7 @@ export interface components {
             id: string;
             isTerminated: boolean;
             /** @enum {string} */
-            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            kanbanColumn: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
             status: string;
         };
         ControllersRemoteHostAccountTokenResponse: {
@@ -6668,7 +6668,7 @@ export interface components {
             createdAt: string;
             displayName?: string;
             /** @enum {string} */
-            displayStatus: "Working" | "Blocked" | "Needs input" | "Exited" | "No signal" | "Interrupted" | "Idle" | "Fixing CI failures" | "Addressing comments" | "Review scheduled" | "Reviewing" | "Retrying review" | "Draft" | "Awaiting review" | "Review failed" | "Review cancelled" | "CI failing" | "Merge conflicts" | "Commented" | "Changes requested" | "Mergeable" | "Approved" | "Merged" | "Closed without merge" | "Terminated";
+            displayStatus: "Working" | "Blocked" | "Needs input" | "Exited" | "No signal" | "Interrupted" | "Idle" | "Fixing CI failures" | "Addressing comments" | "Review scheduled" | "Reviewing" | "Retrying review" | "Draft" | "Awaiting review" | "Review failed" | "Review cancelled" | "CI failing" | "Merge conflicts" | "Commented" | "Changes requested" | "Mergeable" | "Approved" | "Merged" | "Closed without merge" | "Terminated" | "Starting" | "Paused for you" | "Stuck" | "Accepted";
             harness?: string;
             /** Format: date-time */
             hibernatedAt?: null | string;
@@ -6677,7 +6677,9 @@ export interface components {
             isTerminated: boolean;
             issueId?: string;
             /** @enum {string} */
-            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            kanbanColumn: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
+            /** @enum {string} */
+            kanbanStage: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
             kind: string;
             /** Format: date-time */
             lastEventAt: string;
@@ -8013,7 +8015,12 @@ export interface components {
             /** @enum {string} */
             intakeMode: "plan" | "auto";
             /** @enum {string} */
-            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            kanbanColumn: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
+            /**
+             * @description The lifecycle lane behind a Needs you card; equals kanbanColumn elsewhere.
+             * @enum {string}
+             */
+            kanbanStage: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
             liveSessions: components["schemas"]["PlanSessionSummary"][];
             maxParallel: number;
             milestoneCounts: components["schemas"]["PlanMilestoneCounts"];
@@ -8040,7 +8047,7 @@ export interface components {
             id: string;
             isTerminated: boolean;
             /** @enum {string} */
-            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            kanbanColumn: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
             status: string;
         };
         PlanSummary: {
@@ -8057,7 +8064,12 @@ export interface components {
             /** @enum {string} */
             intakeMode: "plan" | "auto";
             /** @enum {string} */
-            kanbanColumn: "building" | "validating" | "needs_review" | "ready" | "archive";
+            kanbanColumn: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
+            /**
+             * @description The lifecycle lane behind a Needs you card; equals kanbanColumn elsewhere.
+             * @enum {string}
+             */
+            kanbanStage: "queued" | "building" | "validating" | "needs_review" | "needs_you" | "ready" | "archive";
             liveSessions: components["schemas"]["PlanSessionSummary"][];
             maxParallel: number;
             milestoneCounts: components["schemas"]["PlanMilestoneCounts"];

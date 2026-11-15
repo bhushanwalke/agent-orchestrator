@@ -388,7 +388,7 @@ func (s *Service) List(ctx context.Context, projectID domain.ProjectID) ([]Summa
 			return nil, err
 		}
 		views := s.milestoneViews(ctx, ms)
-		out = append(out, summarize(p, views))
+		out = append(out, summarize(p, views, s.now().UTC()))
 	}
 	return out, nil
 }
@@ -984,7 +984,7 @@ func (s *Service) detail(ctx context.Context, p domain.Plan) (Detail, error) {
 	if err != nil {
 		return Detail{}, err
 	}
-	return Detail{Summary: summarize(p, views), Milestones: views, ResearchSessions: research, Events: evs}, nil
+	return Detail{Summary: summarize(p, views, s.now().UTC()), Milestones: views, ResearchSessions: research, Events: evs}, nil
 }
 
 // researchSessions reads the sessions attached to a plan without a milestone.
@@ -1028,7 +1028,7 @@ func (s *Service) milestoneViews(ctx context.Context, ms []domain.Milestone) []M
 	return views
 }
 
-func summarize(p domain.Plan, views []MilestoneView) Summary {
+func summarize(p domain.Plan, views []MilestoneView, now time.Time) Summary {
 	ms := make([]domain.Milestone, 0, len(views))
 	sum := Summary{Plan: p, LiveSessions: []domain.Session{}}
 	seenPR := map[string]bool{}
@@ -1063,7 +1063,7 @@ func summarize(p domain.Plan, views []MilestoneView) Summary {
 		}
 	}
 	sum.Phase = domain.DerivePlanPhase(p, ms)
-	sum.Kanban, sum.DisplayStatus = domain.DerivePlanKanban(sum.Phase, ms)
+	sum.Kanban, sum.DisplayStatus, sum.KanbanStage = domain.DerivePlanKanban(p, sum.Phase, ms, now)
 	return sum
 }
 

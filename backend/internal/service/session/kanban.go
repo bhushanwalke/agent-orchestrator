@@ -1,6 +1,7 @@
 package session
 
 import (
+	"context"
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
@@ -12,11 +13,15 @@ func deriveKanbanPresentation(
 	prs []domain.PRFacts,
 	runs []domain.CurrentHeadReviewRun,
 	interrupted bool,
+	board boardFacts,
 	now time.Time,
 	signalCapable bool,
 ) contract.KanbanPresentation {
+	facts := toContractKanbanSessionFacts(rec, interrupted, signalCapable)
+	facts.LatestReport = contract.ReportState(board.latestReport)
+	facts.HasPRProvider = board.hasPRProvider
 	return contract.DeriveKanbanPresentation(
-		toContractKanbanSessionFacts(rec, interrupted, signalCapable),
+		facts,
 		toContractKanbanPRFacts(prs, runs),
 		now,
 		noSignalGrace,
@@ -35,6 +40,60 @@ func toContractKanbanSessionFacts(rec domain.SessionRecord, interrupted, signalC
 		AutoReview:        rec.AutoReviewEnabled,
 		AutoInjectReview:  rec.AutoInjectReview,
 		AutoInjectCI:      rec.AutoInjectCI,
+		Commits:           branchCommits(rec.BranchState),
+		PlanManaged:       rec.PlanID != "",
+		Provisioning:      rec.ProvisionState.IsProvisioning(),
+		BoardRequest:      rec.BoardRequest,
+	}
+}
+
+func branchCommits(state *domain.SessionBranchState) int {
+	if state == nil {
+		return 0
+	}
+	return state.Commits
+}
+
+// boardFacts are the board-only facts read outside the session row: the
+// newest ao report and whether the project can take a pull request.
+type boardFacts struct {
+	latestReport  domain.ReportState
+	hasPRProvider bool
+}
+
+// latestReportStates reads each session's newest report state. Like terminal
+// titles it is advisory: a failed read leaves the board without report-based
+// Needs you placements rather than failing the list.
+func (s *Service) latestReportStates(ctx context.Context, ids []domain.SessionID) map[domain.SessionID]domain.ReportState {
+	reader, ok := s.store.(interface {
+		ListLatestReportStates(ctx context.Context, ids []domain.SessionID) (map[domain.SessionID]domain.ReportState, error)
+	})
+	if !ok {
+		return nil
+	}
+	states, err := reader.ListLatestReportStates(ctx, ids)
+	if err != nil && s.logger != nil {
+		s.logger.Warn("list latest report states failed", "err", err)
+	}
+	return states
+}
+
+// prProviderLookup answers, per project and memoized for one read, whether
+// the project's origin parses as a provider AO can open pull requests on.
+func (s *Service) prProviderLookup(ctx context.Context) func(domain.ProjectID) bool {
+	known := map[domain.ProjectID]bool{}
+	return func(id domain.ProjectID) bool {
+		if has, ok := known[id]; ok {
+			return has
+		}
+		has := false
+		if s.scm != nil {
+			if project, found, err := s.store.GetProject(ctx, string(id)); err == nil && found && project.RepoOriginURL != "" {
+				_, has = s.scm.ParseRepository(project.RepoOriginURL)
+			}
+		}
+		known[id] = has
+		return has
 	}
 }
 

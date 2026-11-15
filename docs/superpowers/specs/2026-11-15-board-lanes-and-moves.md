@@ -195,14 +195,14 @@ lane. The service applies, in this order:
 | `queued` | Refused, reason `session_cannot_queue` (a live session cannot be un-started). |
 | `building` | From `needs_you` only (handled by step 1). Otherwise refused, `already_building` if `stage == building`, else `cannot_restart`. |
 | `validating` | No PR: requires `HasPRProvider`, else refused `no_pr_provider`. Send `<ao-board-deliver>` (§6). With a PR in `needs_review`: run the same operation as `ao review trigger` for the PR (service `review`), and set `auto_inject_review` and `auto_inject_ci` true. Already validating: refused `already_there`. |
-| `needs_review` | Requires a PR, else refused `no_pr`. Set `auto_inject_review=false`, `auto_inject_ci=false`, `auto_review_enabled=false` (the facts `derivePRKanbanColumn` reads), and cancel a running AO review pass for the current head if one exists. |
+| `needs_review` | Requires a PR, else refused `no_pr`. A draft PR is refused `pr_is_draft` (R17). Set `auto_inject_review=false`, `auto_inject_ci=false`, `auto_review_enabled=false` (the facts `derivePRKanbanColumn` reads), and cancel a running AO review pass for the current head if one exists. |
 | `ready` | Requires `len(prs) == 0`, else refused `pr_decides_ready`. Set `BoardRequest = accepted`. |
 | `needs_you` | Set `BoardRequest = attention`; send `<ao-board-hold>` (§6). Already there by facts (not by request): still set the request so the card stays put after the agent answers. |
 
 Reason enum (`BoardMoveRefusal`): `session_cannot_queue`, `already_there`,
 `already_building`, `cannot_restart`, `no_pr_provider`, `no_pr`,
 `pr_decides_ready`, `plan_cannot_validate`, `plan_decides_ready`,
-`plan_not_live`, `automation_only_runs`.
+`plan_not_live`, `automation_only_runs`, `pr_is_draft` (R17).
 
 ### 5.2 Task: `POST /plans/{planId}/board-move`
 
@@ -341,7 +341,7 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 ## 12. Open rulings (coordinator's calls, revisable)
 
 - R1 Needs you sits between In review and Ready. Change `boardKanbanColumnOrder` if the user prefers it leftmost.
-- R2 "Exited" is not Needs you. A restart decision is a card-menu action; adding every exited worker to Needs you would flood it.
+- R2 Exited alone is not Needs you. A restart decision is a card-menu action; adding every exited worker to Needs you would flood it.
 - R3 Queue cards are Tasks, automations, and provisioning sessions only. Milestones stay in the run view.
 - R4 A live session cannot be dropped on In queue. Pausing a running agent is the Needs you move.
 - R5 A Task cannot be dragged into Validating or Ready. QA decides both.
@@ -359,3 +359,4 @@ Isolated lab (never `/tmp/ao-plans/lab3` or `e2e-data`). Local bare-origin proje
 - R14 Moving a PR to Validating triggers the review with `Rerun: true` so an already reviewed head is reviewed again. A trigger error (no reviewer harness, review already running) is returned as the 409 message; the inject flags are set first and stay set.
 - R15 The sidebar's `sessionNeedsYou` set is unchanged; aligning it with the lane is a separate change.
 - R16 A dev daemon for the B2 gate runs with its own `AO_DATA_DIR` under the scratchpad and a free port that is neither 3001 nor 3047.
+- R17 (coordinator) A draft PR dropped on In review is refused `pr_is_draft`: "This pull request is a draft. Mark it ready for review on the provider first." A board move never writes to the provider.

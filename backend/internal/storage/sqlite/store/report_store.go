@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -72,6 +73,29 @@ func (s *Store) ListReportsBySession(ctx context.Context, id domain.SessionID) (
 		return nil, fmt.Errorf("list reports: %w", err)
 	}
 	return s.reportsWithOutputs(ctx, rows)
+}
+
+// ListLatestReportStates returns the state of each session's newest state
+// report; a session with none is absent from the map.
+func (s *Store) ListLatestReportStates(ctx context.Context, ids []domain.SessionID) (map[domain.SessionID]domain.ReportState, error) {
+	out := make(map[domain.SessionID]domain.ReportState, len(ids))
+	if len(ids) == 0 {
+		return out, nil
+	}
+	encoded, err := json.Marshal(ids)
+	if err != nil {
+		return nil, fmt.Errorf("marshal session ids: %w", err)
+	}
+	rows, err := s.qr.ListLatestReportStates(ctx, string(encoded))
+	if err != nil {
+		return nil, fmt.Errorf("list latest report states: %w", err)
+	}
+	for _, row := range rows {
+		if row.State != "" {
+			out[domain.SessionID(row.SessionID)] = domain.ReportState(row.State)
+		}
+	}
+	return out, nil
 }
 
 // ListReportedPRURLs returns only a worker's structured created-PR outputs.

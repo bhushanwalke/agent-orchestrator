@@ -4,6 +4,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/pkg/contract"
 )
@@ -170,6 +171,15 @@ func TestDerivePlanPhase(t *testing.T) {
 	qa := MilestoneKindQA
 	withVerdict := func(m Milestone, v QAVerdict) Milestone { m.QAVerdict = v; return m }
 	withAttempt := func(m Milestone, a int) Milestone { m.Attempt = a; return m }
+	created := time.Date(2026, 11, 15, 9, 0, 0, 0, time.UTC)
+	needsYouStage := map[string]contract.KanbanColumn{
+		"triage after the reminder":  contract.KanbanBuilding,
+		"planning paused for you":    contract.KanbanBuilding,
+		"testing paused for you":     contract.KanbanValidating,
+		"blocked while implementing": contract.KanbanBuilding,
+		"blocked qa":                 contract.KanbanBuilding,
+		"failed after retries":       contract.KanbanNeedsReview,
+	}
 	cases := []struct {
 		name    string
 		plan    Plan
@@ -182,12 +192,24 @@ func TestDerivePlanPhase(t *testing.T) {
 			PlanPhaseCancelled, contract.KanbanArchive, contract.DisplayPlanCancelled},
 		{"planning", Plan{State: PlanStatePlanning}, nil,
 			PlanPhasePlanning, contract.KanbanBuilding, contract.DisplayPlanning},
-		{"triage", Plan{State: PlanStateTriage, IntakeMode: PlanIntakeAuto}, nil,
-			PlanPhaseTriage, contract.KanbanBuilding, contract.DisplayDeciding},
+		{"triage before the reminder", Plan{State: PlanStateTriage, IntakeMode: PlanIntakeAuto, CreatedAt: created}, nil,
+			PlanPhaseTriage, contract.KanbanQueued, contract.DisplayDeciding},
+		{"triage after the reminder", Plan{State: PlanStateTriage, IntakeMode: PlanIntakeAuto, CreatedAt: created.Add(-TriageReminderAfter)}, nil,
+			PlanPhaseTriage, contract.KanbanNeedsYou, contract.DisplayNeedsADecision},
+		{"triage on hold", Plan{State: PlanStateTriage, IntakeMode: PlanIntakeAuto, CreatedAt: created.Add(-time.Hour), BoardRequest: BoardRequestHold}, nil,
+			PlanPhaseTriage, contract.KanbanQueued, contract.DisplayOnHold},
+		{"planning on hold", Plan{State: PlanStatePlanning, BoardRequest: BoardRequestHold}, nil,
+			PlanPhasePlanning, contract.KanbanQueued, contract.DisplayOnHold},
+		{"planning paused for you", Plan{State: PlanStatePlanning, BoardRequest: BoardRequestAttention}, nil,
+			PlanPhasePlanning, contract.KanbanNeedsYou, contract.DisplayPausedForYou},
+		{"testing paused for you", Plan{State: PlanStateActive, BoardRequest: BoardRequestAttention}, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusRunning)},
+			PlanPhaseQA, contract.KanbanNeedsYou, contract.DisplayPausedForYou},
+		{"cancelled ignores a request", Plan{State: PlanStateCancelled, BoardRequest: BoardRequestHold}, nil,
+			PlanPhaseCancelled, contract.KanbanArchive, contract.DisplayPlanCancelled},
 		{"direct", Plan{State: PlanStateDirect, IntakeMode: PlanIntakeAuto, DirectSessionID: "w-1"}, nil,
 			PlanPhaseDirect, contract.KanbanArchive, contract.DisplayOneWorker},
 		{"blocked while implementing", active, []Milestone{ms("m1", impl, MilestoneStatusBlocked), ms("m2", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusPending)},
-			PlanPhaseImplementing, contract.KanbanBuilding, contract.DisplayBlocked},
+			PlanPhaseImplementing, contract.KanbanNeedsYou, contract.DisplayBlocked},
 		{"qa failed", active, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusFailed)},
 			PlanPhaseFixing, contract.KanbanBuilding, contract.DisplayFixingQAFindings},
 		{"qa defect being fixed", active, []Milestone{withVerdict(ms("m1", impl, MilestoneStatusRunning), QAVerdictFail), ms("qa", qa, MilestoneStatusPending)},
@@ -195,11 +217,11 @@ func TestDerivePlanPhase(t *testing.T) {
 		{"qa running", active, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusRunning)},
 			PlanPhaseQA, contract.KanbanValidating, contract.DisplayTesting},
 		{"blocked qa", active, []Milestone{ms("m1", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusBlocked)},
-			PlanPhaseQA, contract.KanbanBuilding, contract.DisplayBlocked},
+			PlanPhaseQA, contract.KanbanNeedsYou, contract.DisplayBlocked},
 		{"qa passed", active, []Milestone{ms("m1", impl, MilestoneStatusDone), withVerdict(ms("qa", qa, MilestoneStatusDone), QAVerdictPass)},
 			PlanPhaseDone, contract.KanbanReady, contract.DisplayQAPassed},
 		{"failed after retries", active, []Milestone{withAttempt(ms("m1", impl, MilestoneStatusFailed), 3), ms("qa", qa, MilestoneStatusPending)},
-			PlanPhaseFailed, contract.KanbanNeedsReview, contract.DisplayNeedsYou},
+			PlanPhaseFailed, contract.KanbanNeedsYou, contract.DisplayNeedsYou},
 		{"failed but retrying", active, []Milestone{withAttempt(ms("m1", impl, MilestoneStatusFailed), 1), ms("m2", impl, MilestoneStatusDone), ms("qa", qa, MilestoneStatusPending)},
 			PlanPhaseImplementing, contract.KanbanBuilding, contract.DisplayStatus("Implementing 1/2")},
 		{"implementing 2/5", active, []Milestone{
@@ -213,9 +235,16 @@ func TestDerivePlanPhase(t *testing.T) {
 			if phase != tc.phase {
 				t.Fatalf("phase = %q, want %q", phase, tc.phase)
 			}
-			col, display := DerivePlanKanban(phase, tc.ms)
+			col, display, stage := DerivePlanKanban(tc.plan, phase, tc.ms, created.Add(time.Minute))
 			if col != tc.column || display != tc.display {
 				t.Fatalf("kanban = %q/%q, want %q/%q", col, display, tc.column, tc.display)
+			}
+			wantStage := tc.column
+			if col == contract.KanbanNeedsYou {
+				wantStage = needsYouStage[tc.name]
+			}
+			if stage != wantStage {
+				t.Fatalf("stage = %q, want %q", stage, wantStage)
 			}
 		})
 	}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	boardKanbanColumnOrder,
 	attentionZone,
 	getAgentActivityView,
 	getAttentionZoneView,
@@ -75,6 +76,8 @@ describe("session presentation", () => {
 	});
 
 	it.each([
+		["queued", "In queue", "bg-status-terminated"],
+		["needs_you", "Needs you", "bg-status-needs-you"],
 		["building", "Building", "bg-status-working"],
 		["validating", "Validating", "bg-status-validating"],
 		["needs_review", "In review", "bg-status-in-review"],
@@ -82,6 +85,23 @@ describe("session presentation", () => {
 		["archive", "Archive", "bg-status-terminated"],
 	] as const)("gives the %s column its own label and palette", (column, label, dotClassName) => {
 		expect(getKanbanColumnView(column)).toMatchObject({ column, label, dotClassName });
+	});
+
+	it("lays the board out in queue, building, validating, in review, needs you, ready", () => {
+		expect(boardKanbanColumnOrder).toEqual(["queued", "building", "validating", "needs_review", "needs_you", "ready"]);
+	});
+
+	it("keeps the in-queue lane muted and gives only needs you the needs-human header", () => {
+		expect(getKanbanColumnView("queued")).toMatchObject({ dotGlow: false, titleClassName: "text-passive" });
+		expect(getKanbanColumnView("needs_you")).toMatchObject({ dotGlow: true, titleClassName: "text-status-needs-you" });
+		for (const column of boardKanbanColumnOrder.filter((lane) => lane !== "needs_you")) {
+			expect(getKanbanColumnView(column).titleClassName).not.toBe("text-status-needs-you");
+		}
+	});
+
+	it("accepts the daemon's new lanes as they are", () => {
+		expect(toKanbanColumn("queued", "working")).toBe("queued");
+		expect(toKanbanColumn("needs_you", "idle")).toBe("needs_you");
 	});
 
 	it("accepts injected labels for Kanban columns", () => {

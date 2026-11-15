@@ -10,6 +10,10 @@ type KanbanColumn string
 
 // KanbanColumn values shown as board lanes by AO clients.
 const (
+	// KanbanQueued is work that exists but has not started: a session still
+	// provisioning, a Task on hold or awaiting its triage decision, or an
+	// automation's next run.
+	KanbanQueued KanbanColumn = "queued"
 	// KanbanBuilding is a session with no PR yet.
 	KanbanBuilding KanbanColumn = "building"
 	// KanbanValidating is a PR inside an AO-driven loop: AO's own review of
@@ -26,6 +30,11 @@ const (
 	// KanbanReady is a PR merged, closed, mergeable, or approved by a person
 	// with no merge conflicts or failing CI in the way.
 	KanbanReady KanbanColumn = "ready"
+	// KanbanNeedsYou is work waiting on a person whatever its stage: the
+	// worker asked or is blocked, a PR problem no AO loop is fixing, finished
+	// work with nowhere to deliver, or the person asked the agent to pause.
+	// KanbanPresentation.Stage keeps the lifecycle lane it would otherwise be in.
+	KanbanNeedsYou KanbanColumn = "needs_you"
 	// KanbanArchive is a terminated session.
 	KanbanArchive KanbanColumn = "archive"
 )
@@ -47,7 +56,46 @@ type KanbanSessionFacts struct {
 	AutoReview        bool
 	AutoInjectReview  bool
 	AutoInjectCI      bool
+	// HasPRProvider reports that the session's repository origin parses as a
+	// provider AO can open pull requests on.
+	HasPRProvider bool
+	// Commits is how many commits the session branch has past its base.
+	Commits int
+	// PlanManaged reports a milestone or research worker of a Task plan: its
+	// delivery is the plan's, never its own.
+	PlanManaged bool
+	// Provisioning reports a session whose start-up has not finished.
+	Provisioning bool
+	// LatestReport is the state of the newest ao report for the session.
+	LatestReport ReportState
+	// BoardRequest is the person's durable intent from a manual board move.
+	BoardRequest BoardRequest
 }
+
+// ReportState is the state of an ao report, mirroring domain.ReportState.
+type ReportState string
+
+// Report states the board reads.
+const (
+	ReportNone       ReportState = ""
+	ReportCheckpoint ReportState = "checkpoint"
+	ReportNeedsInput ReportState = "needs_input"
+	ReportStuck      ReportState = "stuck"
+	ReportDone       ReportState = "done"
+)
+
+// BoardRequest is what the person asked for by moving a card, mirroring
+// domain.BoardRequest. It is an intent, not a column: the column is still
+// derived from the facts, which the request is one of.
+type BoardRequest string
+
+// Board requests. Hold applies to Tasks; Accepted to sessions.
+const (
+	BoardRequestNone      BoardRequest = ""
+	BoardRequestHold      BoardRequest = "hold"
+	BoardRequestAttention BoardRequest = "attention"
+	BoardRequestAccepted  BoardRequest = "accepted"
+)
 
 // KanbanReviewRunFacts summarize AO's own review passes against one PR's
 // current head commit. Passes recorded for an earlier head are excluded before
@@ -258,6 +306,14 @@ const (
 	// DisplayOneWorker is one the orchestrator handed to a single worker.
 	DisplayDeciding  DisplayStatus = "Deciding"
 	DisplayOneWorker DisplayStatus = "One worker"
+	// In queue and Needs you.
+	DisplayStarting       DisplayStatus = "Starting"
+	DisplayOnHold         DisplayStatus = "On hold"
+	DisplayScheduled      DisplayStatus = "Scheduled"
+	DisplayPausedForYou   DisplayStatus = "Paused for you"
+	DisplayNeedsADecision DisplayStatus = "Needs a decision"
+	DisplayStuck          DisplayStatus = "Stuck"
+	DisplayAccepted       DisplayStatus = "Accepted"
 )
 
 // KanbanPresentation is a session's derived board presentation: the column it
@@ -265,6 +321,9 @@ const (
 type KanbanPresentation struct {
 	Column        KanbanColumn
 	DisplayStatus DisplayStatus
+	// Stage is the lifecycle lane the card would be in if Needs you did not
+	// exist. It equals Column except in Needs you.
+	Stage KanbanColumn
 }
 
 // DeriveKanbanPresentation derives a session's board placement and the phrase
@@ -282,8 +341,56 @@ func DeriveKanbanPresentation(
 	noSignalGrace time.Duration,
 ) KanbanPresentation {
 	if session.IsTerminated {
-		return KanbanPresentation{Column: KanbanArchive, DisplayStatus: DisplayTerminated}
+		return KanbanPresentation{Column: KanbanArchive, DisplayStatus: DisplayTerminated, Stage: KanbanArchive}
 	}
+	if session.BoardRequest == BoardRequestAccepted && len(prs) == 0 {
+		return KanbanPresentation{Column: KanbanReady, DisplayStatus: DisplayAccepted, Stage: KanbanReady}
+	}
+	if session.Provisioning {
+		return KanbanPresentation{Column: KanbanQueued, DisplayStatus: DisplayStarting, Stage: KanbanQueued}
+	}
+	stage := lifecyclePresentation(session, prs, now, noSignalGrace)
+	if session.BoardRequest == BoardRequestAttention {
+		return KanbanPresentation{Column: KanbanNeedsYou, DisplayStatus: DisplayPausedForYou, Stage: stage.Column}
+	}
+	if status, ok := needsYou(stage.Column, stage.DisplayStatus, session, prs); ok {
+		return KanbanPresentation{Column: KanbanNeedsYou, DisplayStatus: status, Stage: stage.Column}
+	}
+	stage.Stage = stage.Column
+	return stage
+}
+
+// needsYou reports a card whose next turn is a person's, whatever its stage,
+// and the phrase to show: the worker asked or is blocked, a PR problem no AO
+// loop is fixing, a report asking for help from a settled worker, or finished
+// work with nowhere to deliver.
+func needsYou(stage KanbanColumn, status DisplayStatus, session KanbanSessionFacts, prs []KanbanPRFacts) (DisplayStatus, bool) {
+	settled := session.Activity == ActivityIdle || session.Activity == ActivityExited
+	switch {
+	case status == DisplayBlocked || status == DisplayNeedsInput:
+		return status, true
+	case stage == KanbanNeedsReview &&
+		(status == DisplayCIFailing || status == DisplayMergeConflicts || status == DisplayChangesRequested):
+		return status, true
+	case settled && session.LatestReport == ReportNeedsInput:
+		return DisplayNeedsInput, true
+	case settled && session.LatestReport == ReportStuck:
+		return DisplayStuck, true
+	case stage == KanbanBuilding && settled && session.Commits > 0 && len(prs) == 0 &&
+		!session.HasArtifactOutput && !session.HasPRProvider && !session.PlanManaged && !session.Interrupted:
+		return DisplayAwaitingReview, true
+	}
+	return "", false
+}
+
+// lifecyclePresentation is the placement from delivery facts alone: artifact
+// output, no PR yet, or the ranked PR column.
+func lifecyclePresentation(
+	session KanbanSessionFacts,
+	prs []KanbanPRFacts,
+	now time.Time,
+	noSignalGrace time.Duration,
+) KanbanPresentation {
 	if len(prs) == 0 && session.HasArtifactOutput {
 		return KanbanPresentation{
 			Column:        KanbanValidating,

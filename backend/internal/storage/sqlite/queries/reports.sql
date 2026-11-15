@@ -118,3 +118,18 @@ UPDATE reports
 SET delivery_state = 'pending', claim_token = '', claimed_at = NULL,
     last_error = 'delivery claim recovered after daemon restart'
 WHERE delivery_state = 'claimed';
+
+-- name: ListLatestReportStates :many
+-- The state of each wanted session's newest state report (a plain message
+-- carries no state and is skipped).
+WITH wanted_session AS (
+    SELECT CAST(j.value AS TEXT) AS session_id
+    FROM json_each(?) AS j
+)
+SELECT wanted_session.session_id AS session_id, CAST(COALESCE((
+    SELECT reports.state FROM reports
+    WHERE reports.session_id = wanted_session.session_id AND reports.state <> ''
+    ORDER BY reports.created_at DESC, reports.id DESC
+    LIMIT 1
+), '') AS TEXT) AS state
+FROM wanted_session;

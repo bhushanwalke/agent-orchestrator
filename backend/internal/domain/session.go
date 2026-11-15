@@ -435,6 +435,11 @@ type SessionRecord struct {
 	// same system prompt.
 	PlanMilestoneKey string `json:"-"`
 	PlanPrompt       string `json:"-"`
+	// BoardRequest is the person's attention or accepted request from a
+	// manual board move, and BoardRequestAt when it was made. Columns are
+	// still derived; the request is one of the facts they read.
+	BoardRequest   BoardRequest `json:"-"`
+	BoardRequestAt *time.Time   `json:"-"`
 	// SparsePaths are the repo-relative directories of a cone-mode sparse
 	// checkout requested at spawn. Empty is a full checkout. It lives outside
 	// SessionMetadata so that struct stays comparable.
@@ -736,12 +741,16 @@ type Session struct {
 	// which loop is turning it: an AO-driven one (validating) or the
 	// review-feedback loop whose next turn is a person's (needs_review). It is
 	// derived independently of Status and, like it, is never persisted.
-	KanbanColumn KanbanColumn `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
+	KanbanColumn KanbanColumn `json:"kanbanColumn" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
+	// KanbanStage is the lifecycle lane behind a needs_you card, so the card
+	// can say which stage is waiting on the person. It equals KanbanColumn in
+	// every other column.
+	KanbanStage KanbanColumn `json:"kanbanStage" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
 	// DisplayStatus is the short phrase to render inside that column: the most
 	// important current fact about the session at the stage it sits in. It is
 	// derived after the column, from the facts that column reads, and ships in
 	// renderable form so clients print it without a mapping table of their own.
-	DisplayStatus    DisplayStatus `json:"displayStatus" enum:"Working,Blocked,Needs input,Exited,No signal,Interrupted,Idle,Fixing CI failures,Addressing comments,Review scheduled,Reviewing,Retrying review,Draft,Awaiting review,Review failed,Review cancelled,CI failing,Merge conflicts,Commented,Changes requested,Mergeable,Approved,Merged,Closed without merge,Terminated"`
+	DisplayStatus    DisplayStatus `json:"displayStatus" enum:"Working,Blocked,Needs input,Exited,No signal,Interrupted,Idle,Fixing CI failures,Addressing comments,Review scheduled,Reviewing,Retrying review,Draft,Awaiting review,Review failed,Review cancelled,CI failing,Merge conflicts,Commented,Changes requested,Mergeable,Approved,Merged,Closed without merge,Terminated,Starting,Paused for you,Stuck,Accepted"`
 	TerminalHandleID string        `json:"terminalHandleId,omitempty"`
 	// TerminalTitle is the title the session's terminal program set, present
 	// only when it should label the session: it is meaningful and no explicit

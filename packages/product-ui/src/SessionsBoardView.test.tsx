@@ -103,9 +103,15 @@ describe("SessionsBoardView", () => {
 		expect(buildingLane.querySelectorAll(".overflow-y-auto")).toHaveLength(1);
 
 		expect(within(screen.getByRole("region", { name: "Ready sessions" })).getByTestId("card-ready")).toBeInTheDocument();
-		// Empty lanes still render, so the four-column grid never collapses.
-		expect(screen.getByRole("region", { name: "Validating sessions" })).toBeInTheDocument();
-		expect(screen.getByRole("region", { name: "In review sessions" })).toBeInTheDocument();
+		// Empty lanes still render, so the six-column grid never collapses.
+		expect(screen.getAllByRole("region").map((region) => region.getAttribute("aria-label"))).toEqual([
+			"In queue sessions",
+			"Building sessions",
+			"Validating sessions",
+			"In review sessions",
+			"Needs you sessions",
+			"Ready sessions",
+		]);
 		expect(screen.getByTestId("board-horizontal-scroll")).toHaveClass("board-horizontal-scrollbar");
 	});
 

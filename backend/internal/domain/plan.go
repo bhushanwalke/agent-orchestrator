@@ -178,6 +178,10 @@ type Plan struct {
 	Triage *PlanTriage
 	// TriageRemindedAt is when the orchestrator was reminded to decide.
 	TriageRemindedAt *time.Time
+	// BoardRequest is the person's hold or attention request from the board,
+	// and BoardRequestAt when it was made.
+	BoardRequest   BoardRequest
+	BoardRequestAt *time.Time
 }
 
 // Milestone is one unit of a plan, owned by at most one session at a time.
@@ -550,28 +554,52 @@ func DerivePlanPhase(plan Plan, ms []Milestone) PlanPhase {
 	return PlanPhaseImplementing
 }
 
-// DerivePlanKanban places a plan on the board from its phase. Any blocked
-// milestone in a live phase reads as Blocked in the building lane.
-func DerivePlanKanban(phase PlanPhase, ms []Milestone) (contract.KanbanColumn, contract.DisplayStatus) {
+// TriageReminderAfter is how long an auto Task waits for its decision before
+// the orchestrator is reminded, once, and the card moves from In queue to
+// Needs you.
+const TriageReminderAfter = 15 * time.Minute
+
+// DerivePlanKanban places a plan on the board from its phase, its milestones
+// and the person's board request. stage is the lifecycle lane the card would
+// be in without Needs you; it equals the column everywhere else.
+func DerivePlanKanban(plan Plan, phase PlanPhase, ms []Milestone, now time.Time) (contract.KanbanColumn, contract.DisplayStatus, contract.KanbanColumn) {
 	switch phase {
 	case PlanPhaseCancelled:
-		return contract.KanbanArchive, contract.DisplayPlanCancelled
+		return contract.KanbanArchive, contract.DisplayPlanCancelled, contract.KanbanArchive
+	case PlanPhaseDirect:
+		// Never shown as a Task card (ShowsTaskCard); the plan is closed.
+		return contract.KanbanArchive, contract.DisplayOneWorker, contract.KanbanArchive
+	}
+	stage, status := planLifecycle(phase, ms)
+	switch plan.BoardRequest {
+	case BoardRequestHold:
+		return contract.KanbanQueued, contract.DisplayOnHold, contract.KanbanQueued
+	case BoardRequestAttention:
+		return contract.KanbanNeedsYou, contract.DisplayPausedForYou, stage
+	}
+	switch {
+	case phase == PlanPhaseTriage && now.Sub(plan.CreatedAt) < TriageReminderAfter:
+		return contract.KanbanQueued, contract.DisplayDeciding, contract.KanbanQueued
+	case phase == PlanPhaseTriage:
+		return contract.KanbanNeedsYou, contract.DisplayNeedsADecision, contract.KanbanBuilding
+	case phase == PlanPhaseFailed:
+		return contract.KanbanNeedsYou, contract.DisplayNeedsYou, contract.KanbanNeedsReview
+	case phase != PlanPhaseDone && anyMilestoneBlocked(ms):
+		return contract.KanbanNeedsYou, contract.DisplayBlocked, contract.KanbanBuilding
+	}
+	return stage, status, stage
+}
+
+// planLifecycle is the lane and phrase a live plan's phase reads as, before
+// requests and Needs you are applied.
+func planLifecycle(phase PlanPhase, ms []Milestone) (contract.KanbanColumn, contract.DisplayStatus) {
+	switch phase {
 	case PlanPhasePlanning:
 		return contract.KanbanBuilding, contract.DisplayPlanning
 	case PlanPhaseTriage:
 		return contract.KanbanBuilding, contract.DisplayDeciding
-	case PlanPhaseDirect:
-		// Never shown as a Task card (ShowsTaskCard); the plan is closed.
-		return contract.KanbanArchive, contract.DisplayOneWorker
 	case PlanPhaseDone:
 		return contract.KanbanReady, contract.DisplayQAPassed
-	}
-	for _, m := range ms {
-		if m.Status == MilestoneStatusBlocked {
-			return contract.KanbanBuilding, contract.DisplayBlocked
-		}
-	}
-	switch phase {
 	case PlanPhaseFixing:
 		return contract.KanbanBuilding, contract.DisplayFixingQAFindings
 	case PlanPhaseQA:
@@ -590,6 +618,15 @@ func DerivePlanKanban(phase PlanPhase, ms []Milestone) (contract.KanbanColumn, c
 		}
 	}
 	return contract.KanbanBuilding, contract.DisplayStatus(fmt.Sprintf("%s %d/%d", contract.DisplayImplementing, done, total))
+}
+
+func anyMilestoneBlocked(ms []Milestone) bool {
+	for _, m := range ms {
+		if m.Status == MilestoneStatusBlocked {
+			return true
+		}
+	}
+	return false
 }
 
 // AttemptsUsed counts spawns since the last human retry.

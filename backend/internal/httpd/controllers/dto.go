@@ -4817,7 +4817,7 @@ type PlanSessionSummary struct {
 	DisplayName   string `json:"displayName,omitempty"`
 	Harness       string `json:"harness,omitempty"`
 	Status        string `json:"status"`
-	KanbanColumn  string `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
+	KanbanColumn  string `json:"kanbanColumn" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
 	DisplayStatus string `json:"displayStatus"`
 	IsTerminated  bool   `json:"isTerminated"`
 }
@@ -4844,8 +4844,9 @@ type PlanSummary struct {
 	IntakeMode            string               `json:"intakeMode" enum:"plan,auto"`
 	DirectSessionID       string               `json:"directSessionId,omitempty" description:"The worker a direct triage decision spawned."`
 	Triage                *PlanTriage          `json:"triage,omitempty" description:"The triage decision of an auto Task, once made."`
-	KanbanColumn          string               `json:"kanbanColumn" enum:"building,validating,needs_review,ready,archive"`
+	KanbanColumn          string               `json:"kanbanColumn" enum:"queued,building,validating,needs_review,needs_you,ready,archive"`
 	DisplayStatus         string               `json:"displayStatus"`
+	KanbanStage           string               `json:"kanbanStage" enum:"queued,building,validating,needs_review,needs_you,ready,archive" description:"The lifecycle lane behind a Needs you card; equals kanbanColumn elsewhere."`
 	MilestoneCounts       PlanMilestoneCounts  `json:"milestoneCounts"`
 	LiveSessions          []PlanSessionSummary `json:"liveSessions"`
 	PRs                   []SessionPRFacts     `json:"prs" description:"Pull requests of every milestone session, de-duplicated, in milestone order."`

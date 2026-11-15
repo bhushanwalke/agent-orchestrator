@@ -19484,9 +19484,11 @@ components:
           type: boolean
         kanbanColumn:
           enum:
+          - queued
           - building
           - validating
           - needs_review
+          - needs_you
           - ready
           - archive
           type: string
@@ -19724,6 +19726,10 @@ components:
           - Merged
           - Closed without merge
           - Terminated
+          - Starting
+          - Paused for you
+          - Stuck
+          - Accepted
           type: string
         harness:
           type: string
@@ -19742,9 +19748,21 @@ components:
           type: string
         kanbanColumn:
           enum:
+          - queued
           - building
           - validating
           - needs_review
+          - needs_you
+          - ready
+          - archive
+          type: string
+        kanbanStage:
+          enum:
+          - queued
+          - building
+          - validating
+          - needs_review
+          - needs_you
           - ready
           - archive
           type: string
@@ -19931,6 +19949,7 @@ components:
       - chatProviderPreserved
       - status
       - kanbanColumn
+      - kanbanStage
       - displayStatus
       - lastEventAt
       - prs
@@ -23319,9 +23338,23 @@ components:
           type: string
         kanbanColumn:
           enum:
+          - queued
           - building
           - validating
           - needs_review
+          - needs_you
+          - ready
+          - archive
+          type: string
+        kanbanStage:
+          description: The lifecycle lane behind a Needs you card; equals kanbanColumn
+            elsewhere.
+          enum:
+          - queued
+          - building
+          - validating
+          - needs_review
+          - needs_you
           - ready
           - archive
           type: string
@@ -23385,6 +23418,7 @@ components:
       - intakeMode
       - kanbanColumn
       - displayStatus
+      - kanbanStage
       - milestoneCounts
       - liveSessions
       - prs
@@ -23409,9 +23443,11 @@ components:
           type: boolean
         kanbanColumn:
           enum:
+          - queued
           - building
           - validating
           - needs_review
+          - needs_you
           - ready
           - archive
           type: string
@@ -23453,9 +23489,23 @@ components:
           type: string
         kanbanColumn:
           enum:
+          - queued
           - building
           - validating
           - needs_review
+          - needs_you
+          - ready
+          - archive
+          type: string
+        kanbanStage:
+          description: The lifecycle lane behind a Needs you card; equals kanbanColumn
+            elsewhere.
+          enum:
+          - queued
+          - building
+          - validating
+          - needs_review
+          - needs_you
           - ready
           - archive
           type: string
@@ -23517,6 +23567,7 @@ components:
       - intakeMode
       - kanbanColumn
       - displayStatus
+      - kanbanStage
       - milestoneCounts
       - liveSessions
       - prs

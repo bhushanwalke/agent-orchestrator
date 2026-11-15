@@ -53,6 +53,7 @@ const englishLabels: Record<SessionPresentationMessageKey, string> = {
 	"zone.pending": "In review",
 	"zone.working": "Working",
 	"zone.done": "Terminated",
+	"column.queued": "In queue",
 	"column.building": "Building",
 	"column.validating": "Validating",
 	// Deliberate: this lane is the review-feedback loop, not a queue of PRs
@@ -64,6 +65,7 @@ const englishLabels: Record<SessionPresentationMessageKey, string> = {
 	// "validating" holds while AO turns it. The enum stays needs_review, so
 	// different wording later is one string per locale.
 	"column.needs_review": "In review",
+	"column.needs_you": "Needs you",
 	"column.ready": "Ready",
 	"column.archive": "Archive",
 	"timeline.no_signal": "No Signal",
@@ -95,6 +97,13 @@ const englishLabels: Record<SessionPresentationMessageKey, string> = {
 	"displayStatus.merged": "Merged",
 	"displayStatus.closedWithoutMerge": "Closed without merge",
 	"displayStatus.terminated": "Terminated",
+	"displayStatus.starting": "Starting",
+	"displayStatus.onHold": "On hold",
+	"displayStatus.scheduled": "Scheduled",
+	"displayStatus.pausedForYou": "Paused for you",
+	"displayStatus.needsADecision": "Needs a decision",
+	"displayStatus.stuck": "Stuck",
+	"displayStatus.accepted": "Accepted",
 };
 
 /**
@@ -128,6 +137,13 @@ export const displayStatusLabelKeys: Record<DisplayStatus, `displayStatus.${stri
 	Merged: "displayStatus.merged",
 	"Closed without merge": "displayStatus.closedWithoutMerge",
 	Terminated: "displayStatus.terminated",
+	Starting: "displayStatus.starting",
+	"On hold": "displayStatus.onHold",
+	Scheduled: "displayStatus.scheduled",
+	"Paused for you": "displayStatus.pausedForYou",
+	"Needs a decision": "displayStatus.needsADecision",
+	Stuck: "displayStatus.stuck",
+	Accepted: "displayStatus.accepted",
 };
 
 /**
@@ -333,16 +349,20 @@ export const attentionZoneOrder: AttentionZone[] = ["merge", "action", "pending"
 export const boardAttentionZoneOrder: AttentionZone[] = ["working", "action", "pending", "merge"];
 
 /**
- * Board lanes in delivery order: building -> validating -> in review ->
- * ready. The middle two are the same review-feedback loop seen from either
- * side: validating while AO turns it, in review while a person does.
- * `archive` is deliberately absent — terminated sessions render in the archive
- * sheet, not as a lane.
+ * Board lanes, left to right: in queue -> building -> validating -> in review
+ * -> needs you -> ready. Validating and in review are the same review-feedback
+ * loop seen from either side: validating while AO turns it, in review while a
+ * person does. In queue and needs you cut across stages: work not started
+ * yet, and work whose next turn is a person's whatever its stage. This array
+ * is the single place the order lives. `archive` is deliberately absent —
+ * terminated sessions render in the archive sheet, not as a lane.
  */
 export const boardKanbanColumnOrder: KanbanColumn[] = [
+	"queued",
 	"building",
 	"validating",
 	"needs_review",
+	"needs_you",
 	"ready",
 ];
 
@@ -388,6 +408,15 @@ type KanbanColumnBase = Omit<KanbanColumnView, "label"> & {
 };
 
 const kanbanColumnBases: Record<KanbanColumn, KanbanColumnBase> = {
+	queued: {
+		column: "queued",
+		labelKey: "column.queued",
+		glow: "transparent",
+		dot: "var(--color-status-terminated)",
+		dotGlow: false,
+		titleClassName: "text-passive",
+		dotClassName: "bg-status-terminated",
+	},
 	building: {
 		column: "building",
 		labelKey: "column.building",
@@ -414,6 +443,16 @@ const kanbanColumnBases: Record<KanbanColumn, KanbanColumnBase> = {
 		dotGlow: false,
 		titleClassName: "text-status-in-review",
 		dotClassName: "bg-status-in-review",
+	},
+	// The only lane that may use the needs-human colour on its header.
+	needs_you: {
+		column: "needs_you",
+		labelKey: "column.needs_you",
+		glow: "color-mix(in srgb, var(--color-status-needs-you) 7%, transparent)",
+		dot: "var(--color-status-needs-you)",
+		dotGlow: true,
+		titleClassName: "text-status-needs-you",
+		dotClassName: "bg-status-needs-you",
 	},
 	ready: {
 		column: "ready",

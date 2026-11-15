@@ -408,6 +408,50 @@ func (q *Queries) GetReportInterrupt(ctx context.Context, sessionID string) (tim
 	return last_interrupted_at, err
 }
 
+const listLatestReportStates = `-- name: ListLatestReportStates :many
+WITH wanted_session AS (
+    SELECT CAST(j.value AS TEXT) AS session_id
+    FROM json_each(?) AS j
+)
+SELECT wanted_session.session_id AS session_id, CAST(COALESCE((
+    SELECT reports.state FROM reports
+    WHERE reports.session_id = wanted_session.session_id AND reports.state <> ''
+    ORDER BY reports.created_at DESC, reports.id DESC
+    LIMIT 1
+), '') AS TEXT) AS state
+FROM wanted_session
+`
+
+type ListLatestReportStatesRow struct {
+	SessionID string
+	State     string
+}
+
+// The state of each wanted session's newest state report (a plain message
+// carries no state and is skipped).
+func (q *Queries) ListLatestReportStates(ctx context.Context, jsonEach interface{}) ([]ListLatestReportStatesRow, error) {
+	rows, err := q.db.QueryContext(ctx, listLatestReportStates, jsonEach)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ListLatestReportStatesRow{}
+	for rows.Next() {
+		var i ListLatestReportStatesRow
+		if err := rows.Scan(&i.SessionID, &i.State); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listPendingReportSchedule = `-- name: ListPendingReportSchedule :many
 SELECT id, session_id, project_id, state, note, message, created_at, delivery_state, available_at, settlement_deadline, repeat_count, claim_token, claimed_at, delivery_attempts, acknowledged_at, last_error, delivery_batch_id FROM reports
 WHERE delivery_state = 'pending'

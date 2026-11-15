@@ -145,7 +145,10 @@ type Summary struct {
 	Phase         domain.PlanPhase
 	Kanban        contract.KanbanColumn
 	DisplayStatus contract.DisplayStatus
-	Counts        MilestoneCounts
+	// KanbanStage is the lifecycle lane behind a Needs you card; it equals
+	// Kanban everywhere else.
+	KanbanStage contract.KanbanColumn
+	Counts      MilestoneCounts
 	// LiveSessions are the non-terminated sessions currently owning a
 	// milestone, in milestone order.
 	LiveSessions []domain.Session

@@ -1821,7 +1821,7 @@ describe("SessionsBoard", () => {
 		expect(within(lane("Ready sessions")).getByText("legacy ready worker")).toBeInTheDocument();
 	});
 
-	it("orders the lanes building, validating, in review, then ready", () => {
+	it("orders the lanes in queue, building, validating, in review, needs you, then ready", () => {
 		workspaceQueryMock.mockReturnValue({
 			data: [workspaceWithSessions([boardSession({ id: "s-one", title: "worker one", status: "idle" })])],
 			isError: false,
@@ -1831,9 +1831,11 @@ describe("SessionsBoard", () => {
 		renderBoard("p1");
 
 		expect(screen.getAllByTestId("board-column").map((column) => column.dataset.column)).toEqual([
+			"queued",
 			"building",
 			"validating",
 			"needs_review",
+			"needs_you",
 			"ready",
 		]);
 	});
@@ -1859,7 +1861,7 @@ describe("SessionsBoard", () => {
 		const laneScrollers = screen
 			.getAllByTestId("board-column")
 			.flatMap((column) => Array.from(column.querySelectorAll<HTMLElement>(".overflow-y-auto")));
-		expect(laneScrollers).toHaveLength(4);
+		expect(laneScrollers).toHaveLength(6);
 		for (const scroller of laneScrollers) {
 			expect(scroller).toHaveClass("board-scrollbar", "overflow-y-auto");
 		}

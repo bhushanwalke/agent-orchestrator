@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -13,7 +12,7 @@ import (
 
 // TriageReminderAfter is how long an auto Task waits for its decision after
 // the triage request lands before the orchestrator is reminded, once.
-const TriageReminderAfter = 15 * time.Minute
+const TriageReminderAfter = domain.TriageReminderAfter
 
 // Triage records how an auto Task is run. plan turns it into an ordinary
 // planning plan; direct spawns one worker exactly as the Task tab would and

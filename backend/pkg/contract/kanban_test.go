@@ -10,7 +10,7 @@ import (
 // deriveColumn asserts only the stage-one placement. The column is derived from
 // lifecycle facts alone, so it needs neither worker activity nor the clock.
 func deriveColumn(session contract.KanbanSessionFacts, prs []contract.KanbanPRFacts) contract.KanbanColumn {
-	return contract.DeriveKanbanPresentation(session, prs, time.Time{}, 0).Column
+	return contract.DeriveKanbanPresentation(session, prs, time.Time{}, 0).Stage
 }
 
 func TestDeriveKanbanColumnSessionLevelRules(t *testing.T) {
@@ -454,8 +454,8 @@ func TestDeriveKanbanPresentationBuilding(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			got := contract.DeriveKanbanPresentation(tc.session, nil, time.Unix(3600, 0), testGrace)
-			if got.Column != contract.KanbanBuilding {
-				t.Fatalf("column = %q, want %q", got.Column, contract.KanbanBuilding)
+			if got.Stage != contract.KanbanBuilding {
+				t.Fatalf("stage = %q, want %q", got.Stage, contract.KanbanBuilding)
 			}
 			if got.DisplayStatus != tc.want {
 				t.Fatalf("display status = %q, want %q", got.DisplayStatus, tc.want)
@@ -503,7 +503,7 @@ func TestDeriveKanbanPresentationAOChangesRequestedNeedsActiveWorker(t *testing.
 					Present: true, ChangesRequested: true, Outcome: true, Running: tc.running,
 				},
 			}}, now, time.Minute)
-			if got.Column != contract.KanbanValidating || got.DisplayStatus != tc.want {
+			if got.Stage != contract.KanbanValidating || got.DisplayStatus != tc.want {
 				t.Fatalf("presentation = %+v, want %s/%s", got, contract.KanbanValidating, tc.want)
 			}
 		})
@@ -959,8 +959,8 @@ func TestDeriveKanbanPresentationSinglePR(t *testing.T) {
 			got := contract.DeriveKanbanPresentation(
 				tc.session, []contract.KanbanPRFacts{tc.pr}, time.Unix(3600, 0), testGrace,
 			)
-			if got.Column != tc.wantColumn {
-				t.Fatalf("column = %q, want %q", got.Column, tc.wantColumn)
+			if got.Stage != tc.wantColumn {
+				t.Fatalf("column = %q, want %q", got.Stage, tc.wantColumn)
 			}
 			if got.DisplayStatus != tc.want {
 				t.Fatalf("display status = %q, want %q", got.DisplayStatus, tc.want)
@@ -981,6 +981,7 @@ func TestDeriveKanbanPresentationTerminatedArchives(t *testing.T) {
 	want := contract.KanbanPresentation{
 		Column:        contract.KanbanArchive,
 		DisplayStatus: contract.DisplayTerminated,
+		Stage:         contract.KanbanArchive,
 	}
 	if got != want {
 		t.Fatalf("presentation = %+v, want %+v", got, want)
@@ -1025,6 +1026,7 @@ func TestDeriveKanbanPresentationSpeaksForTheChosenPR(t *testing.T) {
 		want := contract.KanbanPresentation{
 			Column:        contract.KanbanValidating,
 			DisplayStatus: contract.DisplayFixingCI,
+			Stage:         contract.KanbanValidating,
 		}
 		if got != want {
 			t.Fatalf("presentation = %+v, want %+v", got, want)
@@ -1044,6 +1046,7 @@ func TestDeriveKanbanPresentationSpeaksForTheChosenPR(t *testing.T) {
 		want := contract.KanbanPresentation{
 			Column:        contract.KanbanReady,
 			DisplayStatus: contract.DisplayMerged,
+			Stage:         contract.KanbanReady,
 		}
 		if got != want {
 			t.Fatalf("presentation = %+v, want %+v", got, want)

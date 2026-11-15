@@ -459,8 +459,8 @@ func milestonePatch(w http.ResponseWriter, r *http.Request, req MilestoneRequest
 // yet, so deriving from the plan alone is exact.
 func newPlanResponse(p domain.Plan) PlanResponse {
 	phase := domain.DerivePlanPhase(p, nil)
-	col, display := domain.DerivePlanKanban(phase, nil)
-	return planResponse(plansvc.Summary{Plan: p, Phase: phase, Kanban: col, DisplayStatus: display, LiveSessions: []domain.Session{}})
+	col, display, stage := domain.DerivePlanKanban(p, phase, nil, p.CreatedAt)
+	return planResponse(plansvc.Summary{Plan: p, Phase: phase, Kanban: col, DisplayStatus: display, KanbanStage: stage, LiveSessions: []domain.Session{}})
 }
 
 func planResponse(s plansvc.Summary) PlanResponse {
@@ -481,6 +481,7 @@ func planSummary(s plansvc.Summary) PlanSummary {
 		State:         string(p.State),
 		Phase:         string(s.Phase),
 		KanbanColumn:  string(s.Kanban),
+		KanbanStage:   string(s.KanbanStage),
 		DisplayStatus: string(s.DisplayStatus),
 		MilestoneCounts: PlanMilestoneCounts{
 			Total: s.Counts.Total, Done: s.Counts.Done, Running: s.Counts.Running,

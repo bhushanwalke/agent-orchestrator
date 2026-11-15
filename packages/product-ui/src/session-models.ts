@@ -36,9 +36,11 @@ export type SessionActivity = {
 };
 
 export const KANBAN_COLUMNS = [
+	"queued",
 	"building",
 	"validating",
 	"needs_review",
+	"needs_you",
 	"ready",
 	"archive",
 ] as const;
@@ -80,6 +82,13 @@ export const DISPLAY_STATUSES = [
 	"Merged",
 	"Closed without merge",
 	"Terminated",
+	"Starting",
+	"On hold",
+	"Scheduled",
+	"Paused for you",
+	"Needs a decision",
+	"Stuck",
+	"Accepted",
 ] as const;
 
 /**
