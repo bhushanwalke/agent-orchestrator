@@ -246,3 +246,48 @@ Spec: `docs/superpowers/specs/2026-11-14-harness-model-routes.md`. Implementatio
 - Codex: a custom `model_provider` (`base_url`, or built-in `oss`/`ollama`/`lmstudio`) is checked with the headers Codex sends. An unset `env_key` keeps the verdict unknown.
 - OpenCode 1/2: providers with `options.baseURL` across the user, `OPENCODE_CONFIG*`, inline and managed layers are checked, at most 8 at a time. OpenCode 2 no longer counts `mcp_*` integrations as a model login.
 - App: route line on the harness row; route status labels ("Configured, can't be verified", "Needs network access", "Can't reach provider"); a "Model route" row per route on the Health tab; a "Model route" group above Subscriptions for Claude Code and Codex, with the subscriptions-not-used note; route blocks in the copied health report; strings in all nine locales; a troubleshooting entry in the docs.
+
+## Board lanes summary
+
+Spec: `docs/superpowers/specs/2026-11-15-board-lanes-and-moves.md`; rulings R1–R39 are in its §12. Verification script: `docs/superpowers/plans/2026-11-15-board-lanes-verify.md`. User guide: `frontend/src/docs/content/guides/board.mdx`.
+
+Commits: `86720ce798` (spec), `d63f6eae7b` (B1 lane model), `77a4dd908c` (B2 intents, moves, API, CLI), `5b92662c3a` (fix: merged/closed-only PRs refused before any review trigger), `ac4227566c` (B3 board UI, nine locales, DESIGN.md), `f183a332ec` (B4 docs), `684a10b9e4` (fix: un-accept on Building), `676280b51e`, `eacc5c3641`, `8dd345d603`, `4ba483f7ed` (B5: `hasPrProvider`, calm Needs you cards and legible queue text, Task status translations, keyboard menu access), `5c63f65182` (keyboard focus nits), `5be1e9dfdb` (scm parse fix).
+
+- Lanes, left to right: In queue, Building, Validating, In review, Needs you, Ready (`boardKanbanColumnOrder` in `packages/product-ui/src/session-presentation.ts`); Archive stays the modal. Columns are still derived: `contract.DeriveKanbanPresentation` (sessions) and `domain.DerivePlanKanban` (Tasks) return a column and a `Stage`. Stage is the lifecycle lane whenever the column was decided by a board request or by Needs you; otherwise it equals the column. The read models carry it as `kanbanStage`.
+- Session rules, first match wins: terminated → archive; `accepted` with no PR → Ready "Accepted"; provisioning → In queue "Starting"; then the lifecycle placement. After that, an `attention` request → Needs you "Paused for you"; otherwise Needs you when any of these hold:
+  - the worker is blocked or asked a question;
+  - the stage is In review with CI failing, merge conflicts or changes requested;
+  - an idle or exited worker's newest report is `needs_input` or `stuck`;
+  - a finished worker has commits, no PR, no artifacts, no PR provider, is not plan-managed and was not interrupted ("Awaiting review").
+  Exited alone, No signal, Commented, and Awaiting review with a PR stay where they were.
+- Task rules: cancelled/direct → archive; `hold` → In queue "On hold"; `attention` → Needs you "Paused for you"; triage → In queue "Deciding" for 15 minutes from creation, then Needs you "Needs a decision"; failed → Needs you; any blocked milestone → Needs you "Blocked"; otherwise the phase lanes as before.
+- Automations: an enabled automation of the project is an In queue card ("Scheduled", next run as a short date and time), built client-side from `useAutomations()`.
+- Migration `20261115105225340_board_requests` (in `shippedMigrations`): `sessions.board_request` ('' | attention | accepted) and `plans.board_request` ('' | hold | attention), each with `board_request_at`. Queries `SetSessionBoardRequest`, `SetPlanBoardRequest`, `ListLatestReportStates`, `CountOpenAutomationRuns`.
+- API:
+  - `POST /sessions/{id}/board-move` and `POST /plans/{id}/board-move` take `{to}` and answer with `SessionResponse` and `PlanDetailResponse` respectively. Errors are 400 `INVALID_BOARD_COLUMN`, or 409 `BOARD_MOVE_UNSUPPORTED` with `details.reason`: one of the twelve refusals, or `review_trigger_failed`. Also 409 `SESSION_TERMINATED` and 409 `PLAN_NOT_LIVE`.
+  - `POST /automations/{id}/run-now` answers 202 with the run summary, or 409 `AUTOMATION_DISABLED` or `AUTOMATION_RUN_ACTIVE` (the latter also when a run is already pending).
+  - `SessionResponse` gains `kanbanStage` and `hasPrProvider`; plan summaries gain `kanbanStage`, and their live sessions `hasPrProvider`.
+- CLI: `ao session move <id> --to <lane>`, `ao plan move [<plan-id>] --to <lane>`, `ao automation run-now <id>`. `ao session ls` and `ao plan ls` have a LANE column showing e.g. `needs_you (in review)`.
+- Agent notices (`session.Service.Send`): `<ao-board-hold>`, `<ao-board-resume>` (names the lane), `<ao-board-deliver>` (push, open a PR against the base branch, request a review, or `ao report --stuck`); to the orchestrator, `<ao-plan-hold>` (with the summarise ask for Needs you) and `<ao-plan-resume>`. A held Task spawns no milestone workers, runs no deferred direct triage spawn, retries no kickoff and sends no triage reminder; release runs what was deferred. Board moves on a Task are plan events of kind `board_move`, and a held direct decision is `triage_deferred`.
+- App: drag (dnd-kit in `frontend/src/renderer/components/BoardMoves.tsx`, since product-ui's import boundary forbids it) and "Move to" in the card menu. Lanes that would refuse the dragged card dim and say why (prediction in `lib/board-moves.ts`, server refusal as a translated toast). Shift+F10 and the menu key open a card's menu; focus returns to the card; drag announcements are localized. Needs you cards print `stage · reason` with no pulse or tint. Moves are offered only on this machine's own boards, not on shared or cloud projects.
+- Rulings of note:
+  - R2 and R9: exited alone is not Needs you.
+  - R13: run-now refused while a run is pending.
+  - R17: drafts are refused `pr_is_draft`, and a move never writes to the provider.
+  - R18: refusals before side effects.
+  - R20: Validating refused for merged/closed-only PRs.
+  - R22 and R23: hold semantics.
+  - R27: stage for board requests.
+  - R28: a harness may block the deliver push, and the card then reads Stuck.
+  - R29–R32: renderer drag, menu, time format, local boards only.
+  - R33: un-accept from Building.
+  - R34–R38: ao-verify's B4 findings.
+  - R39: the scm parse.
+- SCM parse fix (R39, pre-existing on `main`): `parseGitHubRepo` read any remote with no `://` and one slash as GitHub `owner/repo` shorthand, so a local bare origin like `/tmp/ao-e2e-todo3.git` became `github.com/tmp/ao-e2e-todo3`. That made `hasPrProvider` true, which kept finished no-provider workers out of Needs you. It also made the SCM observer poll api.github.com for that path every 30 s with the user's token. The shorthand now rejects paths on disk; GitLab has no shorthand branch.
+- Deferred:
+  - The mobile app keeps its own lane mapping and treats the new lanes through its status fallback (R26).
+  - The sidebar's needs-you set (`sessionNeedsYou`) is not aligned with the lane (R15).
+  - The `accepted` request is cleared in `ReconcileSessionOutputType` only once a PR exists; until then the reducer already ignores it (R10).
+  - A stale tmux session `TestRuntimeIntegrationDeliversEn-22d2f074` (Nov 14) makes the tmux integration test fail on this machine.
+  - The codex `TestAuthStatusFindsNodeForNPMLauncherOutsidePATH` times out under a full parallel run but passes alone.
+- Evidence (ao-verify): `/tmp/ao-plans/m10/ev/b2`, `/tmp/ao-plans/m10/ev/b4` (REPORT-B4.md and screenshots), `/tmp/ao-plans/m10/ev/b5`. Lab runbook `/tmp/ao-plans/m10/README.md`.
