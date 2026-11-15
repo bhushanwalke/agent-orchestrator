@@ -1,4 +1,4 @@
-import { useCallback, useState, type KeyboardEventHandler, type PointerEventHandler, type ReactNode } from "react";
+import { useCallback, useRef, useState, type KeyboardEvent, type KeyboardEventHandler, type PointerEventHandler, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import {
@@ -38,7 +38,6 @@ import type { Automation } from "../hooks/useAutomations";
 import { AgentAvatar } from "./AgentAvatar";
 import { ProductExternalLink } from "./ProductExternalLink";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSub, ContextMenuSubContent, ContextMenuSubTrigger, ContextMenuTrigger } from "./ui/context-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { cn } from "../lib/utils";
 
 // A card moves after a deliberate 6px drag, so a click still opens it.
@@ -93,6 +92,29 @@ export function BoardDndArea({
 	onMove: (subject: BoardMoveSubject, to: BoardMoveLane) => void;
 	onRefuse: (reason: NonNullable<ReturnType<typeof predictBoardMoveRefusal>>) => void;
 }) {
+	const { t } = useTranslation();
+	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
+	const laneName = (id: unknown) => (isBoardMoveLane(id) ? getKanbanColumnView(id, translate).label : "");
+	const titleOf = (data: unknown) => (data as BoardDragItem | undefined)?.title ?? "";
+	// What a screen reader hears, in the person's language and by card title
+	// and lane name rather than dnd-kit's English defaults with internal ids.
+	const accessibility = {
+		screenReaderInstructions: { draggable: t("board.drag.instructions") },
+		announcements: {
+			onDragStart: ({ active }: { active: { data: { current?: unknown } } }) => t("board.drag.pickedUp", { title: titleOf(active.data.current) }),
+			onDragOver: ({ active, over }: { active: { data: { current?: unknown } }; over: { id: unknown } | null }) => {
+				if (!over) return t("board.drag.notOver", { title: titleOf(active.data.current) });
+				const item = active.data.current as BoardDragItem | undefined;
+				const refusal = item && isBoardMoveLane(over.id) && over.id !== currentLane(item.subject) ? predictBoardMoveRefusal(item.subject, over.id) : null;
+				return refusal
+					? t("board.drag.overRefused", { title: titleOf(item), lane: laneName(over.id), reason: t(boardRefusalKey(refusal)) })
+					: t("board.drag.over", { title: titleOf(item), lane: laneName(over.id) });
+			},
+			onDragEnd: ({ active, over }: { active: { data: { current?: unknown } }; over: { id: unknown } | null }) =>
+				over ? t("board.drag.dropped", { title: titleOf(active.data.current), lane: laneName(over.id) }) : t("board.drag.cancelled", { title: titleOf(active.data.current) }),
+			onDragCancel: ({ active }: { active: { data: { current?: unknown } } }) => t("board.drag.cancelled", { title: titleOf(active.data.current) }),
+		},
+	};
 	const sensors = useSensors(
 		useSensor(PointerSensor, POINTER_SENSOR_OPTIONS),
 		useSensor(KeyboardSensor, KEYBOARD_SENSOR_OPTIONS),
@@ -113,7 +135,7 @@ export function BoardDndArea({
 		else onMove(item.subject, to);
 	}, [onMove, onRefuse]);
 	return (
-		<DndContext collisionDetection={laneCollision} onDragCancel={() => { lastDragEnd = Date.now(); setActive(null); }} onDragEnd={onDragEnd} onDragStart={onDragStart} sensors={sensors}>
+		<DndContext accessibility={accessibility} collisionDetection={laneCollision} onDragCancel={() => { lastDragEnd = Date.now(); setActive(null); }} onDragEnd={onDragEnd} onDragStart={onDragStart} sensors={sensors}>
 			<BoardLanes active={active}>{children}</BoardLanes>
 			<DragOverlay dropAnimation={null}>
 				{active ? (
@@ -125,6 +147,11 @@ export function BoardDndArea({
 			</DragOverlay>
 		</DndContext>
 	);
+}
+
+/** A card's board id, the same id its card carries. */
+function subjectId(subject: BoardMoveSubject): string {
+	return subject.kind === "session" ? subject.session.id : subject.kind === "plan" ? `plan:${subject.plan.id}` : `automation:${subject.automation.id}`;
 }
 
 function currentLane(subject: BoardMoveSubject): KanbanColumn {
@@ -162,9 +189,44 @@ function BoardLanes({ active, children }: { active: BoardDragItem | null; childr
 	return <>{children(laneState)}</>;
 }
 
+/** Focuses a board card's own open button, by the card's board id. */
+export function focusBoardCard(id: string): boolean {
+	const button = document.querySelector<HTMLElement>(`[data-session-id="${CSS.escape(id)}"] [data-board-card-open]`);
+	button?.focus();
+	return Boolean(button);
+}
+
+/**
+ * The keyboard path to a card's menu. Chromium on macOS sends no contextmenu
+ * for Shift+F10 and Mac keyboards have no menu key, so the card opens its menu
+ * itself from either; and when the menu closes, focus returns to the card
+ * rather than falling to the page.
+ */
+export function useCardMenuKeyboard() {
+	const triggerRef = useRef<HTMLDivElement>(null);
+	const onKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+		if (event.key !== "ContextMenu" && !(event.shiftKey && event.key === "F10")) return;
+		event.preventDefault();
+		const rect = event.currentTarget.getBoundingClientRect();
+		event.currentTarget.dispatchEvent(new MouseEvent("contextmenu", {
+			bubbles: true,
+			cancelable: true,
+			clientX: rect.left + 16,
+			clientY: rect.top + 16,
+		}));
+	}, []);
+	const onCloseAutoFocus = useCallback((event: Event) => {
+		const button = triggerRef.current?.querySelector<HTMLElement>("[data-board-card-open]");
+		if (!button) return;
+		event.preventDefault();
+		button.focus();
+	}, []);
+	return { triggerRef, onKeyDown, onCloseAutoFocus };
+}
+
 /** A board card the person can drag to another lane. */
 export function BoardDraggable({ children, provider, subject, title }: { children: ReactNode; provider: string; subject: BoardMoveSubject; title: string }) {
-	const id = subject.kind === "session" ? subject.session.id : subject.kind === "plan" ? `plan:${subject.plan.id}` : `automation:${subject.automation.id}`;
+	const id = subjectId(subject);
 	const { listeners, setNodeRef, isDragging } = useDraggable({ id, data: { subject, title, provider } satisfies BoardDragItem });
 	return (
 		<div
@@ -192,7 +254,7 @@ export function BoardDraggable({ children, provider, subject, title }: { childre
  * "Move to" in a card's menu: the keyboard path to every move a drag makes.
  * Lanes the card cannot move to stay listed, disabled, with the reason.
  */
-export function BoardMoveMenu({ onMove, subject }: { onMove: (subject: BoardMoveSubject, to: BoardMoveLane) => void; subject: BoardMoveSubject }) {
+export function BoardMoveMenu({ onMove, subject }: { onMove: (subject: BoardMoveSubject, to: BoardMoveLane) => Promise<void> | void; subject: BoardMoveSubject }) {
 	const { t } = useTranslation();
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	const here = currentLane(subject);
@@ -204,17 +266,17 @@ export function BoardMoveMenu({ onMove, subject }: { onMove: (subject: BoardMove
 					const refusal = predictBoardMoveRefusal(subject, lane);
 					const label = getKanbanColumnView(lane, translate).label;
 					if (!refusal) {
-						return <ContextMenuItem data-lane={lane} key={lane} onSelect={() => onMove(subject, lane)}>{label}</ContextMenuItem>;
+						// Focus follows the card to wherever the daemon puts it.
+						const select = () => void Promise.resolve(onMove(subject, lane)).then(() => requestAnimationFrame(() => focusBoardCard(subjectId(subject))));
+						return <ContextMenuItem data-lane={lane} key={lane} onSelect={select}>{label}</ContextMenuItem>;
 					}
+					// The reason is text under the item, not a tooltip: a disabled item
+					// takes no keyboard focus, so a tooltip would be mouse-only.
 					return (
-						<Tooltip key={lane}>
-							<TooltipTrigger asChild>
-								<div>
-									<ContextMenuItem data-lane={lane} disabled>{label}</ContextMenuItem>
-								</div>
-							</TooltipTrigger>
-							<TooltipContent className="max-w-64" side="right">{t(boardRefusalKey(refusal))}</TooltipContent>
-						</Tooltip>
+						<ContextMenuItem className="flex-col items-start gap-0.5" data-lane={lane} disabled key={lane}>
+							<span>{label}</span>
+							<span className="max-w-64 whitespace-normal text-2xs text-muted-foreground" data-testid="board-move-refusal">{t(boardRefusalKey(refusal))}</span>
+						</ContextMenuItem>
 					);
 				})}
 			</ContextMenuSubContent>
@@ -256,10 +318,11 @@ export function BoardAutomationCardAdapter({ item, onRunNow }: { item: BoardAuto
 	const navigate = useNavigate();
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 	const openAutomations = () => void navigate({ to: "/automations" });
+	const menuKeyboard = useCardMenuKeyboard();
 	return (
 		<ContextMenu>
 			<ContextMenuTrigger asChild>
-				<div data-automation-id={item.automationCard.id} data-testid="board-automation-card">
+				<div data-automation-id={item.automationCard.id} data-testid="board-automation-card" onKeyDown={menuKeyboard.onKeyDown} ref={menuKeyboard.triggerRef}>
 					<SessionCardView
 						externalLink={ProductExternalLink}
 						labels={{
@@ -275,7 +338,7 @@ export function BoardAutomationCardAdapter({ item, onRunNow }: { item: BoardAuto
 					/>
 				</div>
 			</ContextMenuTrigger>
-			<ContextMenuContent className="min-w-44">
+			<ContextMenuContent className="min-w-44" onCloseAutoFocus={menuKeyboard.onCloseAutoFocus}>
 				{onRunNow ? <ContextMenuItem onSelect={onRunNow}>{t("board.move.runNow")}</ContextMenuItem> : null}
 				<ContextMenuItem onSelect={openAutomations}>{t("board.automation.open")}</ContextMenuItem>
 			</ContextMenuContent>

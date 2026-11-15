@@ -110,6 +110,7 @@ describe("board move translations", () => {
 		"displayStatus.testing", "displayStatus.qaPassed", "displayStatus.needsYou", "displayStatus.cancelled", "displayStatus.oneWorker",
 		"board.move.moveTo", "board.move.runNow", "board.move.askedToPause", "board.move.askedToContinue",
 		"board.lane.emptyQueued", "board.lane.emptyNeedsYou",
+		"board.drag.instructions", "board.drag.pickedUp", "board.drag.over", "board.drag.overRefused", "board.drag.notOver", "board.drag.dropped", "board.drag.cancelled",
 		...BOARD_MOVE_REFUSALS.map((reason) => `board.move.refused.${reason}`),
 	];
 

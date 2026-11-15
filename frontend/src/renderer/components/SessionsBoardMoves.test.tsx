@@ -161,9 +161,9 @@ describe("SessionsBoard moves", () => {
 		fireEvent.contextMenu(card);
 		fireEvent.click(await screen.findByTestId("board-move-to"));
 		fireEvent.keyDown(screen.getByTestId("board-move-to"), { key: "ArrowRight" });
-		const queued = await screen.findByRole("menuitem", { name: "In queue" });
+		const queued = await screen.findByRole("menuitem", { name: /^In queue/ });
 		expect(queued).toHaveAttribute("data-disabled");
-		expect(screen.getByRole("menuitem", { name: "In review" })).toHaveAttribute("data-disabled");
+		expect(screen.getByRole("menuitem", { name: /^In review/ })).toHaveAttribute("data-disabled");
 		fireEvent.click(screen.getByRole("menuitem", { name: "Validating" }));
 		await waitFor(() => expect(postMock).toHaveBeenCalledWith("/api/v1/sessions/{sessionId}/board-move", { params: { path: { sessionId: "s1" } }, body: { to: "validating" } }));
 		await waitFor(() => expect(useUiStore.getState().globalToasts.map((toast) => toast.title)).toContain(appI18n.t("board.move.refused.no_pr_provider")));
@@ -186,6 +186,30 @@ describe("SessionsBoard moves", () => {
 		} finally {
 			await appI18n.changeLanguage("en");
 		}
+	});
+
+	it("opens the menu from Shift+F10 and the menu key, gives refused lanes their reason inline, and returns focus to the card", async () => {
+		workspaceQueryMock.mockReturnValue({
+			data: [workspace([worker({ id: "s1", title: "finished work", kanbanColumn: "needs_you", kanbanStage: "building", displayStatus: "Awaiting review", hasPrProvider: false })])],
+			isError: false,
+			isSuccess: true,
+		});
+		renderBoard();
+		const open = within(lane("Needs you")).getByRole("button", { name: "finished work" });
+		open.focus();
+		fireEvent.keyDown(open, { key: "F10", shiftKey: true });
+		fireEvent.click(await screen.findByTestId("board-move-to"));
+		fireEvent.keyDown(screen.getByTestId("board-move-to"), { key: "ArrowRight" });
+		const validating = await screen.findByRole("menuitem", { name: /^Validating/ });
+		expect(validating).toHaveAttribute("data-disabled");
+		expect(within(validating).getByTestId("board-move-refusal")).toHaveTextContent(appI18n.t("board.move.refused.no_pr_provider"));
+		fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+		fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+		await waitFor(() => expect(screen.queryByTestId("board-move-to")).toBeNull());
+		await waitFor(() => expect(document.activeElement).toBe(within(lane("Needs you")).getByRole("button", { name: "finished work" })));
+
+		fireEvent.keyDown(open, { key: "ContextMenu" });
+		expect(await screen.findByTestId("board-move-to")).toBeInTheDocument();
 	});
 
 	it("runs an automation now from its card's menu", async () => {

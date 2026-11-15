@@ -58,6 +58,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "./ui/tooltip";
 import { someoneElseWorking, type SessionPerson } from "../lib/session-people";
 import { SessionPeopleStack } from "./SessionPeople";
 import { SessionOwnerTag } from "./SessionOwnerTag";
+import { useCardMenuKeyboard } from "./BoardMoves";
 
 export function toBoardSessionPresentation(
 	session: WorkspaceSession,
@@ -306,6 +307,7 @@ function DesktopSessionCard({
 	const showTerminate = interactive && session.isTerminated !== true && !session.cloud?.shared && onTerminate;
 	const keepTerminateVisible = session.status === "merged";
 	const resourcePresentation = toResourcePresentation(memory, session.activity?.state === "active", memoryTone, t);
+	const menuKeyboard = useCardMenuKeyboard();
 	const translate: ProductUITranslator = (key, values) => t(key as MessageKey, values);
 
 	const terminationOverlay = showTerminate ? (
@@ -426,9 +428,9 @@ function DesktopSessionCard({
 		<>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div>{card}</div>
+					<div onKeyDown={menuKeyboard.onKeyDown} ref={menuKeyboard.triggerRef}>{card}</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="min-w-44">
+				<ContextMenuContent className="min-w-44" onCloseAutoFocus={menuKeyboard.onCloseAutoFocus}>
 					<SessionContextMenuItems
 						onArchive={showTerminate ? () => {
 							clearTerminateSessionState(queryClient, session.id, session.hostId);
@@ -1036,6 +1038,7 @@ export function BoardPlanCardAdapter({
 	const progress = extraPrs > 0 ? `${milestones} · ${t("board.plans.morePrs", { n: extraPrs })}` : milestones;
 	const compact = t("board.plans.milestonesCompact", counts);
 	const compactProgress = extraPrs > 0 ? `${compact} · ${t("board.plans.morePrsShort", { n: extraPrs })}` : compact;
+	const menuKeyboard = useCardMenuKeyboard();
 	const card = (
 		<SessionCardView
 			externalLink={ProductExternalLink}
@@ -1064,9 +1067,9 @@ export function BoardPlanCardAdapter({
 		<>
 			<ContextMenu>
 				<ContextMenuTrigger asChild>
-					<div data-testid="board-plan-card" data-plan-id={plan.id}>{card}</div>
+					<div data-testid="board-plan-card" data-plan-id={plan.id} onKeyDown={menuKeyboard.onKeyDown} ref={menuKeyboard.triggerRef}>{card}</div>
 				</ContextMenuTrigger>
-				<ContextMenuContent className="min-w-44">
+				<ContextMenuContent className="min-w-44" onCloseAutoFocus={menuKeyboard.onCloseAutoFocus}>
 					{onOpenOrchestrator && plan.orchestratorSessionId ? (
 						<ContextMenuItem onSelect={onOpenOrchestrator}>{t("board.plans.openOrchestrator")}</ContextMenuItem>
 					) : null}

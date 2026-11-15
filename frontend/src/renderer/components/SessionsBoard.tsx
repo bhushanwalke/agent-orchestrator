@@ -224,7 +224,7 @@ export function SessionsBoard({ projectId, hostId }: SessionsBoardProps) {
 	const renderCard = (item: BoardItem) => {
 		const subject = movesEnabled ? subjectOf(item) : undefined;
 		const moveMenu = subject && subject.kind !== "automation"
-			? <BoardMoveMenu onMove={(moved, to) => void boardMove.move(moved, to)} subject={subject} />
+			? <BoardMoveMenu onMove={(moved, to) => boardMove.move(moved, to)} subject={subject} />
 			: undefined;
 		const pending = subject ? boardMove.isPending(subject) : false;
 		const card = isBoardAutomationItem(item) ? (
