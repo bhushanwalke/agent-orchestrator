@@ -771,3 +771,16 @@ R19 (coordinator ruling). The section 5 safety and public-listing rules apply
     maps `provider_accepted` to `verified`. Hardening that validator is a
     separate follow-up (section 12.12). Cost: a public model list read
     through a keyed gateway still reads verified.
+R20 (M4). There is no harness settings docs page, so the user-facing
+    explanation is a troubleshooting entry ("A harness on a gateway, cloud
+    provider or local model is not shown as logged in"). Cost: none.
+R21 (M4). Route wording: "<family> via <host>", "Provider <name> · <route>",
+    " · no key (network access)"; several routes read "N providers via
+    <host> · M verified" (or "N providers"). Locales whose plurals vary
+    use a count-neutral form (ru "Провайдеров: N") because N is always at
+    least 2 and no plural keys are added. Cost: wording only.
+R22 (M4). The subscriptions-not-used note sits under the "Model route" group
+    as a muted line, like the tab's other notes, not inside the card
+    (DESIGN.md: no new panels). The group appears only for harnesses with a
+    Subscriptions panel; other harnesses show the route on their Account row
+    through the account description. Cost: none.

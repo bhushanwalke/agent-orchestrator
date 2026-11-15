@@ -5,6 +5,7 @@ import { MiddleTruncatedText } from "../../MiddleTruncatedText";
 import { Button } from "../../ui/button";
 import type { HarnessDetails } from "./describe-harness";
 import { detectedCredential } from "./harness-diagnostics";
+import { describeRoute, routeVerificationLabel } from "./harness-routes";
 import { HarnessDetailGroup, HarnessDetailRow, HarnessStateText, HarnessTimestamp, hasValidTimestamp, type HarnessTone } from "./harness-ui";
 
 /** Read-only facts AO observed about one harness. */
@@ -28,7 +29,9 @@ export function HarnessHealthTab({ details, checking, authCheckFailed, updateErr
 	const authTone: HarnessTone = authCheckFailed || readinessAgent?.authentication.freshness !== "fresh" ? "off"
 		: renewsOnRun || details.authStatus === "authorized" || details.authStatus === "not_applicable" ? "ok"
 		: details.authStatus === "unauthorized" ? "error" : "off";
+	// Routes say why a configured harness could not be verified; "not checked" would be wrong.
 	const authLabel = renewsOnRun ? t("settings.harness.health.authRenewsOnRun")
+		: details.routeLabel ? details.routeLabel
 		: details.authStatus === "configured" && !details.unverifiedProvider ? t("settings.harness.health.connectionNotChecked")
 		: details.authSummary;
 	// Only facts AO has observed: a row with nothing to report is left out rather than filled with a placeholder.
@@ -44,6 +47,9 @@ export function HarnessHealthTab({ details, checking, authCheckFailed, updateErr
 			{isInstalled ? <HarnessDetailRow label={t("settings.harness.health.authentication")}>
 				<HarnessStateText tone={authTone}>{authLabel}</HarnessStateText>
 			</HarnessDetailRow> : null}
+			{isInstalled ? details.routes.map((route, index) => <HarnessDetailRow key={`${route.name ?? ""}:${route.host ?? ""}:${index}`} label={t("settings.harness.health.modelRoute")} description={routeVerificationLabel(route, t)}>
+				<span className="min-w-0 break-all text-xs text-settings-label">{describeRoute(route, t)}</span>
+			</HarnessDetailRow>) : null}
 			{executable ? <HarnessDetailRow label={t("settings.harness.health.executable")}>
 				<span className="min-w-0 break-all font-mono text-xs text-settings-label">{executable}</span>
 			</HarnessDetailRow> : null}

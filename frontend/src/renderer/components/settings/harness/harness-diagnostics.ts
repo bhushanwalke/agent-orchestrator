@@ -5,6 +5,7 @@ import { fetchSessionMemory, formatCPU, formatMemory, sessionMemoryQueryOptions 
 import { agentLabel, type AgentId } from "../../../lib/agent-options";
 import type { clientForSessionHost } from "../../../lib/host-clients";
 import type { HarnessDetails } from "./describe-harness";
+import { routeReportLines } from "./harness-routes";
 
 // The copied reports stay in English: they are read by whoever fixes the bug.
 
@@ -87,6 +88,7 @@ export function healthText(details: HarnessDetails, { hostId, authCheckError, t 
 		readinessAgent?.installation.reason ? `Installation reason: ${readinessAgent.installation.reason}` : "",
 		`Authentication: ${readinessAgent?.authentication.state ?? "unknown"}`,
 		credential ? `Detected credential: ${credential}` : "",
+		...routeReportLines(details.routes),
 		t("settings.harness.health.authContext"),
 		readinessAgent?.authentication.reason ? `Authentication reason: ${readinessAgent.authentication.reason}` : "",
 		readinessAgent?.authentication.reasonCode ? `Authentication reason code: ${readinessAgent.authentication.reasonCode}` : "",

@@ -45,6 +45,13 @@ ao doctor --json
 	<Accordion title="No agent harness is offered">
 		Install the harness, run it once to authenticate, and restart Orchestrator. The desktop daemon inherits a login-shell environment and reuses each provider's installed binary and authentication.
 	</Accordion>
+	<Accordion title="A harness on a gateway, cloud provider or local model is not shown as logged in">
+		Claude Code, Codex and OpenCode can send model requests somewhere other than their provider's own login: AWS Bedrock, Google Vertex AI or Azure AI Foundry, a gateway or proxy (`ANTHROPIC_BASE_URL`, a Codex `model_provider` with `base_url`, an OpenCode provider with `options.baseURL`), or a local model server. **Settings → Harness** then shows the route on the harness row and the **Health** tab, for example "AWS Bedrock via gw.example.com · no key (network access)".
+
+		Orchestrator checks a gateway or local route by listing its models with exactly the key the harness sends, or no key when the harness sends none. It never makes a model call. When the list answers, the harness reads **Logged in**. **Needs network access** means the endpoint answered with a sign-in page or a redirect, which is what a VPN or zero-trust gateway does off its network: connect, then press **Check again**. **Can't reach provider** means the connection failed. Bedrock, Vertex and Foundry read **Configured, can't be verified**, because checking them would mean signing a request with your cloud identity. None of these blocks starting a session; the session itself is the final check.
+
+		Set `AO_MODEL_ROUTE_PROBE=off` in Orchestrator's environment to stop these checks. **Copy diagnostics** on the **Health** tab lists each route with its host, credential source and result, never a key.
+	</Accordion>
 	<Accordion title="Chat preflight fails">
 		Confirm the selected harness supports native Chat and its binary is authenticated. Chat support depends on the harness and installed version; see the [agent capability catalog](/plugins/agents#chat-versus-terminal-ui). Check **Settings → Harness** and provider version/permission requirements. Choose Terminal UI when the harness lacks Chat support or preflight cannot connect.
 	</Accordion>

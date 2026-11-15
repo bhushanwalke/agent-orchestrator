@@ -17,6 +17,7 @@ import {
 import type { AgentId } from "../../../lib/agent-options";
 import type { AuthTerminalWorkflow } from "./HarnessAuthTerminalPanel";
 import type { HarnessTone } from "./harness-ui";
+import { describeRoutes, routeStatusLabel } from "./harness-routes";
 
 type AgentInstallPlan = components["schemas"]["AgentInstallPlan"];
 export type AgentInstallMethod = AgentInstallPlan["methods"][number];
@@ -97,7 +98,7 @@ export function describeHarness(input: HarnessDescribeInput) {
 	const accountWho = account?.email || account?.name;
 	// Who and how the harness is signed in. Where the credential was found
 	// stays in the readiness data for diagnostics; the row does not show it.
-	const accountDescription = account ? [
+	const accountLine = account ? [
 		accountWho ? t("settings.harness.signedInAs", { account: accountWho })
 			: account.method === "api_key" ? t("settings.harness.usingApiKey")
 			: account.method === "token" ? t("settings.harness.usingToken")
@@ -106,6 +107,12 @@ export function describeHarness(input: HarnessDescribeInput) {
 		account.organization,
 		account.provider,
 	].filter(Boolean).join(" · ") || undefined : undefined;
+	// Where model requests go when it is not the provider's own login: a
+	// gateway, cloud provider or local endpoint, after the account line.
+	const routes = readinessAgent?.authentication.routes ?? [];
+	const routeDescription = describeRoutes(routes, t);
+	const accountDescription = [accountLine, routeDescription].filter(Boolean).join(" · ") || undefined;
+	const routeLabel = routeStatusLabel(authStatus, routes, t);
 	const rowAuthWorkflow = input.authWorkflow;
 	const authBusy = Boolean(rowAuthWorkflow || authState?.pending);
 	const needsLogin = needsHarnessLogin(authPlan, authStatus);
@@ -121,6 +128,7 @@ export function describeHarness(input: HarnessDescribeInput) {
 		|| readinessAgent?.authentication.diagnostics?.some((step) => step.code === "model_selection_unresolved");
 	const renewsOnRun = authStatus === "configured" && Boolean(readinessAgent?.authentication.diagnostics?.some((step) => step.code === "token_renewal_pending"));
 	const authSummary = renewsOnRun ? t("settings.harness.loggedIn")
+		: routeLabel ? routeLabel
 		: authStatus === "configured" ? t(unverifiedProvider ? "settings.harness.health.authUnverified" : isSetupAction ? "settings.harness.configured" : "settings.harness.installed")
 		: authStatus === "authorized" ? t("settings.harness.loggedIn")
 		: authStatus === "not_applicable" || (!input.authPlansPending && (!authPlan || authPlan.action === "instructions")) ? t("settings.harness.installed")
@@ -158,7 +166,7 @@ export function describeHarness(input: HarnessDescribeInput) {
 	return {
 		agentId, plan, job, isInstalled, availableMethods, installMethod, methodId, maintenanceMethod, canUpdate, manualOnly, updateReason,
 		advisoryQuery, advisory, updateUnknown, updateAvailable, currentVersion, busy, failed, jobFailed, currentOperation, readinessAgent,
-		authPlan, authState, authStatus, authSummary, renewsOnRun, unverifiedProvider, accountDescription, rowAuthWorkflow, authBusy, needsLogin, showSetup, isSetupAction, isDocumentationAction, canRelogin,
+		authPlan, authState, authStatus, authSummary, renewsOnRun, unverifiedProvider, accountDescription, routes, routeDescription, routeLabel, rowAuthWorkflow, authBusy, needsLogin, showSetup, isSetupAction, isDocumentationAction, canRelogin,
 		showUpdate, hasDiagnostics, installWarning, rowError, versionText, versionUnverified, updatedAt: input.updatedAt, progressLabel, installationPending, installNote, listTone, statusLabel,
 	};
 }

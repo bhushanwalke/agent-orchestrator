@@ -17,6 +17,7 @@ import { HarnessAuthTerminalPanel } from "./HarnessAuthTerminalPanel";
 import { HarnessCloudLine, type HarnessCloudState } from "./HarnessCloudLine";
 import { HarnessInstallProgress, useInstallJustFinished } from "./HarnessInstallProgress";
 import { HarnessDetailGroup, HarnessDetailRow, HarnessTimestamp } from "./harness-ui";
+import { describeRoute, routesBypassAccounts, routeVerificationLabel } from "./harness-routes";
 
 /** Install, update and login each own one row. While a job or login runs,
 	* the row that started it shows progress instead. */
@@ -153,6 +154,11 @@ export function HarnessAccountTab({ details, hostId, cloud, authWorkflowActive, 
 			{loginPanel}
 		</HarnessDetailGroup> : null}
 		{savedKeys}
+		{/* Where model requests go, above the subscriptions they may not use. */}
+		{accountProvider && details.routes.length > 0 ? <HarnessDetailGroup title={t("settings.harness.route.title")}>
+			{details.routes.map((route, index) => <HarnessDetailRow key={`${route.name ?? ""}:${route.host ?? ""}:${index}`} label={describeRoute(route, t)} description={routeVerificationLabel(route, t)} />)}
+		</HarnessDetailGroup> : null}
+		{accountProvider && routesBypassAccounts(details.routes) ? <p className="-mt-3 text-xs text-settings-muted">{t("settings.harness.route.accountsNotUsed")}</p> : null}
 		{accountProvider ? <AgentAccountsPanel provider={accountProvider} hostId={hostId} cliLogin={{
 			disabled: authBusy || authWorkflowActive || details.busy || !authPlan?.available || authPlan.action === "instructions",
 			canLogout: Boolean(authPlan?.logoutCommand),

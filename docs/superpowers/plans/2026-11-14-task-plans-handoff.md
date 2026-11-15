@@ -235,3 +235,14 @@ An auto Task's kickoff is `<ao-plan-triage id=…>` (the plan request's content 
 - Automations: `taskMode: direct|plan|auto` (400 `INVALID_AUTOMATION_TASK_MODE` for an unknown mode or a non-direct orchestrator automation); runs carry `planId`; plan-backed runs finish from the Task's phase, and a direct auto Task's run adopts the worker session.
 - CLI: `ao plan create --mode`, `ao plan triage`, `ao automation create|update --task-mode`, a `PLAN` column in `ao automation runs`.
 - Implementation rulings R1–R22 are recorded in the intake modes spec, §13.
+
+## Harness model routes summary
+
+Spec: `docs/superpowers/specs/2026-11-14-harness-model-routes.md`. Implementation rulings R1–R19 (plus M4's) are in §13. Commits: `3c7892e181` (spec), `e07df8c14b` (M1 foundations), `69b445b9ec` (M2 Claude Code), `6559038703` (M3 Codex and OpenCode), `4a50aaa4dd` (fix: route settings precedence), then the M4 app commit. No storage or migration change.
+
+- API: `authentication.routes[]` (`AgentModelRoute`: `name?`, `kind`, `apiFamily`, `host?` as hostname[:port] only, `credential`, `credentialSource?`, `configSource?`, `verification`, `httpStatus?`, `isDefault?`), at most 16 per harness and sent with every verdict. New diagnostics have method `model_route` and the codes `route_identified|verified|rejected|unverifiable|inconclusive|access_challenge|unreachable|probe_disabled|credential_missing`. A configured verdict with routes gets a reason that names the route.
+- Probe (`adapters/agent/modelroute`): one `GET` of the route's model list with exactly the harness's credential. 3 s timeout, no redirects, 1 MiB cap. Cached 5 minutes per URL and credential hash; the cache drops on Check again and on a runtime 401. It never sends a key over plain http off loopback, never probes a URL with userinfo, and makes no request for cloud routes. `AO_MODEL_ROUTE_PROBE=off` disables it and is read on every check.
+- Claude Code: Bedrock, Vertex and Foundry from their `CLAUDE_CODE_USE_*` switch (environment or the user's settings.json) are recorded as unverifiable. An `ANTHROPIC_BASE_URL` gateway with no key is decided by its model list. A route rejection never blocks a launch.
+- Codex: a custom `model_provider` (`base_url`, or built-in `oss`/`ollama`/`lmstudio`) is checked with the headers Codex sends. An unset `env_key` keeps the verdict unknown.
+- OpenCode 1/2: providers with `options.baseURL` across the user, `OPENCODE_CONFIG*`, inline and managed layers are checked, at most 8 at a time. OpenCode 2 no longer counts `mcp_*` integrations as a model login.
+- App: route line on the harness row; route status labels ("Configured, can't be verified", "Needs network access", "Can't reach provider"); a "Model route" row per route on the Health tab; a "Model route" group above Subscriptions for Claude Code and Codex, with the subscriptions-not-used note; route blocks in the copied health report; strings in all nine locales; a troubleshooting entry in the docs.
