@@ -245,6 +245,15 @@ func clearClaudeCredentialEnv(t *testing.T) {
 	for _, name := range append(append([]string{}, claudeCredentialEnv...), "ANTHROPIC_BASE_URL", "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_AUTH_TOKEN") {
 		t.Setenv(name, "")
 	}
+	// Model route variables, so a developer's Bedrock or gateway setup never
+	// reaches a test.
+	for _, name := range []string{
+		"CLAUDE_CODE_USE_FOUNDRY", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL", "ANTHROPIC_FOUNDRY_BASE_URL",
+		"ANTHROPIC_FOUNDRY_RESOURCE", "CLAUDE_CODE_SKIP_BEDROCK_AUTH", "CLAUDE_CODE_SKIP_VERTEX_AUTH", "CLAUDE_CODE_SKIP_FOUNDRY_AUTH",
+		"AWS_REGION", "AWS_DEFAULT_REGION", "AWS_PROFILE", "CLOUD_ML_REGION", "AWS_BEARER_TOKEN_BEDROCK", "AO_MODEL_ROUTE_PROBE",
+	} {
+		t.Setenv(name, "")
+	}
 }
 
 // Rung 2 is the only rung permitted to return Authorized.

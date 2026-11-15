@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/authprobe"
+	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelroute"
 	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/chatdriver/processenv"
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
@@ -102,8 +103,13 @@ func claudeConfigDir() string {
 // (see InvalidateAuthCache), so the next launch probes again. Probing on every
 // launch cost each chat start a CLI run and a network round trip.
 func (p *Plugin) ValidateLaunchAuth(ctx context.Context, workingDir string, env map[string]string) (ports.AgentAuthStatus, error) {
-	return p.authStatusFor(ctx, workingDir, env, false)
+	return p.authStatusFor(context.WithValue(ctx, launchCheckKey{}, true), workingDir, env, false)
 }
+
+// launchCheckKey marks a launch-time check. Launch is unchanged by model
+// routes: a route's model list may refuse what its model requests accept, so
+// a route rejection never blocks a spawn; the session's first request decides.
+type launchCheckKey struct{}
 
 func (p *Plugin) authStatusFor(ctx context.Context, workingDir string, env map[string]string, fresh bool) (ports.AgentAuthStatus, error) {
 	status, _, _, err := p.authStatusAndDiagnostics(ctx, workingDir, env, fresh)
@@ -188,6 +194,16 @@ func (p *Plugin) authStatusAndDiagnostics(ctx context.Context, workingDir string
 	// allowed to return Authorized.
 	status, ok, step := p.probeResolvedAuthDiagnostics(ctx, resolved, fresh)
 	steps = append(steps, step)
+	// The model route, when it is not first party: shown with every verdict,
+	// and for a keyless gateway its model list is the check.
+	route, hasRoute := claudeModelRoute(ctx, resolved, workingDir, env)
+	if hasRoute {
+		routeStatus, decided := checkModelRoute(ctx, route, resolved.opts.Getenv("ANTHROPIC_BASE_URL"), step)
+		launch, _ := ctx.Value(launchCheckKey{}).(bool)
+		if decided && !ok && (routeStatus != ports.AgentAuthStatusUnauthorized || !launch) {
+			return routeStatus, report, steps, nil
+		}
+	}
 	if ok {
 		return status, report, steps, nil
 	}
@@ -208,6 +224,11 @@ func (p *Plugin) authStatusAndDiagnostics(ctx context.Context, workingDir string
 	// A configured local credential is reported once, from the evidence it
 	// records.
 	status, err = claudeLocalAuthStatus(ctx, resolved.opts)
+	if err == nil && hasRoute && status == ports.AgentAuthStatusUnknown {
+		// An identified route is a configured setup even when no local
+		// credential is: cloud identity and keyless gateways need none.
+		status = ports.AgentAuthStatusConfigured
+	}
 	return status, report, steps, err
 }
 
@@ -362,7 +383,10 @@ var claudeNow = time.Now
 
 // InvalidateAuthCache drops the cached verdict. The runtime 401 handler calls
 // it: the provider has just contradicted whatever was stored.
-func InvalidateAuthCache() { claudeAuthCache.invalidate() }
+func InvalidateAuthCache() {
+	claudeAuthCache.invalidate()
+	modelroute.InvalidateCache()
+}
 
 // InvalidateAuthCache implements ports.AgentAuthCacheInvalidator.
 func (p *Plugin) InvalidateAuthCache() { InvalidateAuthCache() }

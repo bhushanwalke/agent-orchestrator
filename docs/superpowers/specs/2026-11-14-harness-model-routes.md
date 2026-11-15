@@ -706,3 +706,22 @@ R6 (M1). `InvalidateAgentAuthentication` drops every cached route check, not
 R7 (M1). `AO_MODEL_ROUTE_PROBE` is read on every check and only `off`
     (any case) disables probes. Cost: `0` or `false` do not disable.
 
+R8 (M2). Claude Code's cloud route is taken, in order, from the provider the
+    existing ladder resolved, then exactly one truthy `CLAUDE_CODE_USE_*`
+    switch in `ClaudeRouteEnv` (environment, else the user's settings.json),
+    then a cloud `apiProvider` from `claude auth status`. Otherwise
+    `ANTHROPIC_BASE_URL` makes a gateway route. `ResolveClaudeRouteEnv` takes
+    the launch context before settings are merged, so `ConfigSource` can tell
+    a variable from the settings file. Cost: a project-level cloud switch is
+    not shown (project files are never read for routes).
+R9 (M2). A keyless Claude gateway whose user settings name an `apiKeyHelper`
+    is recorded with credential `unknown` and is not probed: Claude Code sends
+    the helper's key, which AO never runs, so a keyless listing would not be
+    credential-faithful. Cost: such a setup reads configured, not authorized.
+R10 (M2). Launch is unchanged (section 2 non-goals): during
+    `ValidateLaunchAuth` a keyless gateway's `rejected` listing does not
+    decide the verdict, so it never blocks a spawn. Readiness still shows
+    "needs authentication". Cost: a spawn against a gateway that really
+    refuses runs until its first request fails.
+R11 (M2). `claudecode.InvalidateAuthCache` (called after a runtime 401) also
+    drops the route check cache, as section 5 asks. Cost: none.
