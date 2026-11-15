@@ -326,10 +326,7 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	}
 	if provider, ok := customModelProvider(); ok {
 		// `codex login status` only covers the OpenAI login, which this provider does not use.
-		if provider.EnvKey != "" && authprobe.CredentialEnvironment(ctx, domain.AgentAccountMethodAPIKey, provider.EnvKey) != "" {
-			return ports.AgentAuthStatusConfigured, nil
-		}
-		return ports.AgentAuthStatusUnknown, nil
+		return customProviderStatus(ctx, provider), nil
 	}
 	probeCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -386,8 +383,14 @@ func codexHomeDir() string {
 }
 
 type codexModelProvider struct {
-	EnvKey             string `toml:"env_key"`
-	RequiresOpenAIAuth bool   `toml:"requires_openai_auth"`
+	// Name is the provider's id in model_providers, set after parsing.
+	Name               string            `toml:"-"`
+	BaseURL            string            `toml:"base_url"`
+	EnvKey             string            `toml:"env_key"`
+	RequiresOpenAIAuth bool              `toml:"requires_openai_auth"`
+	WireAPI            string            `toml:"wire_api"`
+	HTTPHeaders        map[string]string `toml:"http_headers"`
+	EnvHTTPHeaders     map[string]string `toml:"env_http_headers"`
 }
 
 // UsesCustomModelProvider reports whether config.toml points Codex at a model
@@ -426,6 +429,7 @@ func customModelProvider() (codexModelProvider, bool) {
 	if name == "" || name == "openai" || provider.RequiresOpenAIAuth {
 		return codexModelProvider{}, false
 	}
+	provider.Name = name
 	return provider, true
 }
 

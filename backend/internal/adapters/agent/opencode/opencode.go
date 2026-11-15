@@ -197,6 +197,18 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	if err != nil {
 		return ports.AgentAuthStatusUnknown, err
 	}
+	status, err := storedOrEnvAuthStatus(ctx, binary)
+	if err != nil {
+		return status, err
+	}
+	// Providers the config points at a base URL decide only when the stored
+	// and environment credentials did not.
+	return WithRoutes(ctx, status, CheckProviderRoutes(ctx, storedProviderIDs(ctx))), nil
+}
+
+// storedOrEnvAuthStatus is the verdict from opencode's stored credentials,
+// `opencode auth list` and environment keys.
+func storedOrEnvAuthStatus(ctx context.Context, binary string) (ports.AgentAuthStatus, error) {
 	status, ok, storedErr := opencodeStoredAuthStatus(ctx)
 	if storedErr == nil && ok && status.HasCredential() {
 		return status, nil
@@ -308,6 +320,30 @@ func opencodeStoredAuthStatus(ctx context.Context) (ports.AgentAuthStatus, bool,
 		return jsonStatus, true, nil
 	}
 	return ports.AgentAuthStatusUnknown, false, nil
+}
+
+// storedProviderIDs names the providers with a non-empty entry in
+// opencode's auth.json, whose keys AO does not send on a route check.
+func storedProviderIDs(ctx context.Context) map[string]bool {
+	dataDir, ok := opencodeDataDir()
+	if !ok {
+		return nil
+	}
+	data, err := authprobe.ReadCredentialFile(ctx, filepath.Join(dataDir, "auth.json"))
+	if err != nil {
+		return nil
+	}
+	var entries map[string]json.RawMessage
+	if json.Unmarshal(data, &entries) != nil {
+		return nil
+	}
+	stored := map[string]bool{}
+	for id, value := range entries {
+		if trimmed := strings.TrimSpace(string(value)); id != "" && trimmed != "" && trimmed != "null" && trimmed != "{}" {
+			stored[id] = true
+		}
+	}
+	return stored
 }
 
 func opencodeDataDir() (string, bool) {

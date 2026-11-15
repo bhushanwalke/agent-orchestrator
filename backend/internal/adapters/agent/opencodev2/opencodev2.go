@@ -292,20 +292,43 @@ func (p *Plugin) AuthStatus(ctx context.Context) (ports.AgentAuthStatus, error) 
 	if ctx.Err() != nil {
 		return ports.AgentAuthStatusUnknown, ctx.Err()
 	}
-	if err != nil {
-		return ports.AgentAuthStatusUnknown, nil
+	status, stored := ports.AgentAuthStatusUnknown, map[string]bool{}
+	if err == nil {
+		status, stored = authListStatus(ctx, binary, out)
 	}
+	// Providers the config points at a base URL decide only when no stored
+	// or environment connection did, including when the list failed.
+	return opencode.WithRoutes(ctx, status, opencode.CheckProviderRoutes(ctx, stored)), nil
+}
+
+// authListStatus reads `opencode auth list --format json`. Integrations whose
+// id starts with mcp_ are MCP servers' OAuth logins, not model credentials.
+// stored names the providers whose key sits in opencode's own store.
+func authListStatus(ctx context.Context, binary string, out []byte) (ports.AgentAuthStatus, map[string]bool) {
 	var integrations []struct {
-		Connections []json.RawMessage `json:"connections"`
+		ID          string `json:"id"`
+		Connections []struct {
+			Type string `json:"type"`
+		} `json:"connections"`
 	}
+	stored := map[string]bool{}
 	if err := json.Unmarshal(out, &integrations); err != nil {
-		return ports.AgentAuthStatusUnknown, nil
+		return ports.AgentAuthStatusUnknown, stored
 	}
+	status := ports.AgentAuthStatusUnknown
 	for _, integration := range integrations {
-		if len(integration.Connections) > 0 {
+		if strings.HasPrefix(integration.ID, "mcp_") || len(integration.Connections) == 0 {
+			continue
+		}
+		if status != ports.AgentAuthStatusAuthorized {
 			ports.RecordAuthEvidence(ctx, domain.CommandSource(binary, "auth", "list"))
-			return ports.AgentAuthStatusAuthorized, nil
+			status = ports.AgentAuthStatusAuthorized
+		}
+		for _, connection := range integration.Connections {
+			if connection.Type == "credential" {
+				stored[integration.ID] = true
+			}
 		}
 	}
-	return ports.AgentAuthStatusUnknown, nil
+	return status, stored
 }

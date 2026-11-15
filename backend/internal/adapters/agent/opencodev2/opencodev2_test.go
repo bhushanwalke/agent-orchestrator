@@ -419,3 +419,16 @@ func withoutDataHome(cmd []string) []string {
 	}
 	return out
 }
+
+func TestV2AuthStatusDoesNotCountMCPServerCredentials(t *testing.T) {
+	binary := fakeBinary(t, "2.0.0")
+	output := `[{"id":"mcp_github","name":"GitHub MCP","connections":[{"type":"oauth","label":"me"}]}]`
+	script := "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 2.0.0; exit; fi\n[ \"$*\" = 'auth list --standalone --format json' ] || exit 99\nprintf '%s\\n' '" + output + "'\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	status, err := New().AuthStatus(context.Background())
+	if err != nil || status != ports.AgentAuthStatusUnknown {
+		t.Fatalf("auth=%q %v, want unknown: MCP server credentials are not a model login", status, err)
+	}
+}

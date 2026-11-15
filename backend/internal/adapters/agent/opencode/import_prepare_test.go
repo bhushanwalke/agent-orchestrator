@@ -4,13 +4,16 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aoagents/agent-orchestrator/backend/internal/adapters/agent/modelroute"
 	"github.com/aoagents/agent-orchestrator/backend/internal/ports"
 )
 
@@ -21,7 +24,24 @@ func TestMain(m *testing.M) {
 	if db := os.Getenv("AO_FAKE_OPENCODE_DB"); db != "" {
 		os.Exit(fakeOpenCode(db, os.Args[1:]))
 	}
-	os.Exit(m.Run())
+	// Route checks never read the developer's opencode config or reach the
+	// network.
+	emptyConfig, err := os.MkdirTemp("", "opencode-config-")
+	if err != nil {
+		panic(err)
+	}
+	ConfigHome = func() string { return emptyConfig }
+	ManagedConfigDirs = nil
+	modelroute.Client = &http.Client{Transport: noNetwork{}}
+	code := m.Run()
+	_ = os.RemoveAll(emptyConfig)
+	os.Exit(code)
+}
+
+type noNetwork struct{}
+
+func (noNetwork) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, errors.New("no network in tests")
 }
 
 func fakeOpenCode(dbPath string, args []string) int {

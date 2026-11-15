@@ -725,3 +725,30 @@ R10 (M2). Launch is unchanged (section 2 non-goals): during
     refuses runs until its first request fails.
 R11 (M2). `claudecode.InvalidateAuthCache` (called after a runtime 401) also
     drops the route check cache, as section 5 asks. Cost: none.
+R12 (M3, R-B). `codex_account_service.go` does exist on this branch, and
+    `authenticationWithAccount` already skips custom providers through
+    `codexagent.UsesCustomModelProvider()`. It is unchanged, so the adapter's
+    route verdict is what readiness uses. Cost: none.
+R13 (M3). The Codex check sends every `http_headers` value and every resolved
+    `env_http_headers` value, as Codex does, plus `Authorization: Bearer
+    <env_key value>`. Any header makes the check keyed (public-listing
+    comparison, no cleartext off loopback). A header named `Authorization`,
+    or one containing `api-key` or `token`, sets credential `token`.
+    `query_params` are not applied. Cost: a provider that needs a query
+    parameter on its model list reads inconclusive (configured).
+R14 (M3). An unset variable behind an auth header in `env_http_headers` is
+    treated like an unset `env_key`: `route_credential_missing`, verdict
+    `unknown`. Cost: none.
+R15 (M3). OpenCode 1 returns an existing error (unreadable credential store)
+    before routes are checked, so the readiness failure is unchanged (C1).
+    OpenCode 2's failed or unparsable `auth list` goes through the routes, as
+    section 12.7 says. Cost: a broken OpenCode 1 auth.json hides routes until
+    it is fixed.
+R16 (M3). The codex, opencode and opencodev2 test packages point
+    `modelroute.Client` at a transport that refuses everything in `TestMain`,
+    so no fixture reaches whatever listens on this machine. The existing Codex
+    fixture on 127.0.0.1:4000 now reads `unreachable`, which is still
+    `configured`, so the test is unchanged. Cost: none.
+R17 (M3). An OpenCode provider with a `baseURL`, no `apiKey`, and an `env`
+    list sends the first set variable as its key. None set means keyless.
+    Cost: none.
