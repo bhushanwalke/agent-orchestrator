@@ -7,7 +7,15 @@ const require = createRequire(import.meta.url);
 // (there is no app-builder CLI / app-builder-bin in this tree). This internal
 // path is pinned via package-lock; if it moves on a major upgrade, only this
 // file changes. Smoke-tested by blockmap.test.mjs.
-const { buildBlockMap } = require("app-builder-lib/out/targets/blockmap/blockmap.js");
+//
+// Resolved on first use, not at import: feed.mjs imports this module, and a
+// release job that only hashes mac zips (which never get a blockmap) must be
+// able to load feed.mjs from a checkout with no node_modules.
+let buildBlockMap;
+function loadBuildBlockMap() {
+	buildBlockMap ??= require("app-builder-lib/out/targets/blockmap/blockmap.js").buildBlockMap;
+	return buildBlockMap;
+}
 
 // writeBlockmap creates "<filePath>.blockmap" (gzip sidecar) and returns the
 // file's base64 sha512 + byte size, exactly as electron-updater reads them from
@@ -27,6 +35,6 @@ const { buildBlockMap } = require("app-builder-lib/out/targets/blockmap/blockmap
 // An explicit destination is used only by the isolated v2 preparation module;
 // legacy feed callers retain their existing default destination.
 export async function writeBlockmap(filePath, destination = `${filePath}.blockmap`) {
-	const { sha512, size } = await buildBlockMap(filePath, "gzip", destination);
+	const { sha512, size } = await loadBuildBlockMap()(filePath, "gzip", destination);
 	return { sha512, size };
 }
