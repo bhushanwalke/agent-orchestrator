@@ -1,6 +1,6 @@
 # Task intake modes: direct, plan, auto
 
-Addendum to `2026-11-14-task-plans-design.md`. Builds on branch `feat/task-plans` at `43f1559821`.
+Addendum to `2026-11-14-task-plans-design.md`. Builds on branch `orchestrator-plus` at `43f1559821`.
 
 ## 1. Goal
 

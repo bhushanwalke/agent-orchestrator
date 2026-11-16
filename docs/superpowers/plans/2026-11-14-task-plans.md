@@ -12,7 +12,7 @@
 
 ## Global Constraints
 
-- Work only on branch `feat/task-plans` in a worktree; never commit to `main`. Conventional commits, one commit per task.
+- Work only on branch `orchestrator-plus` in a worktree; never commit to `main`. Conventional commits, one commit per task.
 - Follow `AGENTS.md`: CLI is a thin HTTP client; no derived status persisted; new migration via `npm run migration:create -- task_plans` and append to `shippedMigrations`; never hand-edit `storage/sqlite/gen`; edit `dto.go` + `specgen/build.go` then `npm run api` and commit `openapi.yaml` + `frontend/src/api/schema.ts`.
 - All copy sentence case; follow `DESIGN.md` (no glows, gradients, metric tiles; reuse `SessionCardView`, `InspectorSection`, shadcn primitives).
 - Max milestones per plan 20; max parallel 1–10 default 3; milestone key regex `^[a-z0-9][a-z0-9-]{0,31}$`; `qa` key reserved; retry limit 3 attempts.
@@ -246,7 +246,7 @@ Desktop lab per `AGENTS.md` ("Desktop lab") against the M1 daemon data dir, or `
 - [ ] Task 5.3: Full gate run: `npm run lint`, `go test -race ./...`, `npm run api` no diff, `npm run frontend:typecheck`, `cd frontend && npm run build`, `npm run product-ui:check` if `packages/product-ui` changed. Fix anything red. Commit `docs(plans): task plans guide and CLI docs`.
 
 ### M5 verification (ao-verify)
-Re-run every gate from a clean `git status`; confirm `git diff --stat main..feat/task-plans` touches no migration already on main and no `gen/` edits by hand (`npm run sqlc` no diff).
+Re-run every gate from a clean `git status`; confirm `git diff --stat main..orchestrator-plus` touches no migration already on main and no `gen/` edits by hand (`npm run sqlc` no diff).
 
 ---
 

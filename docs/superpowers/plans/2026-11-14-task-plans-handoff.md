@@ -1,6 +1,6 @@
 # Task Plans: branch handoff
 
-Branch `feat/task-plans` (a local worktree), cut from `main` at `c40128f149`. Not pushed; no PR. Design spec: [`docs/superpowers/specs/2026-11-14-task-plans-design.md`](../specs/2026-11-14-task-plans-design.md). Implementation plan: [`2026-11-14-task-plans.md`](2026-11-14-task-plans.md). User guide: `frontend/src/docs/content/guides/task-plans.mdx`.
+Branch `orchestrator-plus` (a local worktree), cut from `main` at `c40128f149`. Pushed to the fork `bhushanwalke/agent-orchestrator`; no PR upstream. Design spec: [`docs/superpowers/specs/2026-11-14-task-plans-design.md`](../specs/2026-11-14-task-plans-design.md). Implementation plan: [`2026-11-14-task-plans.md`](2026-11-14-task-plans.md). User guide: `frontend/src/docs/content/guides/task-plans.mdx`.
 
 ## What the branch adds
 
@@ -202,7 +202,7 @@ cd frontend && npx vite build --config vite.renderer.config.ts --outDir /tmp/ao-
 **Desktop lab** (per `AGENTS.md`; never against `~/.ao`):
 
 ```bash
-git worktree add --detach /tmp/ao-lab feat/task-plans
+git worktree add --detach /tmp/ao-lab orchestrator-plus
 cd /tmp/ao-lab/frontend && npm ci && npm run build:daemon -- --dev
 # strip the invoking agent's env, isolate data, use a scratch port (not 3047)
 for v in $(env | cut -d= -f1 | grep -E '^(CLAUDE|CLAUDECODE)'); do unset $v; done

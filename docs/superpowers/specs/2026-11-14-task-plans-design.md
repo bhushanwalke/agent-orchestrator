@@ -1,6 +1,6 @@
 # Task Plans: ticket → plan → milestone workers → QA — Design Spec
 
-Date: 2026-11-14. Repo: `agent-orchestrator` (Go daemon in `backend/`, Electron/React app in `frontend/`, shared UI in `packages/product-ui`). Work lands on branch `feat/task-plans` in a git worktree; `main` is never edited directly.
+Date: 2026-11-14. Repo: `agent-orchestrator` (Go daemon in `backend/`, Electron/React app in `frontend/`, shared UI in `packages/product-ui`). Work lands on branch `orchestrator-plus` in a git worktree; `main` is never edited directly.
 
 This document is the source of truth for the feature. The companion plan `docs/superpowers/plans/2026-11-14-task-plans.md` splits it into testable milestones.
 

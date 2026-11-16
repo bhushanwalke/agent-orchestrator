@@ -1,6 +1,6 @@
 <!-- Coordinator preface, 2026-11-14. The spec below was written against a
 `task-workflow` branch that does not exist on this machine. Treat §12 as the
-implementation plan and build it fresh on feat/task-plans (a local worktree) on top of 74fcd574b2. Rulings:
+implementation plan and build it fresh on orchestrator-plus (a local worktree) on top of 74fcd574b2. Rulings:
 
 R-A  Same branch and worktree as Task Plans, one commit per milestone (M1
      foundations: §12.2 §12.3 §12.4; M2 Claude Code §12.5; M3 Codex §12.6 and
@@ -25,7 +25,7 @@ R-H  Where this spec conflicts with the code on main, the code's structure
 
 # Harness model routes: identifying gateway, cloud and keyless logins
 
-Status: being rebuilt on `feat/task-plans` (milestones M1–M4, see the preface). Section 12 is the code map from the first implementation; section 13 records where this build differs.
+Status: being rebuilt on `orchestrator-plus` (milestones M1–M4, see the preface). Section 12 is the code map from the first implementation; section 13 records where this build differs.
 Applies to: Claude Code, Codex, OpenCode 1 and OpenCode 2 harnesses (local hosts)
 
 ## 1. Problem
@@ -681,7 +681,7 @@ own harness configs read-only:
   public-listing rule or the cleartext guard of section 5. Hardening it is a
   separate follow-up (ruling R19).
 
-## 13. Rulings (feat/task-plans build)
+## 13. Rulings (orchestrator-plus build)
 
 Each ruling: what was decided, why, and what it costs if wrong.
 
