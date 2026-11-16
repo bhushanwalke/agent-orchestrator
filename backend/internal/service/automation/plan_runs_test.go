@@ -94,15 +94,12 @@ func TestTickDispatchesPlanAndAutoRunsThroughThePlanService(t *testing.T) {
 	}
 }
 
-func TestPlanRunTitleIsClippedToThePlanTitleLimit(t *testing.T) {
+func TestPlanRunTitlePreservesTheFullNameAndOccurrence(t *testing.T) {
 	def := planAutomation(domain.AutomationTaskPlan, time.Time{})
-	def.DisplayName = strings.Repeat("n", 120)
+	def.DisplayName = "  " + strings.Repeat("界🛳", 60) + "  "
 	got := planRunTitle(def, time.Date(2026, time.November, 14, 2, 0, 0, 0, time.UTC))
-	if n := len([]rune(got)); n != domain.PlanTitleMaxChars {
-		t.Fatalf("title has %d runes, want %d: %q", n, domain.PlanTitleMaxChars, got)
-	}
-	if !strings.HasSuffix(got, "… · 2026-11-14 07:30") {
-		t.Fatalf("clipped title = %q, want the date kept", got)
+	if want := strings.TrimSpace(def.DisplayName) + " · 2026-11-14 07:30"; got != want {
+		t.Fatalf("title = %q, want %q", got, want)
 	}
 }
 

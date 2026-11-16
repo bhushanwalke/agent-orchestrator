@@ -1175,8 +1175,8 @@ func validateMilestoneInPlan(m domain.Milestone, others []domain.Milestone) erro
 }
 
 func validateTitle(title string) error {
-	if title == "" || utf8.RuneCountInString(title) > domain.PlanTitleMaxChars {
-		return invalidPlan("title", fmt.Sprintf("Title must be 1-%d characters", domain.PlanTitleMaxChars))
+	if title == "" {
+		return invalidPlan("title", "Title is required")
 	}
 	return nil
 }

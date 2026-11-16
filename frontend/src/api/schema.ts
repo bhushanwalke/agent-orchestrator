@@ -7215,7 +7215,7 @@ export interface components {
             mode?: "plan" | "auto";
             /** @description Display-only ticket link or reference. */
             ticketRef?: string;
-            /** @description Task title, 1-100 characters. */
+            /** @description Task title, required and nonempty after trimming whitespace. No character limit. */
             title: string;
         };
         CreateReportRequest: {
@@ -8059,6 +8059,7 @@ export interface components {
             maxParallel?: null | number;
             /** @description The orchestrator's plan document, Markdown. */
             specMarkdown?: null | string;
+            /** @description Task title, required to be nonempty after trimming whitespace when supplied. No character limit. */
             title?: null | string;
         };
         PlanResponse: {

@@ -357,6 +357,44 @@ func TestPlansAPI_NotImplementedWithoutService(t *testing.T) {
 	}
 }
 
+func TestPlansAPI_LongTitleRoundTrips(t *testing.T) {
+	for _, title := range []string{
+		"OCEAN-20601: Increase OBI AI coverage — raise the share of OBI shipments that clear HOTW/AR automation",
+		strings.Repeat("界🛳e\u0301", 100),
+	} {
+		p := samplePlanDomain()
+		p.Title = title
+		svc := &fakePlanService{plan: p, summary: plansvc.Summary{Plan: p}}
+		srv := newPlanTestServer(t, svc)
+		raw, err := json.Marshal(map[string]string{"title": title, "brief": "Build it"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, status, _ := doRequest(t, srv, http.MethodPost, "/api/v1/projects/mer/plans", string(raw))
+		if status != http.StatusCreated || svc.gotCreate.Title != title {
+			t.Fatalf("create status=%d input=%q body=%s", status, svc.gotCreate.Title, body)
+		}
+		var created controllers.PlanEnvelope
+		mustJSON(t, body, &created)
+		if created.Plan.Title != title {
+			t.Fatalf("create title = %q, want %q", created.Plan.Title, title)
+		}
+		raw, err = json.Marshal(map[string]string{"title": title})
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, status, _ = doRequest(t, srv, http.MethodPatch, "/api/v1/plans/plan_1", string(raw))
+		if status != http.StatusOK || svc.gotPatch.Title == nil || *svc.gotPatch.Title != title {
+			t.Fatalf("patch status=%d input=%+v body=%s", status, svc.gotPatch.Title, body)
+		}
+		var patched controllers.PlanEnvelope
+		mustJSON(t, body, &patched)
+		if patched.Plan.Title != title {
+			t.Fatalf("patch title = %q, want %q", patched.Plan.Title, title)
+		}
+	}
+}
+
 func TestPlansAPI_PatchAcceptsLargeSpec(t *testing.T) {
 	svc := &fakePlanService{summary: sampleDetail().Summary}
 	srv := newPlanTestServer(t, svc)

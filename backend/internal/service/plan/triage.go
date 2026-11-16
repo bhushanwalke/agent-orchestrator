@@ -170,8 +170,9 @@ func (s *Service) recordDecision(ctx context.Context, next domain.Plan) error {
 }
 
 // directSpawnConfig is the worker a direct decision starts: the Task tab's
-// spawn (session.DelegateTask) with the Task title as its explicit name. It
-// carries no plan link, parent, or sparse paths, so it reads as any Task-tab
+// spawn (session.DelegateTask) with the Task title clipped to the session name
+// limit as its explicit name. It carries no plan link, parent, or sparse paths,
+// so it reads as any Task-tab
 // worker on the board.
 func directSpawnConfig(p domain.Plan, project domain.ProjectRecord) ports.SpawnConfig {
 	prompt := directBrief(p)
@@ -182,7 +183,7 @@ func directSpawnConfig(p domain.Plan, project domain.ProjectRecord) ports.SpawnC
 		ProjectID:           p.ProjectID,
 		Kind:                domain.KindWorker,
 		Prompt:              prompt,
-		DisplayName:         p.Title,
+		DisplayName:         planSessionDisplayName(p.Title),
 		DisplayNameExplicit: true,
 		KeepDisplayName:     true,
 		NameFromPrompt:      project.Kind.WithDefault() != domain.ProjectKindScratch,

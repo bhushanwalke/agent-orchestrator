@@ -42,6 +42,7 @@ func TestMilestoneValidate(t *testing.T) {
 		{"qa kind needs qa key", func(m *Milestone) { m.Kind = MilestoneKindQA; m.Description = "" }, "key"},
 		{"unknown kind", func(m *Milestone) { m.Kind = "deploy" }, "kind"},
 		{"empty title", func(m *Milestone) { m.Title = "   " }, "title"},
+		{"title at limit", func(m *Milestone) { m.Title = strings.Repeat("é", 100) }, ""},
 		{"long title", func(m *Milestone) { m.Title = strings.Repeat("é", 101) }, "title"},
 		{"implement needs description", func(m *Milestone) { m.Description = " " }, "description"},
 		{"description too long", func(m *Milestone) { m.Description = strings.Repeat("x", MilestoneDescriptionMaxBytes+1) }, "description"},

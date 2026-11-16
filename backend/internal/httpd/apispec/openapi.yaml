@@ -21219,7 +21219,8 @@ components:
           description: Display-only ticket link or reference.
           type: string
         title:
-          description: Task title, 1-100 characters.
+          description: Task title, required and nonempty after trimming whitespace.
+            No character limit.
           type: string
       required:
       - title
@@ -23490,6 +23491,8 @@ components:
           - "null"
           - string
         title:
+          description: Task title, required to be nonempty after trimming whitespace
+            when supplied. No character limit.
           type:
           - "null"
           - string

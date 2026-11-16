@@ -4768,7 +4768,7 @@ type PlanEventsQuery struct {
 // CreatePlanRequest is the body of POST /api/v1/projects/{projectId}/plans.
 // Body limit: 2 MiB.
 type CreatePlanRequest struct {
-	Title       string `json:"title" description:"Task title, 1-100 characters."`
+	Title       string `json:"title" description:"Task title, required and nonempty after trimming whitespace. No character limit."`
 	Brief       string `json:"brief" description:"The ticket text as pasted, at most 100 KiB."`
 	TicketRef   string `json:"ticketRef,omitempty" description:"Display-only ticket link or reference."`
 	MaxParallel *int   `json:"maxParallel,omitempty" minimum:"1" maximum:"10" description:"Most implementation workers running at once. Defaults to 3 when omitted."`
@@ -4793,7 +4793,7 @@ type PlanTriage struct {
 // PlanPatchRequest is the body of PATCH /api/v1/plans/{planId}. Title and
 // spec change only while planning; maxParallel is always editable.
 type PlanPatchRequest struct {
-	Title        *string `json:"title,omitempty"`
+	Title        *string `json:"title,omitempty" description:"Task title, required to be nonempty after trimming whitespace when supplied. No character limit."`
 	MaxParallel  *int    `json:"maxParallel,omitempty" minimum:"1" maximum:"10"`
 	SpecMarkdown *string `json:"specMarkdown,omitempty" description:"The orchestrator's plan document, Markdown."`
 }

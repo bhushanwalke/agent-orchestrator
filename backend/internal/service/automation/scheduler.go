@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/aoagents/agent-orchestrator/backend/internal/domain"
 	"github.com/aoagents/agent-orchestrator/backend/internal/httpd/apierr"
@@ -225,18 +224,14 @@ func (s *Service) dispatchPlan(ctx context.Context, store schedulerStore, defini
 }
 
 // planRunTitle names a run's Task "<automation> · <occurrence>", the time in
-// the automation's timezone, clipping the name so the time always shows.
+// the automation's timezone.
 func planRunTitle(definition domain.Automation, scheduledFor time.Time) string {
 	at := scheduledFor.UTC()
 	if loc, err := time.LoadLocation(definition.Timezone); err == nil {
 		at = at.In(loc)
 	}
 	suffix := " · " + at.Format("2006-01-02 15:04")
-	name := []rune(strings.TrimSpace(definition.DisplayName))
-	if room := domain.PlanTitleMaxChars - utf8.RuneCountInString(suffix); len(name) > room {
-		name = append(name[:room-1], '…')
-	}
-	return string(name) + suffix
+	return strings.TrimSpace(definition.DisplayName) + suffix
 }
 
 // planRunOutcome finishes a running plan-backed run from its plan's phase: done
