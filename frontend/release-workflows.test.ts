@@ -70,10 +70,30 @@ describe("desktop release workflows", () => {
     );
   });
 
+  // fork-release.yml publishes releases, but only on a fork: every job is
+  // gated on github.event.repository.fork, so it can never mutate releases on
+  // the canonical repository. The test below pins that gate.
+  const forkOnlyWorkflows = ["fork-release.yml"];
+
   it("prevents public workflows from mutating releases or release tags", async () => {
-    const workflows = await readWorkflows();
+    const workflows = (await readWorkflows()).filter(
+      ({ name }) => !forkOnlyWorkflows.includes(name),
+    );
 
     expect(findReleaseMutationViolations(workflows)).toEqual([]);
+  });
+
+  it("gates every job of a fork-only release workflow on the fork flag", async () => {
+    for (const name of forkOnlyWorkflows) {
+      const contents = await readFile(path.join(workflowsDirectory, name), "utf8");
+      const jobsBlock = contents.slice(contents.indexOf("\njobs:\n"));
+      const jobs = jobsBlock.match(/^ {2}[\w-]+:\s*$/gm) ?? [];
+      const gates = jobsBlock.match(
+        /^ {4}if: \$\{\{ github\.event\.repository\.fork \}\}$/gm,
+      ) ?? [];
+      expect(jobs.length).toBeGreaterThan(0);
+      expect(gates.length).toBe(jobs.length);
+    }
   });
 
   it("recognizes multiline mutations without rejecting allowed workflows", () => {
