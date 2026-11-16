@@ -143,7 +143,7 @@ const (
 	DefaultPlanMaxParallel       = 3
 	MinPlanMaxParallel           = 1
 	MaxPlanMaxParallel           = 10
-	PlanTitleMaxChars            = 100
+	MilestoneTitleMaxChars       = 100
 	PlanBriefMaxBytes            = 102400
 	MilestoneDescriptionMaxBytes = 32768
 	QANoteMaxBytes               = 8192
@@ -266,8 +266,8 @@ func (m Milestone) Validate() error {
 		return milestoneFieldError("key", "the key %q is reserved for the qa milestone, which must use it", QAMilestoneKey)
 	}
 	title := strings.TrimSpace(m.Title)
-	if title == "" || utf8.RuneCountInString(title) > PlanTitleMaxChars {
-		return milestoneFieldError("title", "title must be 1-%d characters", PlanTitleMaxChars)
+	if title == "" || utf8.RuneCountInString(title) > MilestoneTitleMaxChars {
+		return milestoneFieldError("title", "title must be 1-%d characters", MilestoneTitleMaxChars)
 	}
 	if m.Kind == MilestoneKindImplement && strings.TrimSpace(m.Description) == "" {
 		return milestoneFieldError("description", "an implement milestone needs a description")

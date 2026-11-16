@@ -113,6 +113,7 @@ A milestone gets up to **3 attempts**: if its session ends without reporting don
 ## Limits and operational notes
 
 - Local single-repository projects only.
+- Task titles must be nonempty after trimming whitespace and have no character limit (the API request body is limited to 2 MiB). Milestone titles and derived worker session names remain limited to 100 characters.
 - At most 20 milestones per Task including QA (19 implementation milestones), and 1 to 10 implementation workers at once.
 - 3 automatic attempts per milestone.
 - The sidebar still lists every worker session of a Task under its project; only the board folds them into the Task card.

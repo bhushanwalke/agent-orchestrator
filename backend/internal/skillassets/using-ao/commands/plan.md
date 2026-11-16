@@ -39,7 +39,7 @@ After activation, act in the same turn on `<ao-milestone-blocked>` (a worker is 
 Milestones can be edited only while the plan is `planning`; later edits return `PLAN_NOT_EDITABLE`. Limits:
 
 - 20 milestones per plan, including the `qa` milestone (so 19 implementation milestones).
-- Title up to 100 characters; `--brief` up to 100 KiB; a milestone `--description` up to 32 KiB; a QA `--note` up to 8 KiB.
+- Task titles must be nonempty after trimming whitespace and have no character limit. Milestone titles remain limited to 100 characters; `--brief` up to 100 KiB; a milestone `--description` up to 32 KiB; a QA `--note` up to 8 KiB.
 - Keys match `^[a-z0-9][a-z0-9-]{0,31}$`, and `qa` is reserved.
 - Up to 50 sparse paths per milestone.
 - `--max-parallel` is 1-10 and defaults to 3. It stays editable through `PATCH /api/v1/plans/{id}`.

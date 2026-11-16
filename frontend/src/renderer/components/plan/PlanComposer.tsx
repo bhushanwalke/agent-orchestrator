@@ -10,8 +10,6 @@ import { Input } from "../ui/input";
 import { Label } from "../ui/label";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip";
 
-const TITLE_MAX = 100;
-
 /**
  * New Task in Plan or Auto mode: a ticket handed to the project orchestrator,
  * which plans it into milestones (Plan) or first decides between a plan and one
@@ -66,7 +64,6 @@ export function PlanComposer({ mode = "plan", projectId, tray }: { mode?: "plan"
 					<Input
 						id="plan-title"
 						value={title}
-						maxLength={TITLE_MAX}
 						placeholder={t("newTask.plan.titlePlaceholder")}
 						onChange={(event) => setTitle(event.target.value)}
 						disabled={submitting}

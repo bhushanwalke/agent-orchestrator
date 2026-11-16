@@ -176,7 +176,7 @@ type Sessions interface {
 ### 5.1 Create and kickoff
 
 `Create(ctx, CreateInput{ProjectID, Title, Brief, TicketRef, MaxParallel}) (domain.Plan, error)` (attachments: not yet):
-1. Validate (title 1–100, brief 1–102400 bytes, maxParallel 1–10 default 3).
+1. Validate (title nonempty after trim, with no character limit; brief 1–102400 bytes; maxParallel 1–10 default 3).
 2. Insert plan `state=planning`.
 3. `EnsureOrchestrator(projectID)`; store its id on the plan.
 4. Record event `plan_created`.

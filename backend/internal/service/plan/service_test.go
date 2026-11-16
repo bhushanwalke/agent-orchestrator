@@ -338,7 +338,6 @@ func TestCreateValidation(t *testing.T) {
 		code string
 	}{
 		{plan.CreateInput{ProjectID: "mer", Title: " ", Brief: "b"}, "INVALID_PLAN"},
-		{plan.CreateInput{ProjectID: "mer", Title: strings.Repeat("t", 101), Brief: "b"}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: ""}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: strings.Repeat("b", domain.PlanBriefMaxBytes+1)}, "INVALID_PLAN"},
 		{plan.CreateInput{ProjectID: "mer", Title: "t", Brief: "b", MaxParallel: intPtr(11)}, "INVALID_PLAN"},

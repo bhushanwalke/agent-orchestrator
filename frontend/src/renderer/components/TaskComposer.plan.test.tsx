@@ -147,6 +147,30 @@ describe("New Task plan mode", () => {
 		expect(h.navigate).not.toHaveBeenCalled();
 	});
 
+	it.each(["Plan", "Auto"])("submits a full title over 100 characters in %s mode", async (mode) => {
+		const title = "OCEAN-20601: Increase OBI AI coverage — raise the share of OBI shipments that clear HOTW/AR automation";
+		h.createPlan.mockResolvedValue({ id: "plan_9", projectId: "proj-1" });
+		renderPage();
+		await userEvent.click(screen.getByRole("tab", { name: mode }));
+		const input = screen.getByLabelText("Title");
+		await userEvent.type(input, `  ${title} 🛳️ é  `);
+		expect(input).toHaveValue(`  ${title} 🛳️ é  `);
+		await userEvent.type(screen.getByRole("textbox", { name: "Brief" }), "Build it");
+		await userEvent.click(screen.getByRole("button", { name: mode === "Auto" ? "Create task" : "Plan with orchestrator" }));
+		await waitFor(() => expect(h.createPlan).toHaveBeenCalledWith("proj-1", {
+			title: `${title} 🛳️ é`, brief: "Build it", ...(mode === "Auto" ? { mode: "auto" } : {}),
+		}));
+	});
+
+	it("keeps a whitespace-only title from submitting", async () => {
+		renderPage();
+		await userEvent.click(screen.getByRole("tab", { name: "Plan" }));
+		await userEvent.type(screen.getByLabelText("Title"), " \u00a0\u2003 ");
+		await userEvent.type(screen.getByRole("textbox", { name: "Brief" }), "Build it");
+		expect(screen.getByRole("button", { name: "Plan with orchestrator" })).toBeDisabled();
+		expect(h.createPlan).not.toHaveBeenCalled();
+	});
+
 	it("remembers the last mode per project", () => {
 		window.localStorage.setItem("ao.newTask.mode.proj-1", "plan");
 		renderPage();

@@ -91,6 +91,12 @@ func milestoneDisplayName(p domain.Plan, m domain.Milestone) string {
 	if m.Kind == domain.MilestoneKindQA {
 		name = p.Title + " · QA"
 	}
+	return planSessionDisplayName(name)
+}
+
+// planSessionDisplayName bounds a Task-derived session label without
+// shortening the Task's stored title or the worker's prompt.
+func planSessionDisplayName(name string) string {
 	if utf8.RuneCountInString(name) <= displayNameMaxChars {
 		return name
 	}
