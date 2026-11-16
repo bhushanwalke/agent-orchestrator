@@ -1,7 +1,6 @@
 <!-- Coordinator preface, 2026-11-14. The spec below was written against a
 `task-workflow` branch that does not exist on this machine. Treat §12 as the
-implementation plan and build it fresh on feat/task-plans (worktree
-/Users/ceo/ao-task-plans) on top of 74fcd574b2. Rulings:
+implementation plan and build it fresh on feat/task-plans (a local worktree) on top of 74fcd574b2. Rulings:
 
 R-A  Same branch and worktree as Task Plans, one commit per milestone (M1
      foundations: §12.2 §12.3 §12.4; M2 Claude Code §12.5; M3 Codex §12.6 and

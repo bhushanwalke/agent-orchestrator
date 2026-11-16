@@ -1,6 +1,6 @@
 # Task Plans: branch handoff
 
-Branch `feat/task-plans` (worktree `/Users/ceo/ao-task-plans`), cut from `main` at `c40128f149`. Not pushed; no PR. Design spec: [`docs/superpowers/specs/2026-11-14-task-plans-design.md`](../specs/2026-11-14-task-plans-design.md). Implementation plan: [`2026-11-14-task-plans.md`](2026-11-14-task-plans.md). User guide: `frontend/src/docs/content/guides/task-plans.mdx`.
+Branch `feat/task-plans` (a local worktree), cut from `main` at `c40128f149`. Not pushed; no PR. Design spec: [`docs/superpowers/specs/2026-11-14-task-plans-design.md`](../specs/2026-11-14-task-plans-design.md). Implementation plan: [`2026-11-14-task-plans.md`](2026-11-14-task-plans.md). User guide: `frontend/src/docs/content/guides/task-plans.mdx`.
 
 ## What the branch adds
 

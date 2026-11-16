@@ -1,6 +1,6 @@
 # Board lanes "In queue" and "Needs you", and manual card moves
 
-Date: 2026-11-15. Status: approved for implementation by the user (coordinator: Claude Fable session, implementer: `ao-implement`, verifier: `ao-verify`). Branch: `feat/task-plans`, worktree `/Users/ceo/ao-task-plans`.
+Date: 2026-11-15. Status: approved for implementation by the user (coordinator: Claude Fable session, implementer: `ao-implement`, verifier: `ao-verify`). Branch: `feat/task-plans`, in a local worktree.
 
 ## 1. Intent
 
